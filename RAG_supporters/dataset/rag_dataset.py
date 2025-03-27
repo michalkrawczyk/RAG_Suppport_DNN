@@ -33,6 +33,7 @@ class SampleTripletRAGChroma:
         1 if answer_2 is better, 0 if answer_1 is better, -1 if not labeled.
         Default is -1.
     """
+
     question_id: str
     answer_id_1: str
     answer_id_2: str
@@ -68,6 +69,7 @@ class BaseRAGDatasetGenerator(ABC):
     _embed_function : callable, optional
         Function used for embedding text
     """
+
     _question_db: Chroma
     _text_corpus_db: Chroma
     _dataset_dir: str
@@ -122,7 +124,7 @@ class BaseRAGDatasetGenerator(ABC):
 
     @abstractmethod
     def _generate_positive_triplet_samples(
-            self, question_chroma_id, relevant_passage_ids, **kwargs
+        self, question_chroma_id, relevant_passage_ids, **kwargs
     ) -> List[SampleTripletRAGChroma]:
         """
         Generate triplets consisting of a question and two relevant passages.
@@ -148,12 +150,12 @@ class BaseRAGDatasetGenerator(ABC):
 
     @abstractmethod
     def _generate_contrastive_triplet_samples(
-            self,
-            question_chroma_id,
-            relevant_passage_ids,
-            num_negative_samples: int = 2,
-            keep_same_negatives=False,
-            **kwargs,
+        self,
+        question_chroma_id,
+        relevant_passage_ids,
+        num_negative_samples: int = 2,
+        keep_same_negatives=False,
+        **kwargs,
     ) -> List[SampleTripletRAGChroma]:
         """
         Generate triplets with a question, one relevant passage and one irrelevant passage.
@@ -185,7 +187,7 @@ class BaseRAGDatasetGenerator(ABC):
 
     @abstractmethod
     def _generate_similar_triplet_samples(
-            self, question_chroma_id, relevant_passage_ids, **kwargs
+        self, question_chroma_id, relevant_passage_ids, **kwargs
     ) -> List[SampleTripletRAGChroma]:
         """
         Generate triplets with a question, a relevant passage, and a similar but less relevant passage.
@@ -210,10 +212,10 @@ class BaseRAGDatasetGenerator(ABC):
         pass
 
     def _samples_triplet_generator(
-            self,
-            sample_type: str,
-            relevant_ids_field_name: str = "relevant_passage_ids",
-            **kwargs,
+        self,
+        sample_type: str,
+        relevant_ids_field_name: str = "relevant_passage_ids",
+        **kwargs,
     ) -> List[Dict[str, Union[str, int]]]:
         """
         Generate triplet samples based on the specified sample type.
@@ -251,12 +253,14 @@ class BaseRAGDatasetGenerator(ABC):
         generator_func = sample_types_dict.get(sample_type)
 
         if generator_func is None:
-            raise ValueError(f"Unsupported sample type: {sample_type}. Must be one of {list(sample_types_dict.keys())}")
+            raise ValueError(
+                f"Unsupported sample type: {sample_type}. Must be one of {list(sample_types_dict.keys())}"
+            )
 
         # Iterate over questions and generate samples for each
         db_data = self.get_question_db_data(include=["ids", "embeddings", "metadatas"])
         for question_id in tqdm(
-                db_data["ids"], desc=f"Generating {sample_type} samples"
+            db_data["ids"], desc=f"Generating {sample_type} samples"
         ):
             question_embedding = db_data["embeddings"][question_id]
             relevant_passage_ids = db_data["metadatas"][question_id][
@@ -306,7 +310,7 @@ class BaseRAGDatasetGenerator(ABC):
         )["embeddings"]
 
     def get_question_db_data(
-            self, include: Iterable[str] = ("documents", "metadatas", "embeddings")
+        self, include: Iterable[str] = ("documents", "metadatas", "embeddings")
     ):
         """
         Retrieve data from the question database.
@@ -325,12 +329,12 @@ class BaseRAGDatasetGenerator(ABC):
         return self._question_db.get(include=list(include))
 
     def validate_triplet_samples(
-            self,
-            llm,
-            samples: List[SampleTripletRAGChroma],
-            analysis_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES,
-            answer_extraction_prompt: str = FINAL_VERDICT_PROMPT,
-            skip_labeled: bool = True,
+        self,
+        llm,
+        samples: List[SampleTripletRAGChroma],
+        analysis_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES,
+        answer_extraction_prompt: str = FINAL_VERDICT_PROMPT,
+        skip_labeled: bool = True,
     ) -> List[SampleTripletRAGChroma]:
         """
         Validate triplet samples using LLM-based verification.
@@ -401,13 +405,13 @@ class BaseRAGDatasetGenerator(ABC):
         return samples_verified
 
     def _raw_similarity_search_by_vector(
-            self,
-            search_db: Literal["question", "text"],
-            embedding: List[float],
-            k: int = 4,
-            where: Optional[Dict[str, str]] = None,
-            where_document: Optional[Dict[str, str]] = None,
-            **kwargs: Any,
+        self,
+        search_db: Literal["question", "text"],
+        embedding: List[float],
+        k: int = 4,
+        where: Optional[Dict[str, str]] = None,
+        where_document: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
     ) -> Dict[str, Optional[List[Any]]]:
         """
         Perform similarity search by vector and return relevance scores.

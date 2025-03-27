@@ -85,13 +85,13 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         else:
             # Text corpus is already initialized - load mapping from passage_id to chroma_id
             if not os.path.exists(
-                    os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json")
+                os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json")
             ):
                 raise FileNotFoundError("passage_id_to_chroma_id.json not found")
 
             # Load the mapping from file
             with open(
-                    os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "r"
+                os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "r"
             ) as f:
                 self._passage_id_to_chroma_id = json.load(f)
 
@@ -157,7 +157,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         # Process passages in batches
         for i, (passage, pid) in enumerate(
-                tqdm(zip(dataset["passage"], dataset["id"]), desc="Loading text corpus")
+            tqdm(zip(dataset["passage"], dataset["id"]), desc="Loading text corpus")
         ):
             metadata = {"id": pid}
             batch_list.append(passage)
@@ -180,7 +180,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         # Save passage_id_to_chroma_id mapping to file for future use
         with open(
-                os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "w"
+            os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "w"
         ) as f:
             json.dump(self._passage_id_to_chroma_id, f)
 
@@ -206,12 +206,12 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         # Process questions in batches
         for i, (question, qid, relevant_ids) in enumerate(
-                tqdm(
-                    zip(
-                        dataset["question"], dataset["id"], dataset["relevant_passage_ids"]
-                    ),
-                    desc="Loading dataset",
-                )
+            tqdm(
+                zip(
+                    dataset["question"], dataset["id"], dataset["relevant_passage_ids"]
+                ),
+                desc="Loading dataset",
+            )
         ):
             metadata = {"id": qid, "relevant_ids": relevant_ids}
             batch_list.append(question)
@@ -257,7 +257,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         if not self._passage_id_to_chroma_id:
             try:
                 with open(
-                        os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "r"
+                    os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "r"
                 ) as f:
                     self._passage_id_to_chroma_id = json.load(f)
             except FileNotFoundError:
@@ -272,7 +272,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         return self._passage_id_to_chroma_id[passage_id]
 
     def _generate_positive_triplet_samples(
-            self, question_embedding, relevant_passage_ids, **kwargs
+        self, question_embedding, relevant_passage_ids, **kwargs
     ) -> List[SampleTripletRAGChroma]:
         """
         Generate triplets consisting of a question and two relevant passages.
@@ -313,13 +313,13 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         return sample_triplets
 
     def _generate_contrastive_triplet_samples(
-            self,
-            question_embedding,
-            relevant_passage_ids,
-            num_negative_samples: int = 5,
-            keep_same_negatives=False,
-            assume_relevant_best=True,
-            **kwargs,
+        self,
+        question_embedding,
+        relevant_passage_ids,
+        num_negative_samples: int = 5,
+        keep_same_negatives=False,
+        assume_relevant_best=True,
+        **kwargs,
     ) -> List[SampleTripletRAGChroma]:
         """
         Generate triplets consisting of a question, one relevant passage, and one non-relevant passage.
@@ -372,7 +372,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         else:
             # For each relevant passage, pick random negative passages
             for pid_1 in relevant_passage_ids:
-                negatives_picked = random.sample(possible_negatives, num_negative_samples)
+                negatives_picked = random.sample(
+                    possible_negatives, num_negative_samples
+                )
                 for pid_2 in negatives_picked:
                     sample_triplets.append(
                         SampleTripletRAGChroma(
@@ -386,12 +388,12 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         return sample_triplets
 
     def _generate_similar_triplet_samples(
-            self,
-            question_embedding,
-            relevant_passage_ids,
-            score_threshold=0.3,
-            assume_relevant_best=True,
-            **kwargs,
+        self,
+        question_embedding,
+        relevant_passage_ids,
+        score_threshold=0.3,
+        assume_relevant_best=True,
+        **kwargs,
     ) -> List[SampleTripletRAGChroma]:
         """
         Generate triplets with a question, relevant passage, and a "similar" non-relevant passage.
@@ -424,7 +426,10 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         # Find passages that are similar to the question in embedding space
         close_questions = self._raw_similarity_search_by_vector(
-            question_embedding, search_db="text", k=kwargs.get("top_k", 3), includes=["ids", "distances"]
+            question_embedding,
+            search_db="text",
+            k=kwargs.get("top_k", 3),
+            includes=["ids", "distances"],
         )
         zipped_questions = zip(close_questions["ids"], close_questions["distances"])
 
