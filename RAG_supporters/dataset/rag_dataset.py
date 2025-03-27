@@ -3,7 +3,6 @@ from typing import List, Union, Dict, Iterable, Optional, Any, Literal
 from dataclasses import dataclass
 import logging
 
-
 from langchain_chroma import Chroma
 from tqdm import tqdm
 
@@ -13,12 +12,27 @@ from prompts_templates.rag_verifiers import (
     create_verifying_chain,
 )
 
-
 LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
 class SampleTripletRAGChroma:
+    """
+    A dataclass representing a triplet of question and two answers for RAG evaluation.
+
+    Attributes
+    ----------
+    question_id : str
+        Unique identifier for the question in ChromaDB
+    answer_id_1 : str
+        Unique identifier for the first answer in ChromaDB
+    answer_id_2 : str
+        Unique identifier for the second answer in ChromaDB
+    label : int, optional
+        Indicates which answer is better:
+        1 if answer_2 is better, 0 if answer_1 is better, -1 if not labeled.
+        Default is -1.
+    """
     question_id: str
     answer_id_1: str
     answer_id_2: str
@@ -37,6 +51,23 @@ class SampleTripletRAGChroma:
 
 
 class BaseRAGDatasetGenerator(ABC):
+    """
+    Abstract base class for generating RAG dataset samples.
+
+    This class provides the framework for creating different types of
+    question-answer triplet samples for evaluating RAG systems.
+
+    Attributes
+    ----------
+    _question_db : Chroma
+        ChromaDB collection containing questions
+    _text_corpus_db : Chroma
+        ChromaDB collection containing text corpus/passages
+    _dataset_dir : str
+        Directory path for storing dataset files
+    _embed_function : callable, optional
+        Function used for embedding text
+    """
     _question_db: Chroma
     _text_corpus_db: Chroma
     _dataset_dir: str
@@ -44,54 +75,173 @@ class BaseRAGDatasetGenerator(ABC):
 
     @abstractmethod
     def load_dataset(self):
+        """
+        Load the RAG dataset from the specified source.
+
+        This method should initialize the ChromaDB collections with
+        the questions and text corpus data.
+
+        Returns
+        -------
+        None
+        """
         pass
 
     @abstractmethod
     def validate_dataset(self):
+        """
+        Validate the loaded dataset for correctness and completeness.
+
+        This method should check that the dataset meets the required format
+        and contains all necessary information.
+
+        Returns
+        -------
+        bool
+            True if dataset is valid, False otherwise
+        """
         pass
 
     @abstractmethod
     def generate_samples(self, sample_type: str):
+        """
+        Generate dataset samples based on the specified type.
+
+        Parameters
+        ----------
+        sample_type : str
+            Type of samples to generate. Valid values are:
+            'positive', 'contrastive', 'similar'
+
+        Returns
+        -------
+        List
+            List of generated samples
+        """
         pass
 
     @abstractmethod
     def _generate_positive_triplet_samples(
-        self, question_chroma_id, relevant_passage_ids, **kwargs
+            self, question_chroma_id, relevant_passage_ids, **kwargs
     ) -> List[SampleTripletRAGChroma]:
         """
-        Generate triplets consisting of question and two relevant passages (if both assigned to the same question in database)
+        Generate triplets consisting of a question and two relevant passages.
+
+        These samples are intended for comparing two passages that are both
+        assigned to the same question in the database.
+
+        Parameters
+        ----------
+        question_chroma_id : str
+            Unique identifier of the question in ChromaDB
+        relevant_passage_ids : List[str]
+            List of passage IDs that are relevant to the question
+        **kwargs : dict
+            Additional arguments for customizing sample generation
+
+        Returns
+        -------
+        List[SampleTripletRAGChroma]
+            List of generated triplet samples
         """
         pass
 
     @abstractmethod
     def _generate_contrastive_triplet_samples(
-        self,
-        question_chroma_id,
-        relevant_passage_ids,
-        num_negative_samples: int = 2,
-        keep_same_negatives=False,
-        **kwargs,
+            self,
+            question_chroma_id,
+            relevant_passage_ids,
+            num_negative_samples: int = 2,
+            keep_same_negatives=False,
+            **kwargs,
     ) -> List[SampleTripletRAGChroma]:
         """
-        Generate triplets consisting of question, its relevant passage and randomly chosen passage not assigned to the question
+        Generate triplets with a question, one relevant passage and one irrelevant passage.
+
+        These samples are intended for comparing a relevant passage with a randomly
+        chosen passage not assigned to the question.
+
+        Parameters
+        ----------
+        question_chroma_id : str
+            Unique identifier of the question in ChromaDB
+        relevant_passage_ids : List[str]
+            List of passage IDs that are relevant to the question
+        num_negative_samples : int, optional
+            Number of negative samples to generate per question-passage pair.
+            Default is 2.
+        keep_same_negatives : bool, optional
+            If True, reuse the same negative samples for different relevant passages.
+            Default is False.
+        **kwargs : dict
+            Additional arguments for customizing sample generation
+
+        Returns
+        -------
+        List[SampleTripletRAGChroma]
+            List of generated triplet samples
         """
+        pass
 
     @abstractmethod
     def _generate_similar_triplet_samples(
-        self, question_chroma_id, relevant_passage_ids, **kwargs
+            self, question_chroma_id, relevant_passage_ids, **kwargs
     ) -> List[SampleTripletRAGChroma]:
         """
-        Generate triplets consisting of question, its relevant passage and randomly chosen passage assigned to the same question
-        close in embedding space to question
+        Generate triplets with a question, a relevant passage, and a similar but less relevant passage.
+
+        These samples are intended for comparing a relevant passage with another
+        passage that is semantically similar to the question but may be less relevant.
+
+        Parameters
+        ----------
+        question_chroma_id : str
+            Unique identifier of the question in ChromaDB
+        relevant_passage_ids : List[str]
+            List of passage IDs that are relevant to the question
+        **kwargs : dict
+            Additional arguments for customizing sample generation
+
+        Returns
+        -------
+        List[SampleTripletRAGChroma]
+            List of generated triplet samples
         """
         pass
 
     def _samples_triplet_generator(
-        self,
-        sample_type: str,
-        relevant_ids_field_name: str = "relevant_passage_ids",
-        **kwargs,
+            self,
+            sample_type: str,
+            relevant_ids_field_name: str = "relevant_passage_ids",
+            **kwargs,
     ) -> List[Dict[str, Union[str, int]]]:
+        """
+        Generate triplet samples based on the specified sample type.
+
+        This is a helper method that delegates to the specific sample generation
+        methods based on the requested sample type.
+
+        Parameters
+        ----------
+        sample_type : str
+            Type of samples to generate. Must be one of:
+            'positive', 'contrastive', 'similar'
+        relevant_ids_field_name : str, optional
+            Name of the field in question metadata that contains relevant passage IDs.
+            Default is "relevant_passage_ids".
+        **kwargs : dict
+            Additional arguments to pass to the specific sample generator
+
+        Returns
+        -------
+        List[Dict[str, Union[str, int]]]
+            List of generated samples in dictionary format
+
+        Raises
+        ------
+        ValueError
+            If sample_type is not one of the supported types
+        """
         sample_triplets = []
         sample_types_dict = {
             "positive": self._generate_positive_triplet_samples,
@@ -100,10 +250,13 @@ class BaseRAGDatasetGenerator(ABC):
         }
         generator_func = sample_types_dict.get(sample_type)
 
-        # TODO: iterate over questions and generate samples
+        if generator_func is None:
+            raise ValueError(f"Unsupported sample type: {sample_type}. Must be one of {list(sample_types_dict.keys())}")
+
+        # Iterate over questions and generate samples for each
         db_data = self.get_question_db_data(include=["ids", "embeddings", "metadatas"])
         for question_id in tqdm(
-            db_data["ids"], desc=f"Generating {sample_type} samples"
+                db_data["ids"], desc=f"Generating {sample_type} samples"
         ):
             question_embedding = db_data["embeddings"][question_id]
             relevant_passage_ids = db_data["metadatas"][question_id][
@@ -119,6 +272,26 @@ class BaseRAGDatasetGenerator(ABC):
         return sample_triplets
 
     def chroma_id_to_embedding(self, chroma_ids: Union[List[str], str], search_db: str):
+        """
+        Retrieve embeddings for the given ChromaDB IDs.
+
+        Parameters
+        ----------
+        chroma_ids : Union[List[str], str]
+            ChromaDB ID or list of IDs to retrieve embeddings for
+        search_db : str
+            Database to search in, either 'question' or 'text'
+
+        Returns
+        -------
+        List[List[float]]
+            List of embeddings corresponding to the provided IDs
+
+        Raises
+        ------
+        ValueError
+            If search_db is not 'question' or 'text'
+        """
         if search_db not in ["question", "text"]:
             raise ValueError(
                 f"search_db must be either 'question' or 'text'. Got {search_db}"
@@ -133,19 +306,57 @@ class BaseRAGDatasetGenerator(ABC):
         )["embeddings"]
 
     def get_question_db_data(
-        self, include: Iterable[str] = ("documents", "metadatas", "embeddings")
+            self, include: Iterable[str] = ("documents", "metadatas", "embeddings")
     ):
+        """
+        Retrieve data from the question database.
+
+        Parameters
+        ----------
+        include : Iterable[str], optional
+            Data fields to include in the response.
+            Default is ("documents", "metadatas", "embeddings").
+
+        Returns
+        -------
+        Dict
+            Dictionary containing the requested data fields
+        """
         return self._question_db.get(include=list(include))
 
     def validate_triplet_samples(
-        self,
-        llm,
-        samples: List[SampleTripletRAGChroma],
-        analysis_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES,
-        answer_extraction_prompt: str = FINAL_VERDICT_PROMPT,
-        skip_labeled: bool = True,
+            self,
+            llm,
+            samples: List[SampleTripletRAGChroma],
+            analysis_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES,
+            answer_extraction_prompt: str = FINAL_VERDICT_PROMPT,
+            skip_labeled: bool = True,
     ) -> List[SampleTripletRAGChroma]:
+        """
+        Validate triplet samples using LLM-based verification.
 
+        This method uses a language model to evaluate and label triplet samples
+        by determining which of the two passages better answers the question.
+
+        Parameters
+        ----------
+        llm : object
+            Language model to use for validation
+        samples : List[SampleTripletRAGChroma]
+            List of triplet samples to validate
+        analysis_prompt : str, optional
+            Prompt template for analysis. Default is SRC_COMPARE_PROMPT_WITH_SCORES.
+        answer_extraction_prompt : str, optional
+            Prompt template for extracting the final verdict. Default is FINAL_VERDICT_PROMPT.
+        skip_labeled : bool, optional
+            If True, skip samples that already have a label. Default is True.
+
+        Returns
+        -------
+        List[SampleTripletRAGChroma]
+            List of validated triplet samples with labels
+        """
+        # Create verification chain using the provided LLM and prompts
         verifier = create_verifying_chain(
             llm, analysis_prompt, answer_extraction_prompt
         )
@@ -153,10 +364,12 @@ class BaseRAGDatasetGenerator(ABC):
 
         for sample in tqdm(samples, desc="Validating samples"):
             try:
+                # Skip already labeled samples if requested
                 if skip_labeled and sample.label != -1:
                     samples_verified.append(sample)
                     continue
 
+                # Retrieve the question and source texts from ChromaDB
                 question_text = self._question_db.get_by_ids(sample.question_id)[
                     "documents"
                 ][0]
@@ -164,6 +377,7 @@ class BaseRAGDatasetGenerator(ABC):
                     [sample.answer_id_1, sample.answer_id_2]
                 )["documents"]
 
+                # Invoke the verifier chain to determine which source is better
                 result = verifier.invoke(
                     {
                         "question": question_text,
@@ -172,6 +386,7 @@ class BaseRAGDatasetGenerator(ABC):
                     }
                 )
 
+                # Create a new sample with the label assigned by the verifier
                 samples_verified.append(
                     SampleTripletRAGChroma(
                         question_id=sample.question_id,
@@ -186,32 +401,45 @@ class BaseRAGDatasetGenerator(ABC):
         return samples_verified
 
     def _raw_similarity_search_by_vector(
-        self,
-        search_db: Literal["question", "text"],
-        embedding: List[float],
-        k: int = 4,
-        where: Optional[Dict[str, str]] = None,
-        where_document: Optional[Dict[str, str]] = None,
-        **kwargs: Any,
+            self,
+            search_db: Literal["question", "text"],
+            embedding: List[float],
+            k: int = 4,
+            where: Optional[Dict[str, str]] = None,
+            where_document: Optional[Dict[str, str]] = None,
+            **kwargs: Any,
     ) -> Dict[str, Optional[List[Any]]]:
-        """Perform similarity search by vector and return relevance scores
+        """
+        Perform similarity search by vector and return relevance scores.
+
+        This is a low-level method that directly queries the ChromaDB collection.
 
         Parameters
         ----------
-        embedding: Embedding to search
-        k: Number of results to return. Defaults to 4.
-        where: dict used to filter results by
-                    e.g. {"color" : "red", "price": 4.20}.
-            where_document: dict used to filter by the documents.
-                    E.g. {$contains: {"text": "hello"}}.
-            kwargs: Additional keyword arguments to pass to Chroma collection query.
+        search_db : Literal["question", "text"]
+            Database to search in, either 'question' or 'text'
+        embedding : List[float]
+            Embedding vector to search with
+        k : int, optional
+            Number of results to return. Default is 4.
+        where : Optional[Dict[str, str]], optional
+            Dictionary to filter results by metadata fields.
+            E.g. {"color" : "red", "price": 4.20}
+        where_document : Optional[Dict[str, str]], optional
+            Dictionary to filter by document content.
+            E.g. {$contains: {"text": "hello"}}
+        **kwargs : Any
+            Additional keyword arguments to pass to Chroma collection query
 
         Returns
         -------
-
+        Dict[str, Optional[List[Any]]]
+            Dictionary containing query results from ChromaDB
         """
+        # Select the appropriate database
         db = self._question_db if search_db == "question" else self._text_corpus_db
 
+        # Execute the query and return results
         results = db._collection.query(
             query_embeddings=embedding,
             n_results=k,
