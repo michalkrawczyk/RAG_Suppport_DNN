@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List, Union, Dict, Iterable, Optional, Any, Tuple, Literal
+from typing import List, Union, Dict, Iterable, Optional, Any, Literal
 from dataclasses import dataclass
 import logging
-import os
 
 
 from langchain_chroma import Chroma
@@ -188,11 +187,11 @@ class BaseRAGDatasetGenerator(ABC):
 
     def _raw_similarity_search_by_vector(
         self,
+        search_db: Literal["question", "text"],
         embedding: List[float],
         k: int = 4,
         where: Optional[Dict[str, str]] = None,
         where_document: Optional[Dict[str, str]] = None,
-        search_db: Literal["question", "text"] = "text",
         **kwargs: Any,
     ) -> Dict[str, Optional[List[Any]]]:
         """Perform similarity search by vector and return relevance scores

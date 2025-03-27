@@ -254,7 +254,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         sample_triplets = []
 
         close_questions = self._raw_similarity_search_by_vector(
-            question_embedding, k=kwargs.get("top_k", 3), includes=["ids", "distances"]
+            question_embedding, search_db="text", k=kwargs.get("top_k", 3), includes=["ids", "distances"]
         )
         zipped_questions = zip(close_questions["ids"], close_questions["distances"])
         picked_questions = [
