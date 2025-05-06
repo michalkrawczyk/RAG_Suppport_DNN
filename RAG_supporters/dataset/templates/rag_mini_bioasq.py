@@ -160,7 +160,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         # Process passages in batches
         for i, (passage, pid) in enumerate(
-            tqdm(zip(dataset["passage"], dataset["id"]), desc="Loading text corpus")
+            tqdm(zip(dataset["passage"], dataset["id"]), desc="Loading text corpus", total=len(dataset["passage"]))
         ):
             metadata = {"id": pid}
             batch_list.append(passage)
