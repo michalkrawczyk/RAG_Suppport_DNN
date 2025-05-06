@@ -43,18 +43,21 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
     """
 
     def __init__(self, dataset_dir: str, embed_function, **kwargs):
-        super(RagMiniBioASQBase, self).__init__(dataset_dir)
-        self.load_dataset()
+        super(RagMiniBioASQBase, self).__init__()
+        self._dataset_dir = dataset_dir
+
         self._embed_function = (
             embed_function
             if embed_function is not None
             else OpenAIEmbeddings(
                 openai_api_key=kwargs.get(
-                    "openai_api_key", os.getenv("OPENAI_API_KEY")
-                ),
+                    "openai_api_key"
+                ) or os.getenv("OPENAI_API_KEY"),
                 model=kwargs.get("model", "text-embedding-3-small"),
             )
         )
+
+        self.load_dataset()
         self._passage_id_to_chroma_id = {}
 
     def load_dataset(self):
