@@ -136,7 +136,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 )
                 # TODO: Think about deleting record instead of raising error
 
-    def _init_text_corpus_db(self, batch_size: int = 10):
+    def _init_text_corpus_db(self, batch_size: int = 20):
         """
         Initialize the text corpus database with passages from the BioASQ dataset.
 
@@ -172,8 +172,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 chroma_keys = self._text_corpus_db.add_texts(batch_passages, batch_metadata)
 
                 # Update mapping
-                for key, pid in zip(chroma_keys, batch_ids):
-                    self._passage_id_to_chroma_id[pid] = key
+                self._passage_id_to_chroma_id.update(dict(zip(batch_ids, chroma_keys)))
 
                 pbar.update(batch_end - i)
 
