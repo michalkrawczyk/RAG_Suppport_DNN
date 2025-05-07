@@ -157,29 +157,25 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         batch_metadata = []
 
         self._passage_id_to_chroma_id = {}
+        total = len(dataset["passage"])
 
         # Process passages in batches
-        for i, (passage, pid) in enumerate(
-            tqdm(zip(dataset["passage"], dataset["id"]), desc="Loading text corpus", total=len(dataset["passage"]))
-        ):
-            metadata = {"id": pid}
-            batch_list.append(passage)
-            batch_metadata.append(metadata)
+        with tqdm(total=total, desc="Loading text corpus") as pbar:
+            for i in range(0, total, batch_size):
+                # Extract batch data
+                batch_end = min(i + batch_size, total)
+                batch_passages = dataset["passage"][i:batch_end]
+                batch_ids = dataset["id"][i:batch_end]
+                batch_metadata = [{"id": pid} for pid in batch_ids]
 
-            # Process batch when it reaches the desired size
-            if i % batch_size == 0 and i > 0:
-                chroma_keys = self._text_corpus_db.add_texts(batch_list, batch_metadata)
-                batch_list = []
-                batch_metadata = []
-                # Store mapping from passage IDs to Chroma IDs
-                for key, value in zip(chroma_keys, batch_metadata):
-                    self._passage_id_to_chroma_id[value["id"]] = key
+                # Add batch to Chroma
+                chroma_keys = self._text_corpus_db.add_texts(batch_passages, batch_metadata)
 
-        # Process any remaining passages
-        if len(batch_list) > 0:
-            chroma_keys = self._text_corpus_db.add_texts(batch_list, batch_metadata)
-            for key, value in zip(chroma_keys, batch_metadata):
-                self._passage_id_to_chroma_id[value["id"]] = key
+                # Update mapping
+                for key, pid in zip(chroma_keys, batch_ids):
+                    self._passage_id_to_chroma_id[pid] = key
+
+                pbar.update(batch_end - i)
 
         # Save passage_id_to_chroma_id mapping to file for future use
         with open(
