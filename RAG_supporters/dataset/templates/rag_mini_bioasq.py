@@ -203,7 +203,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         batch_metadata = []
 
         # Process questions in batches
-        for i, (question, qid, relevant_ids) in enumerate(
+        for i, (question, qid, relevant_ids_str) in enumerate(
             tqdm(
                 zip(
                     dataset["question"], dataset["id"], dataset["relevant_passage_ids"]
@@ -211,9 +211,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 desc="Loading dataset",
             )
         ):
-            metadata = {"id": qid, "relevant_ids": relevant_ids}
+            metadata = {"id": qid, "relevant_ids": relevant_ids_str}
             batch_list.append(question)
             batch_metadata.append(metadata)
+            relevant_ids = relevant_ids_str.strip('[]').split(',')
+            relevant_ids = [int(x.strip()) for x in relevant_ids]
 
             # Convert passage IDs to Chroma IDs for the relevant passages
             metadata["relevant_chroma_ids"] = [
