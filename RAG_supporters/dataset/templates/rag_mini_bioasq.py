@@ -218,9 +218,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             relevant_ids = [int(x.strip()) for x in relevant_ids]
 
             # Convert passage IDs to Chroma IDs for the relevant passages
-            metadata["relevant_chroma_ids"] = [
+            metadata["relevant_chroma_ids"] = str([
                 self._passage_id_to_chroma_id[pid] for pid in relevant_ids
-            ]
+            ])
 
             # Process batch when it reaches the desired size
             if i % batch_size == 0 and i > 0:
