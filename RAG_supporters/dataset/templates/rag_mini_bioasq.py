@@ -208,7 +208,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 zip(
                     dataset["question"], dataset["id"], dataset["relevant_passage_ids"]
                 ),
-                desc="Loading dataset",
+                desc="Loading dataset", total=len(dataset["id"])
             )
         ):
             metadata = {"id": qid, "relevant_ids": relevant_ids_str}
@@ -218,6 +218,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             relevant_ids = [int(x.strip()) for x in relevant_ids]
 
             # Convert passage IDs to Chroma IDs for the relevant passages
+            # TODO: Think about storing relevant ids in separate keys and method to search them in chroma at once
             metadata["relevant_chroma_ids"] = str([
                 self._passage_id_to_chroma_id[pid] for pid in relevant_ids
             ])
