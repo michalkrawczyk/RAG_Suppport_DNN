@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
+import csv
 from typing import List, Union, Dict, Iterable, Optional, Any, Literal
 from dataclasses import dataclass
 import logging
+import os
+from pathlib import Path
 
 from langchain_chroma import Chroma
 from tqdm import tqdm
@@ -453,3 +456,91 @@ class BaseRAGDatasetGenerator(ABC):
         )
 
         return results
+
+    def save_triplets_to_csv(
+            self,
+            triplets: List[SampleTripletRAGChroma],
+            output_file: str,
+            include_embeddings: bool = False
+    ) -> None:
+        """
+        Save triplet samples to CSV with both IDs and corresponding text content.
+
+        Parameters
+        ----------
+        triplets : List[SampleTripletRAGChroma]
+            The list of triplet samples to save
+        output_file : str
+            Path where the CSV file will be saved
+        include_embeddings : bool, optional
+            Whether to include embeddings in the output. Default is False.
+
+        Returns
+        -------
+        None
+        """
+
+
+        # Create directory if it doesn't exist
+        Path(os.path.dirname(output_file)).mkdir(parents=True, exist_ok=True)
+
+        LOGGER.info(f"Saving {len(triplets)} triplets to {output_file}")
+
+        with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+            fieldnames = [
+                'question_id',
+                'question_text',
+                'answer_id_1',
+                'answer_text_1',
+                'answer_id_2',
+                'answer_text_2',
+                'label'
+            ]
+
+            if include_embeddings:
+                fieldnames.extend([
+                    'question_embedding',
+                    'answer_embedding_1',
+                    'answer_embedding_2'
+                ])
+
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for triplet in tqdm(triplets, desc="Writing triplets to CSV"):
+                # Get texts from ChromaDB by IDs
+                question_text = self._question_db.get(ids=[triplet.question_id])["documents"][0]
+                answer_texts = self._text_corpus_db.get(
+                    ids=[triplet.answer_id_1, triplet.answer_id_2]
+                )["documents"]
+
+                row = {
+                    'question_id': triplet.question_id,
+                    'question_text': question_text,
+                    'answer_id_1': triplet.answer_id_1,
+                    'answer_text_1': answer_texts[0],
+                    'answer_id_2': triplet.answer_id_2,
+                    'answer_text_2': answer_texts[1],
+                    'label': triplet.label
+                }
+
+                if include_embeddings:
+                    # Get embeddings if requested
+                    question_embedding = self._question_db.get(
+                        ids=[triplet.question_id], include=["embeddings"]
+                    )["embeddings"][0]
+
+                    answer_embeddings = self._text_corpus_db.get(
+                        ids=[triplet.answer_id_1, triplet.answer_id_2],
+                        include=["embeddings"]
+                    )["embeddings"]
+
+                    row.update({
+                        'question_embedding': str(question_embedding),
+                        'answer_embedding_1': str(answer_embeddings[0]),
+                        'answer_embedding_2': str(answer_embeddings[1])
+                    })
+
+                writer.writerow(row)
+
+        LOGGER.info(f"Successfully saved triplets to {output_file}")
