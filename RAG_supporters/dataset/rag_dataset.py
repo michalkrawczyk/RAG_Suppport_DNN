@@ -108,7 +108,7 @@ class BaseRAGDatasetGenerator(ABC):
         pass
 
     @abstractmethod
-    def generate_samples(self, sample_type: str):
+    def generate_samples(self, sample_type: str, **kwargs):
         """
         Generate dataset samples based on the specified type.
 

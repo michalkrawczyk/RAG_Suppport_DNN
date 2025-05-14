@@ -136,6 +136,69 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 )
                 # TODO: Think about deleting record instead of raising error
 
+    def generate_samples(self, sample_type: str, save_to_csv=True, **kwargs):
+        valid_types = ['positive', 'contrastive', 'similar']
+        if sample_type not in valid_types:
+            raise ValueError(f"Invalid sample_type: {sample_type}. Must be one of {valid_types}")
+
+        # # Validate the dataset before generating samples
+        # self.validate_dataset()
+
+        all_samples = []
+
+        # Get all questions from the database
+        question_data = self._question_db.get(include=["metadatas"]) # ids are included
+
+        for i, question_id in enumerate(tqdm(question_data["ids"], desc=f"Generating {sample_type} samples")):
+            # Extract relevant passage IDs from metadata
+            metadata = question_data["metadatas"][i]
+            relevant_chroma_ids_str = metadata.get("relevant_chroma_ids", "[]")
+
+            # Parse the string representation of the list
+            try:
+                relevant_passage_ids = eval(relevant_chroma_ids_str)
+            except (SyntaxError, NameError):
+                # Handle malformed data
+                relevant_passage_ids = []
+
+            # Skip questions with no relevant passages
+            if not relevant_passage_ids:
+                continue
+
+            # Generate samples based on the requested type
+            if sample_type == 'positive':
+                samples = self._generate_positive_triplet_samples(
+                    question_id, relevant_passage_ids, **kwargs
+                )
+            elif sample_type == 'contrastive':
+                samples = self._generate_contrastive_triplet_samples(
+                    question_id,
+                    relevant_passage_ids,
+                    num_negative_samples=kwargs.get('num_negative_samples', 5),
+                    keep_same_negatives=kwargs.get('keep_same_negatives', False),
+                    assume_relevant_best=kwargs.get('assume_relevant_best', True),
+                    **kwargs
+                )
+            elif sample_type == 'similar':
+                samples = self._generate_similar_triplet_samples(
+                    question_id,
+                    relevant_passage_ids,
+                    score_threshold=kwargs.get('score_threshold', 0.3),
+                    assume_relevant_best=kwargs.get('assume_relevant_best', True),
+                    **kwargs
+                )
+
+            all_samples.extend(samples)
+
+        if save_to_csv:
+            self.save_triplets_to_csv(
+                all_samples,
+                output_file=f"{self._dataset_dir}{os.sep}triplets_{sample_type}.csv"
+            )
+
+        return all_samples
+
+
     def _init_text_corpus_db(self, batch_size: int = 20):
         """
         Initialize the text corpus database with passages from the BioASQ dataset.
