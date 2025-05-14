@@ -216,8 +216,6 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         dataset = load_dataset("rag-datasets/rag-mini-bioasq", "text-corpus")[
             "passages"
         ]
-        batch_list = []
-        batch_metadata = []
 
         self._passage_id_to_chroma_id = {}
         total = len(dataset["passage"])
