@@ -366,8 +366,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 sample_triplets.append(
                     SampleTripletRAGChroma(
                         question_id=question_chroma_id,
-                        answer_id_1=self._passage_id_text_to_chroma_id(pid_1),
-                        answer_id_2=self._passage_id_text_to_chroma_id(pid_2),
+                        answer_id_1=pid_1,
+                        answer_id_2=pid_2,
                         label=-1,  # -1 indicates no preference (both are relevant)
                     )
                 )
