@@ -58,7 +58,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         )
 
         self.load_dataset()
-        self._passage_id_to_chroma_id = {}
+        self._passage_id_to_db_id = {}
 
     def load_dataset(self):
         """
@@ -96,9 +96,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             with open(
                 os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "r"
             ) as f:
-                self._passage_id_to_chroma_id = json.load(f)
+                self._passage_id_to_db_id = json.load(f)
 
-                if len(self._passage_id_to_chroma_id) == 0:
+                if len(self._passage_id_to_db_id) == 0:
                     raise ValueError("passage_id_to_chroma_id.json is empty")
 
         # Check if question database is empty and load dataset if necessary
@@ -217,7 +217,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             "passages"
         ]
 
-        self._passage_id_to_chroma_id = {}
+        self._passage_id_to_db_id = {}
         total = len(dataset["passage"])
 
         # Process passages in batches
@@ -233,7 +233,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 chroma_keys = self._text_corpus_db.add_texts(batch_passages, batch_metadata)
 
                 # Update mapping
-                self._passage_id_to_chroma_id.update(dict(zip(batch_ids, chroma_keys)))
+                self._passage_id_to_db_id.update(dict(zip(batch_ids, chroma_keys)))
 
                 pbar.update(batch_end - i)
 
@@ -241,7 +241,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         with open(
             os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "w"
         ) as f:
-            json.dump(self._passage_id_to_chroma_id, f)
+            json.dump(self._passage_id_to_db_id, f)
 
     def _init_questions_db(self, batch_size: int = 10):
         """
@@ -281,7 +281,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             # Convert passage IDs to Chroma IDs for the relevant passages
             # TODO: Think about storing relevant ids in separate keys and method to search them in chroma at once
             metadata["relevant_chroma_ids"] = str([
-                self._passage_id_to_chroma_id[pid] for pid in relevant_ids
+                self._passage_id_to_db_id[pid] for pid in relevant_ids
             ])
 
             # Process batch when it reaches the desired size
@@ -316,25 +316,25 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             If the passage ID is not found in the mapping.
         """
         # Load mapping if not already loaded
-        if not self._passage_id_to_chroma_id:
+        if not self._passage_id_to_db_id:
             try:
                 with open(
                     os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "r"
                 ) as f:
-                    self._passage_id_to_chroma_id = json.load(f)
+                    self._passage_id_to_db_id = json.load(f)
             except FileNotFoundError:
                 raise FileNotFoundError("passage_id_to_chroma_id.json not found")
 
         # Check if passage ID exists in mapping
-        if passage_id not in self._passage_id_to_chroma_id:
+        if passage_id not in self._passage_id_to_db_id:
             raise ValueError(
                 f"Passage with ID {passage_id} not found in text corpus database"
             )
 
-        return self._passage_id_to_chroma_id[passage_id]
+        return self._passage_id_to_db_id[passage_id]
 
     def _generate_positive_triplet_samples(
-        self, question_chroma_id, relevant_passage_ids, **kwargs
+        self, question_db_id, relevant_passage_db_ids, **kwargs
     ) -> List[SampleTripletRAGChroma]:
         """
         Generate triplets consisting of a question and two relevant passages.
@@ -344,9 +344,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         Parameters
         ----------
-        question_chroma_id : str
+        question_db_id : str
             The Chroma ID of the question embedding.
-        relevant_passage_ids : list of str
+        relevant_passage_db_ids : list of str
             IDs of passages that are relevant to the question.
         **kwargs : dict
             Additional parameters (not used).
@@ -360,12 +360,12 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         sample_triplets = []
 
         # Generate combinations of relevant passages if there are at least 2
-        if len(relevant_passage_ids) > 1:
-            relevant_combinations = list(combinations(relevant_passage_ids, 2))
+        if len(relevant_passage_db_ids) > 1:
+            relevant_combinations = list(combinations(relevant_passage_db_ids, 2))
             for pid_1, pid_2 in relevant_combinations:
                 sample_triplets.append(
                     SampleTripletRAGChroma(
-                        question_id=question_chroma_id,
+                        question_id=question_db_id,
                         answer_id_1=pid_1,
                         answer_id_2=pid_2,
                         label=-1,  # -1 indicates no preference (both are relevant)
@@ -413,7 +413,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         # Find all possible negative passages (not relevant to this question)
         possible_negatives = [
             pid
-            for pid in self._passage_id_to_chroma_id.keys()
+            for pid in self._passage_id_to_db_id.keys()
             if pid not in relevant_passage_db_ids
         ]
         sample_triplets = []
