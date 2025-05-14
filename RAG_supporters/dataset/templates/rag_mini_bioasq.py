@@ -336,7 +336,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         return self._passage_id_to_chroma_id[passage_id]
 
     def _generate_positive_triplet_samples(
-        self, question_embedding, relevant_passage_ids, **kwargs
+        self, question_chroma_id, relevant_passage_ids, **kwargs
     ) -> List[SampleTripletRAGChroma]:
         """
         Generate triplets consisting of a question and two relevant passages.
@@ -346,7 +346,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         Parameters
         ----------
-        question_embedding : str
+        question_chroma_id : str
             The Chroma ID of the question embedding.
         relevant_passage_ids : list of str
             IDs of passages that are relevant to the question.
@@ -367,7 +367,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             for pid_1, pid_2 in relevant_combinations:
                 sample_triplets.append(
                     SampleTripletRAGChroma(
-                        question_id=question_embedding,
+                        question_id=question_chroma_id,
                         answer_id_1=self._passage_id_text_to_chroma_id(pid_1),
                         answer_id_2=self._passage_id_text_to_chroma_id(pid_2),
                         label=-1,  # -1 indicates no preference (both are relevant)
@@ -378,7 +378,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
     def _generate_contrastive_triplet_samples(
         self,
-        question_embedding,
+        question_chroma_id,
         relevant_passage_ids,
         num_negative_samples: int = 5,
         keep_same_negatives=False,
@@ -394,7 +394,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         Parameters
         ----------
-        question_embedding : str
+        question_chroma_id : str
             The Chroma ID of the question embedding.
         relevant_passage_ids : list of str
             IDs of passages that are relevant to the question.
@@ -427,7 +427,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             for pid_1, pid_2 in passage_combinations:
                 sample_triplets.append(
                     SampleTripletRAGChroma(
-                        question_id=question_embedding,
+                        question_id=question_chroma_id,
                         answer_id_1=self._passage_id_text_to_chroma_id(pid_1),
                         answer_id_2=self._passage_id_text_to_chroma_id(pid_2),
                         label=1 if assume_relevant_best else -1,
@@ -442,7 +442,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 for pid_2 in negatives_picked:
                     sample_triplets.append(
                         SampleTripletRAGChroma(
-                            question_id=question_embedding,
+                            question_id=question_chroma_id,
                             answer_id_1=self._passage_id_text_to_chroma_id(pid_1),
                             answer_id_2=self._passage_id_text_to_chroma_id(pid_2),
                             label=1 if assume_relevant_best else -1,
@@ -453,7 +453,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
     def _generate_similar_triplet_samples(
         self,
-        question_embedding,
+        question_chroma_id,
         relevant_passage_ids,
         score_threshold=0.3,
         assume_relevant_best=True,
@@ -468,7 +468,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         Parameters
         ----------
-        question_embedding : str
+        question_chroma_id : str
             The Chroma ID of the question embedding.
         relevant_passage_ids : list of str
             IDs of passages that are relevant to the question.
@@ -490,7 +490,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         # Find passages that are similar to the question in embedding space
         close_questions = self._raw_similarity_search_by_vector(
-            question_embedding,
+            question_chroma_id,
             search_db="text",
             k=kwargs.get("top_k", 3),
             includes=["ids", "distances"],
@@ -509,7 +509,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         for pid_1, pid_2 in passage_combinations:
             sample_triplets.append(
                 SampleTripletRAGChroma(
-                    question_id=question_embedding,
+                    question_id=question_chroma_id,
                     answer_id_1=self._passage_id_text_to_chroma_id(pid_1),
                     answer_id_2=self._passage_id_text_to_chroma_id(pid_2),
                     label=1 if assume_relevant_best else -1,
