@@ -154,8 +154,8 @@ class BaseRAGDatasetGenerator(ABC):
     @abstractmethod
     def _generate_contrastive_triplet_samples(
         self,
-        question_chroma_id,
-        relevant_passage_ids,
+        question_db_id,
+        relevant_passage_db_ids,
         num_negative_samples: int = 2,
         keep_same_negatives=False,
         **kwargs,
@@ -168,9 +168,9 @@ class BaseRAGDatasetGenerator(ABC):
 
         Parameters
         ----------
-        question_chroma_id : str
+        question_db_id : str
             Unique identifier of the question in ChromaDB
-        relevant_passage_ids : List[str]
+        relevant_passage_db_ids : List[str]
             List of passage IDs that are relevant to the question
         num_negative_samples : int, optional
             Number of negative samples to generate per question-passage pair.
@@ -190,7 +190,7 @@ class BaseRAGDatasetGenerator(ABC):
 
     @abstractmethod
     def _generate_similar_triplet_samples(
-        self, question_chroma_id, relevant_passage_ids, **kwargs
+        self, question_db_id, relevant_passage_db_ids, **kwargs
     ) -> List[SampleTripletRAGChroma]:
         """
         Generate triplets with a question, a relevant passage, and a similar but less relevant passage.
@@ -200,9 +200,9 @@ class BaseRAGDatasetGenerator(ABC):
 
         Parameters
         ----------
-        question_chroma_id : str
+        question_db_id : str
             Unique identifier of the question in ChromaDB
-        relevant_passage_ids : List[str]
+        relevant_passage_db_ids : List[str]
             List of passage IDs that are relevant to the question
         **kwargs : dict
             Additional arguments for customizing sample generation
@@ -214,69 +214,6 @@ class BaseRAGDatasetGenerator(ABC):
         """
         pass
 
-    def _samples_triplet_generator(
-        self,
-        sample_type: str,
-        relevant_ids_field_name: str = "relevant_passage_ids",
-        **kwargs,
-    ) -> List[Dict[str, Union[str, int]]]:
-        """
-        Generate triplet samples based on the specified sample type.
-
-        This is a helper method that delegates to the specific sample generation
-        methods based on the requested sample type.
-
-        Parameters
-        ----------
-        sample_type : str
-            Type of samples to generate. Must be one of:
-            'positive', 'contrastive', 'similar'
-        relevant_ids_field_name : str, optional
-            Name of the field in question metadata that contains relevant passage IDs.
-            Default is "relevant_passage_ids".
-        **kwargs : dict
-            Additional arguments to pass to the specific sample generator
-
-        Returns
-        -------
-        List[Dict[str, Union[str, int]]]
-            List of generated samples in dictionary format
-
-        Raises
-        ------
-        ValueError
-            If sample_type is not one of the supported types
-        """
-        sample_triplets = []
-        sample_types_dict = {
-            "positive": self._generate_positive_triplet_samples,
-            "contrastive": self._generate_contrastive_triplet_samples,
-            "similar": self._generate_similar_triplet_samples,
-        }
-        generator_func = sample_types_dict.get(sample_type)
-
-        if generator_func is None:
-            raise ValueError(
-                f"Unsupported sample type: {sample_type}. Must be one of {list(sample_types_dict.keys())}"
-            )
-
-        # Iterate over questions and generate samples for each
-        db_data = self.get_question_db_data(include=["ids", "embeddings", "metadatas"])
-        for question_id in tqdm(
-            db_data["ids"], desc=f"Generating {sample_type} samples"
-        ):
-            question_embedding = db_data["embeddings"][question_id]
-            relevant_passage_ids = db_data["metadatas"][question_id][
-                relevant_ids_field_name
-            ]
-
-            sample_triplets.append(
-                generator_func(question_embedding, relevant_passage_ids, **kwargs)
-            )
-
-            # TODO: Should new ids be added to ChromaDB? - Risk of storing not relevant or poisoned data
-
-        return sample_triplets
 
     def chroma_id_to_embedding(self, chroma_ids: Union[List[str], str], search_db: str):
         """
