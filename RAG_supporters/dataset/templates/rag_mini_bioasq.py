@@ -45,6 +45,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
     def __init__(self, dataset_dir: str, embed_function, **kwargs):
         super(RagMiniBioASQBase, self).__init__()
         self._dataset_dir = dataset_dir
+        self._passage_id_cast_json = os.path.join(self._dataset_dir, "passage_id_to_db_id.json")
 
         self._embed_function = (
             embed_function
@@ -56,6 +57,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 model=kwargs.get("model", "text-embedding-3-small"),
             )
         )
+
 
         self.load_dataset()
         self._passage_id_to_db_id = {}
@@ -85,21 +87,22 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         # Check if text corpus is initialized, if not - initialize it
         if len(self._text_corpus_db.get()["ids"]) == 0:
             self._init_text_corpus_db()
+            self._save_passage_json() # Save the mapping of passage IDs to Chroma IDs for future use
         else:
             # Text corpus is already initialized - load mapping from passage_id to chroma_id
             if not os.path.exists(
-                os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json")
+                os.path.join(self._passage_id_cast_json)
             ):
-                raise FileNotFoundError("passage_id_to_chroma_id.json not found")
+                raise FileNotFoundError(f"{self._passage_id_cast_json} not found")
 
             # Load the mapping from file
             with open(
-                os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "r"
+                self._passage_id_cast_json, "r"
             ) as f:
                 self._passage_id_to_db_id = json.load(f)
 
                 if len(self._passage_id_to_db_id) == 0:
-                    raise ValueError("passage_id_to_chroma_id.json is empty")
+                    raise ValueError(f"{self._passage_id_cast_json}.json is empty")
 
         # Check if question database is empty and load dataset if necessary
         if len(self._question_db.get()["ids"]) == 0:
@@ -237,12 +240,6 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
                 pbar.update(batch_end - i)
 
-        # Save passage_id_to_chroma_id mapping to file for future use
-        with open(
-            os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "w"
-        ) as f:
-            json.dump(self._passage_id_to_db_id, f)
-
     def _init_questions_db(self, batch_size: int = 10):
         """
         Initialize the question database with questions from the BioASQ dataset.
@@ -319,11 +316,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         if not self._passage_id_to_db_id:
             try:
                 with open(
-                    os.path.join(self._dataset_dir, "passage_id_to_chroma_id.json"), "r"
+                    self._passage_id_cast_json, "r"
                 ) as f:
                     self._passage_id_to_db_id = json.load(f)
             except FileNotFoundError:
-                raise FileNotFoundError("passage_id_to_chroma_id.json not found")
+                raise FileNotFoundError(f"{self._passage_id_cast_json} not found")
 
         # Check if passage ID exists in mapping
         if passage_id not in self._passage_id_to_db_id:
@@ -515,3 +512,15 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             )
 
         return sample_triplets
+
+    def _save_passage_json(self):
+        """
+        Save the passage database to a JSON file.
+
+        The JSON file will contain the mapping of passage IDs to their corresponding
+        Chroma IDs. This is useful for later retrieval and analysis.
+        """
+        with open(
+            self._passage_id_cast_json, "w"
+        ) as f:
+            json.dump(self._passage_id_to_db_id, f)
