@@ -101,8 +101,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             ) as f:
                 self._passage_id_to_db_id = json.load(f)
 
-                if len(self._passage_id_to_db_id) == 0:
-                    raise ValueError(f"{self._passage_id_cast_json}.json is empty")
+            self.validate_dataset()
+
+
 
         # Check if question database is empty and load dataset if necessary
         if len(self._question_db.get()["ids"]) == 0:
