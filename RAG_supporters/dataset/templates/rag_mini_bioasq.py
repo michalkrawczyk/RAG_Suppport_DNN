@@ -412,39 +412,40 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             List of triplet samples with contrastive examples.
         """
         # Find all possible negative passages (not relevant to this question)
-        possible_negatives = [
-            pid
-            for pid in self._passage_id_to_db_id.keys()
-            if pid not in relevant_passage_db_ids
-        ]
+        # Get all Chroma IDs from the text corpus
+        all_chroma_ids = set(self._text_corpus_db.get()["ids"])
+
+        # Find all possible negative passages (not relevant to this question)
+        possible_negatives = list(all_chroma_ids - set(relevant_passage_db_ids))
+
         sample_triplets = []
 
         if keep_same_negatives:
             # Use the same set of negative passages for all triplets
-            negatives_picked = random.sample(possible_negatives, num_negative_samples)
+            negatives_picked = random.sample(possible_negatives, min(num_negative_samples, len(possible_negatives)))
             passage_combinations = list(product(relevant_passage_db_ids, negatives_picked))
-            for pid_1, pid_2 in passage_combinations:
+            for rel_pid, neg_pid in passage_combinations:
                 sample_triplets.append(
                     SampleTripletRAGChroma(
                         question_id=question_db_id,
-                        answer_id_1=self._passage_id_text_to_chroma_id(pid_1),
-                        answer_id_2=self._passage_id_text_to_chroma_id(pid_2),
-                        label=1 if assume_relevant_best else -1,
+                        answer_id_1=rel_pid,  # Already a Chroma ID
+                        answer_id_2=neg_pid,  # Already a Chroma ID
+                        label=0 if assume_relevant_best else -1,
                     )
                 )
         else:
             # For each relevant passage, pick random negative passages
-            for pid_1 in relevant_passage_db_ids:
+            for rel_pid in relevant_passage_db_ids:
                 negatives_picked = random.sample(
-                    possible_negatives, num_negative_samples
+                    possible_negatives, min(num_negative_samples, len(possible_negatives))
                 )
-                for pid_2 in negatives_picked:
+                for neg_pid in negatives_picked:
                     sample_triplets.append(
                         SampleTripletRAGChroma(
                             question_id=question_db_id,
-                            answer_id_1=self._passage_id_text_to_chroma_id(pid_1),
-                            answer_id_2=self._passage_id_text_to_chroma_id(pid_2),
-                            label=1 if assume_relevant_best else -1,
+                            answer_id_1=rel_pid,  # Already a Chroma ID
+                            answer_id_2=neg_pid,  # Already a Chroma ID
+                            label=0 if assume_relevant_best else -1,
                         )
                     )
 
@@ -488,11 +489,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         sample_triplets = []
 
         # Find passages that are similar to the question in embedding space
-        close_questions = self._raw_similarity_search_by_vector(
-            question_db_id,
+        close_questions = self._raw_similarity_search(
+            self._question_db.get(ids=[question_db_id], include=['documents'])["documents"][0],
             search_db="text",
             k=kwargs.get("top_k", 3),
-            includes=["ids", "distances"],
+            include=["distances"],
         )
         zipped_questions = zip(close_questions["ids"], close_questions["distances"])
 
