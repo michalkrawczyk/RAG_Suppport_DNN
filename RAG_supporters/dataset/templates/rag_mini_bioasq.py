@@ -126,7 +126,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         if len(text_corpus_docs["ids"]) == 0:
             raise ValueError("Text corpus database is empty")
 
-        question_docs = self._question_db.get(include=["ids"])
+        question_docs = self._question_db.get(include=["metadatas"])
         if len(question_docs["ids"]) == 0:
             raise ValueError("Question database is empty")
 
