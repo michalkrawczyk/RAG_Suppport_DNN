@@ -122,7 +122,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             If databases are empty or questions lack required metadata.
         """
         # Check if databases are not empty
-        text_corpus_docs = self._text_corpus_db.get(include=["ids"])
+        text_corpus_docs = self._text_corpus_db.get(include=["metadatas"])
         if len(text_corpus_docs["ids"]) == 0:
             raise ValueError("Text corpus database is empty")
 
