@@ -130,6 +130,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         if len(question_docs["ids"]) == 0:
             raise ValueError("Question database is empty")
 
+        if len(self._passage_id_to_db_id) == 0:
+            raise ValueError(f"{self._passage_id_cast_json}.json is empty")
+
         # Check if all questions have relevant_chroma_ids metadata
         for i, doc_id in enumerate(question_docs["ids"]):
             metadata = question_docs["metadatas"][i]
