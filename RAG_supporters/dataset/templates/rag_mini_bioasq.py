@@ -474,7 +474,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             IDs of passages that are relevant to the question.
         score_threshold : float, default=0.3
             Distance threshold for considering a passage as "similar" to the question.
-        assume_relevant_best : bool, default=True
+        assume_relevant_best : bool, default=TrueQ
             If True, label is 1 (relevant passage is better), otherwise -1.
         **kwargs : dict
             Additional parameters:
@@ -489,29 +489,28 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         sample_triplets = []
 
         # Find passages that are similar to the question in embedding space
-        close_questions = self._raw_similarity_search(
-            self._question_db.get(ids=[question_db_id], include=['documents'])["documents"][0],
+        close_sources = self._raw_similarity_search(
+            self._question_db.get(ids=[question_db_id], include=['embeddings'])["embeddings"][0],
             search_db="text",
             k=kwargs.get("top_k", 3),
             include=["distances"],
         )
-        zipped_questions = zip(close_questions["ids"], close_questions["distances"])
 
         # Filter passages that are close but not in the relevant set
         picked_questions = [
-            qid
-            for qid, dist in zipped_questions
-            if dist < score_threshold and qid not in relevant_passage_db_ids
+            source_id
+            for source_id, dist in zip(close_sources["ids"][0], close_sources["distances"][0])
+            if dist < score_threshold and source_id not in relevant_passage_db_ids
         ]
 
         # Generate combinations of relevant and similar non-relevant passages
         passage_combinations = list(product(relevant_passage_db_ids, picked_questions))
-        for pid_1, pid_2 in passage_combinations:
+        for source_id_1, source_id_2 in passage_combinations:
             sample_triplets.append(
                 SampleTripletRAGChroma(
                     question_id=question_db_id,
-                    answer_id_1=self._passage_id_text_to_chroma_id(pid_1),
-                    answer_id_2=self._passage_id_text_to_chroma_id(pid_2),
+                    answer_id_1=source_id_1,
+                    answer_id_2=source_id_2,
                     label=1 if assume_relevant_best else -1,
                 )
             )

@@ -42,7 +42,7 @@ class SampleTripletRAGChroma:
     answer_id_2: str
     label: int = (
         -1
-    )  # 1 if answer_1 is better, 0 if answer_2 is better, -1 if not labeled
+    )  # 1 if answer_2 is better, 0 if answer_1 is better, -1 if not labeled.
 
 
 # TODO: For later implementation (for efficient storing)
@@ -344,10 +344,10 @@ class BaseRAGDatasetGenerator(ABC):
 
         return samples_verified
 
-    def _raw_similarity_search_by_vector(
+    def _raw_similarity_search(
         self,
+        embedding_or_text: Union[List[float], str],
         search_db: Literal["question", "text"],
-        embedding: List[float],
         k: int = 4,
         where: Optional[Dict[str, str]] = None,
         where_document: Optional[Dict[str, str]] = None,
@@ -362,7 +362,7 @@ class BaseRAGDatasetGenerator(ABC):
         ----------
         search_db : Literal["question", "text"]
             Database to search in, either 'question' or 'text'
-        embedding : List[float]
+        embedding_or_text : List[float]
             Embedding vector to search with
         k : int, optional
             Number of results to return. Default is 4.
@@ -383,9 +383,11 @@ class BaseRAGDatasetGenerator(ABC):
         # Select the appropriate database
         db = self._question_db if search_db == "question" else self._text_corpus_db
 
-        # Execute the query and return results
+        embedding_querry = embedding_or_text if not isinstance(embedding_or_text, str) else self._embed_function.embed_query(embedding_or_text)
+        # Note: Normal search by text won't work as setting embed function in _collection don't work properly
+
         results = db._collection.query(
-            query_embeddings=embedding,
+            query_embeddings=embedding_querry,
             n_results=k,
             where=where,
             where_document=where_document,
