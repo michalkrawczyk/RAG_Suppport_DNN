@@ -134,7 +134,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             raise ValueError(f"{self._passage_id_cast_json}.json is empty")
 
         # Check if all questions have relevant_chroma_ids metadata
-        for i, doc_id in enumerate(question_docs["ids"]):
+        for i, doc_id in tqdm(enumerate(question_docs["ids"])):
             metadata = question_docs["metadatas"][i]
             if not metadata.get("relevant_chroma_ids", None):
                 raise ValueError(
