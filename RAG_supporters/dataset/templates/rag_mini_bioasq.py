@@ -184,7 +184,6 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                     num_negative_samples=kwargs.get('num_negative_samples', 5),
                     keep_same_negatives=kwargs.get('keep_same_negatives', False),
                     assume_relevant_best=kwargs.get('assume_relevant_best', True),
-                    **kwargs
                 )
             elif sample_type == 'similar':
                 samples = self._generate_similar_triplet_samples(
@@ -192,7 +191,6 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                     relevant_passage_ids,
                     score_threshold=kwargs.get('score_threshold', 0.3),
                     assume_relevant_best=kwargs.get('assume_relevant_best', True),
-                    **kwargs
                 )
 
             all_samples.extend(samples)
