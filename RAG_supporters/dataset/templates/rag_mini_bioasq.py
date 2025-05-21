@@ -3,6 +3,7 @@ import json
 from typing import List
 from itertools import combinations, product
 import random
+import warnings
 
 from dataset.rag_dataset import BaseRAGDatasetGenerator, SampleTripletRAGChroma
 
@@ -93,13 +94,14 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             if not os.path.exists(
                 os.path.join(self._passage_id_cast_json)
             ):
-                raise FileNotFoundError(f"{self._passage_id_cast_json} not found")
-
-            # Load the mapping from file
-            with open(
-                self._passage_id_cast_json, "r"
-            ) as f:
-                self._passage_id_to_db_id = json.load(f)
+                # passage_id_cast is only needed for now for question db init so might be skipped
+                warnings.warn(f"{self._passage_id_cast_json} not found", RuntimeWarning)
+                #  raise FileNotFoundError(f"{self._passage_id_cast_json} not found")
+            else:
+                with open(
+                    self._passage_id_cast_json, "r"
+                ) as f:
+                    self._passage_id_to_db_id = json.load(f)
 
             self.validate_dataset()
 
@@ -131,8 +133,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         if len(question_docs["ids"]) == 0:
             raise ValueError("Question database is empty")
 
-        if len(self._passage_id_to_db_id) == 0:
-            raise ValueError(f"{self._passage_id_cast_json}.json is empty")
+        # if len(self._passage_id_to_db_id) == 0:
+        #     raise ValueError(f"{self._passage_id_cast_json}.json is empty")
 
         # Check if all questions have relevant_chroma_ids metadata
         for i, doc_id in tqdm(enumerate(question_docs["ids"])):
