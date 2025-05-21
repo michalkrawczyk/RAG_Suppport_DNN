@@ -9,7 +9,9 @@ from typing import Optional
 LOGGER = Logger(__name__)
 
 
-def load_csv_dataset_pd(csv_path: str, sample_limit: Optional[int] = None) -> pd.DataFrame:
+def load_csv_dataset_pd(
+    csv_path: str, sample_limit: Optional[int] = None
+) -> pd.DataFrame:
     """
     Load CSV dataset wit triplet samples into a pandas DataFrame.
 

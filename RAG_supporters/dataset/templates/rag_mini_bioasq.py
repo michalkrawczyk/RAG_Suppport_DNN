@@ -46,19 +46,19 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
     def __init__(self, dataset_dir: str, embed_function, **kwargs):
         super(RagMiniBioASQBase, self).__init__()
         self._dataset_dir = dataset_dir
-        self._passage_id_cast_json = os.path.join(self._dataset_dir, "passage_id_to_db_id.json")
+        self._passage_id_cast_json = os.path.join(
+            self._dataset_dir, "passage_id_to_db_id.json"
+        )
 
         self._embed_function = (
             embed_function
             if embed_function is not None
             else OpenAIEmbeddings(
-                openai_api_key=kwargs.get(
-                    "openai_api_key"
-                ) or os.getenv("OPENAI_API_KEY"),
+                openai_api_key=kwargs.get("openai_api_key")
+                or os.getenv("OPENAI_API_KEY"),
                 model=kwargs.get("model", "text-embedding-3-small"),
             )
         )
-
 
         self.load_dataset()
         self._passage_id_to_db_id = {}
@@ -88,24 +88,18 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         # Check if text corpus is initialized, if not - initialize it
         if len(self._text_corpus_db.get()["ids"]) == 0:
             self._init_text_corpus_db()
-            self._save_passage_json() # Save the mapping of passage IDs to Chroma IDs for future use
+            self._save_passage_json()  # Save the mapping of passage IDs to Chroma IDs for future use
         else:
             # Text corpus is already initialized - load mapping from passage_id to chroma_id
-            if not os.path.exists(
-                os.path.join(self._passage_id_cast_json)
-            ):
+            if not os.path.exists(os.path.join(self._passage_id_cast_json)):
                 # passage_id_cast is only needed for now for question db init so might be skipped
                 warnings.warn(f"{self._passage_id_cast_json} not found", RuntimeWarning)
                 #  raise FileNotFoundError(f"{self._passage_id_cast_json} not found")
             else:
-                with open(
-                    self._passage_id_cast_json, "r"
-                ) as f:
+                with open(self._passage_id_cast_json, "r") as f:
                     self._passage_id_to_db_id = json.load(f)
 
             self.validate_dataset()
-
-
 
         # Check if question database is empty and load dataset if necessary
         if len(self._question_db.get()["ids"]) == 0:
@@ -146,9 +140,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 # TODO: Think about deleting record instead of raising error
 
     def generate_samples(self, sample_type: str, save_to_csv=True, **kwargs):
-        valid_types = ['positive', 'contrastive', 'similar']
+        valid_types = ["positive", "contrastive", "similar"]
         if sample_type not in valid_types:
-            raise ValueError(f"Invalid sample_type: {sample_type}. Must be one of {valid_types}")
+            raise ValueError(
+                f"Invalid sample_type: {sample_type}. Must be one of {valid_types}"
+            )
 
         # # Validate the dataset before generating samples
         # self.validate_dataset()
@@ -156,9 +152,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         all_samples = []
 
         # Get all questions from the database
-        question_data = self._question_db.get(include=["metadatas"]) # ids are included
+        question_data = self._question_db.get(include=["metadatas"])  # ids are included
 
-        for i, question_id in enumerate(tqdm(question_data["ids"], desc=f"Generating {sample_type} samples")):
+        for i, question_id in enumerate(
+            tqdm(question_data["ids"], desc=f"Generating {sample_type} samples")
+        ):
             # Extract relevant passage IDs from metadata
             metadata = question_data["metadatas"][i]
             relevant_chroma_ids_str = metadata.get("relevant_chroma_ids", "[]")
@@ -175,24 +173,24 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 continue
 
             # Generate samples based on the requested type
-            if sample_type == 'positive':
+            if sample_type == "positive":
                 samples = self._generate_positive_triplet_samples(
                     question_id, relevant_passage_ids, **kwargs
                 )
-            elif sample_type == 'contrastive':
+            elif sample_type == "contrastive":
                 samples = self._generate_contrastive_triplet_samples(
                     question_id,
                     relevant_passage_ids,
-                    num_negative_samples=kwargs.get('num_negative_samples', 5),
-                    keep_same_negatives=kwargs.get('keep_same_negatives', False),
-                    assume_relevant_best=kwargs.get('assume_relevant_best', True),
+                    num_negative_samples=kwargs.get("num_negative_samples", 5),
+                    keep_same_negatives=kwargs.get("keep_same_negatives", False),
+                    assume_relevant_best=kwargs.get("assume_relevant_best", True),
                 )
-            elif sample_type == 'similar':
+            elif sample_type == "similar":
                 samples = self._generate_similar_triplet_samples(
                     question_id,
                     relevant_passage_ids,
-                    score_threshold=kwargs.get('score_threshold', 0.3),
-                    assume_relevant_best=kwargs.get('assume_relevant_best', True),
+                    score_threshold=kwargs.get("score_threshold", 0.3),
+                    assume_relevant_best=kwargs.get("assume_relevant_best", True),
                 )
 
             all_samples.extend(samples)
@@ -200,11 +198,10 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         if save_to_csv:
             self.save_triplets_to_csv(
                 all_samples,
-                output_file=f"{self._dataset_dir}{os.sep}triplets_{sample_type}.csv"
+                output_file=f"{self._dataset_dir}{os.sep}triplets_{sample_type}.csv",
             )
 
         return all_samples
-
 
     def _init_text_corpus_db(self, batch_size: int = 20):
         """
@@ -237,7 +234,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 batch_metadata = [{"id": pid} for pid in batch_ids]
 
                 # Add batch to Chroma
-                chroma_keys = self._text_corpus_db.add_texts(batch_passages, batch_metadata)
+                chroma_keys = self._text_corpus_db.add_texts(
+                    batch_passages, batch_metadata
+                )
 
                 # Update mapping
                 self._passage_id_to_db_id.update(dict(zip(batch_ids, chroma_keys)))
@@ -270,20 +269,21 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 zip(
                     dataset["question"], dataset["id"], dataset["relevant_passage_ids"]
                 ),
-                desc="Loading dataset", total=len(dataset["id"])
+                desc="Loading dataset",
+                total=len(dataset["id"]),
             )
         ):
             metadata = {"id": qid, "relevant_ids": relevant_ids_str}
             batch_list.append(question)
             batch_metadata.append(metadata)
-            relevant_ids = relevant_ids_str.strip('[]').split(',')
+            relevant_ids = relevant_ids_str.strip("[]").split(",")
             relevant_ids = [int(x.strip()) for x in relevant_ids]
 
             # Convert passage IDs to Chroma IDs for the relevant passages
             # TODO: Think about storing relevant ids in separate keys and method to search them in chroma at once
-            metadata["relevant_chroma_ids"] = str([
-                self._passage_id_to_db_id[pid] for pid in relevant_ids
-            ])
+            metadata["relevant_chroma_ids"] = str(
+                [self._passage_id_to_db_id[pid] for pid in relevant_ids]
+            )
 
             # Process batch when it reaches the desired size
             if i % batch_size == 0 and i > 0:
@@ -319,9 +319,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         # Load mapping if not already loaded
         if not self._passage_id_to_db_id:
             try:
-                with open(
-                    self._passage_id_cast_json, "r"
-                ) as f:
+                with open(self._passage_id_cast_json, "r") as f:
                     self._passage_id_to_db_id = json.load(f)
             except FileNotFoundError:
                 raise FileNotFoundError(f"{self._passage_id_cast_json} not found")
@@ -422,8 +420,12 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         if keep_same_negatives:
             # Use the same set of negative passages for all triplets
-            negatives_picked = random.sample(possible_negatives, min(num_negative_samples, len(possible_negatives)))
-            passage_combinations = list(product(relevant_passage_db_ids, negatives_picked))
+            negatives_picked = random.sample(
+                possible_negatives, min(num_negative_samples, len(possible_negatives))
+            )
+            passage_combinations = list(
+                product(relevant_passage_db_ids, negatives_picked)
+            )
             for rel_pid, neg_pid in passage_combinations:
                 sample_triplets.append(
                     SampleTripletRAGChroma(
@@ -437,7 +439,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             # For each relevant passage, pick random negative passages
             for rel_pid in relevant_passage_db_ids:
                 negatives_picked = random.sample(
-                    possible_negatives, min(num_negative_samples, len(possible_negatives))
+                    possible_negatives,
+                    min(num_negative_samples, len(possible_negatives)),
                 )
                 for neg_pid in negatives_picked:
                     sample_triplets.append(
@@ -490,7 +493,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         # Find passages that are similar to the question in embedding space
         close_sources = self._raw_similarity_search(
-            self._question_db.get(ids=[question_db_id], include=['embeddings'])["embeddings"][0],
+            self._question_db.get(ids=[question_db_id], include=["embeddings"])[
+                "embeddings"
+            ][0],
             search_db="text",
             k=kwargs.get("top_k", 3),
             include=["distances"],
@@ -499,7 +504,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         # Filter passages that are close but not in the relevant set
         picked_questions = [
             source_id
-            for source_id, dist in zip(close_sources["ids"][0], close_sources["distances"][0])
+            for source_id, dist in zip(
+                close_sources["ids"][0], close_sources["distances"][0]
+            )
             if dist < score_threshold and source_id not in relevant_passage_db_ids
         ]
 
@@ -524,7 +531,5 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         The JSON file will contain the mapping of passage IDs to their corresponding
         Chroma IDs. This is useful for later retrieval and analysis.
         """
-        with open(
-            self._passage_id_cast_json, "w"
-        ) as f:
+        with open(self._passage_id_cast_json, "w") as f:
             json.dump(self._passage_id_to_db_id, f)

@@ -214,7 +214,6 @@ class BaseRAGDatasetGenerator(ABC):
         """
         pass
 
-
     def chroma_id_to_embedding(self, chroma_ids: Union[List[str], str], search_db: str):
         """
         Retrieve embeddings for the given ChromaDB IDs.
@@ -383,7 +382,11 @@ class BaseRAGDatasetGenerator(ABC):
         # Select the appropriate database
         db = self._question_db if search_db == "question" else self._text_corpus_db
 
-        embedding_querry = embedding_or_text if not isinstance(embedding_or_text, str) else self._embed_function.embed_query(embedding_or_text)
+        embedding_querry = (
+            embedding_or_text
+            if not isinstance(embedding_or_text, str)
+            else self._embed_function.embed_query(embedding_or_text)
+        )
         # Note: Normal search by text won't work as setting embed function in _collection don't work properly
 
         results = db._collection.query(
@@ -397,10 +400,10 @@ class BaseRAGDatasetGenerator(ABC):
         return results
 
     def save_triplets_to_csv(
-            self,
-            triplets: List[SampleTripletRAGChroma],
-            output_file: str,
-            include_embeddings: bool = False
+        self,
+        triplets: List[SampleTripletRAGChroma],
+        output_file: str,
+        include_embeddings: bool = False,
     ) -> None:
         """
         Save triplet samples to CSV with both IDs and corresponding text content.
@@ -419,48 +422,47 @@ class BaseRAGDatasetGenerator(ABC):
         None
         """
 
-
         # Create directory if it doesn't exist
         Path(os.path.dirname(output_file)).mkdir(parents=True, exist_ok=True)
 
         LOGGER.info(f"Saving {len(triplets)} triplets to {output_file}")
 
-        with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+        with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
             fieldnames = [
-                'question_id',
-                'question_text',
-                'answer_id_1',
-                'answer_text_1',
-                'answer_id_2',
-                'answer_text_2',
-                'label'
+                "question_id",
+                "question_text",
+                "answer_id_1",
+                "answer_text_1",
+                "answer_id_2",
+                "answer_text_2",
+                "label",
             ]
 
             if include_embeddings:
-                fieldnames.extend([
-                    'question_embedding',
-                    'answer_embedding_1',
-                    'answer_embedding_2'
-                ])
+                fieldnames.extend(
+                    ["question_embedding", "answer_embedding_1", "answer_embedding_2"]
+                )
 
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
 
             for triplet in tqdm(triplets, desc="Writing triplets to CSV"):
                 # Get texts from ChromaDB by IDs
-                question_text = self._question_db.get(ids=[triplet.question_id])["documents"][0]
+                question_text = self._question_db.get(ids=[triplet.question_id])[
+                    "documents"
+                ][0]
                 answer_texts = self._text_corpus_db.get(
                     ids=[triplet.answer_id_1, triplet.answer_id_2]
                 )["documents"]
 
                 row = {
-                    'question_id': triplet.question_id,
-                    'question_text': question_text,
-                    'answer_id_1': triplet.answer_id_1,
-                    'answer_text_1': answer_texts[0],
-                    'answer_id_2': triplet.answer_id_2,
-                    'answer_text_2': answer_texts[1],
-                    'label': triplet.label
+                    "question_id": triplet.question_id,
+                    "question_text": question_text,
+                    "answer_id_1": triplet.answer_id_1,
+                    "answer_text_1": answer_texts[0],
+                    "answer_id_2": triplet.answer_id_2,
+                    "answer_text_2": answer_texts[1],
+                    "label": triplet.label,
                 }
 
                 if include_embeddings:
@@ -471,14 +473,16 @@ class BaseRAGDatasetGenerator(ABC):
 
                     answer_embeddings = self._text_corpus_db.get(
                         ids=[triplet.answer_id_1, triplet.answer_id_2],
-                        include=["embeddings"]
+                        include=["embeddings"],
                     )["embeddings"]
 
-                    row.update({
-                        'question_embedding': str(question_embedding),
-                        'answer_embedding_1': str(answer_embeddings[0]),
-                        'answer_embedding_2': str(answer_embeddings[1])
-                    })
+                    row.update(
+                        {
+                            "question_embedding": str(question_embedding),
+                            "answer_embedding_1": str(answer_embeddings[0]),
+                            "answer_embedding_2": str(answer_embeddings[1]),
+                        }
+                    )
 
                 writer.writerow(row)
 
