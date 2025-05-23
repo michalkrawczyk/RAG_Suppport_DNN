@@ -328,7 +328,9 @@ class BaseRAGDatasetGenerator(ABC):
                         f"Label mismatch for sample {sample.question_id}: "
                         f"Predicted: {predicted_label}, Actual: {sample.label}"
                     )
-                    predicted_label = predicted_label if overwrite_mismatched_labels else sample.label
+                    predicted_label = (
+                        predicted_label if overwrite_mismatched_labels else sample.label
+                    )
 
                 # Create a new sample with the label assigned by the verifier
                 samples_verified.append(
