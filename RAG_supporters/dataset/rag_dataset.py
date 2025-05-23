@@ -1,19 +1,17 @@
-from abc import ABC, abstractmethod
 import csv
-from typing import List, Union, Dict, Iterable, Optional, Any, Literal
-from dataclasses import dataclass
 import logging
 import os
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Dict, Iterable, List, Literal, Optional, Union
 
 from langchain_chroma import Chroma
 from tqdm import tqdm
 
-from prompts_templates.rag_verifiers import (
-    FINAL_VERDICT_PROMPT,
-    SRC_COMPARE_PROMPT_WITH_SCORES,
-    create_verifying_chain,
-)
+from prompts_templates.rag_verifiers import (FINAL_VERDICT_PROMPT,
+                                             SRC_COMPARE_PROMPT_WITH_SCORES,
+                                             create_verifying_chain)
 
 LOGGER = logging.getLogger(__name__)
 

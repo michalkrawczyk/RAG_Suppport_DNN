@@ -1,15 +1,15 @@
-import os
 import json
-from typing import List
-from itertools import combinations, product
+import os
 import random
 import warnings
-
-from dataset.rag_dataset import BaseRAGDatasetGenerator, SampleTripletRAGChroma
+from itertools import combinations, product
+from typing import List
 
 from datasets import load_dataset
-from tqdm import tqdm
 from langchain_chroma import Chroma
+from tqdm import tqdm
+
+from dataset.rag_dataset import BaseRAGDatasetGenerator, SampleTripletRAGChroma
 
 try:
     from langchain_openai import OpenAIEmbeddings

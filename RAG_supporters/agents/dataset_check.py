@@ -3,21 +3,15 @@ from logging import Logger
 LOGGER = Logger(__name__)
 
 try:
-    from typing import TypedDict, List
+    from typing import List, TypedDict
+
+    from langchain_core.messages import (AIMessage, BaseMessage, HumanMessage,
+                                         SystemMessage)
+    from langgraph.graph import END, START, StateGraph
+    from tqdm import tqdm
 
     from prompts_templates.rag_verifiers import (
-        SRC_COMPARE_PROMPT_WITH_SCORES,
-        FINAL_VERDICT_PROMPT,
-    )
-
-    from langgraph.graph import END, START, StateGraph
-    from langchain_core.messages import (
-        AIMessage,
-        HumanMessage,
-        SystemMessage,
-        BaseMessage,
-    )
-    from tqdm import tqdm
+        FINAL_VERDICT_PROMPT, SRC_COMPARE_PROMPT_WITH_SCORES)
 
     class CheckAgentState(TypedDict):
         """State object for the agent."""

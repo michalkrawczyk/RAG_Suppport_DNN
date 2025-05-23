@@ -1,10 +1,10 @@
-from torch.utils.data import Dataset, DataLoader
-import pandas as pd
-
-from excluded_drafts.rag_dataset import BaseDatasetRAG
-
 from logging import Logger
 from typing import Optional
+
+import pandas as pd
+from torch.utils.data import DataLoader, Dataset
+
+from excluded_drafts.rag_dataset import BaseDatasetRAG
 
 LOGGER = Logger(__name__)
 
