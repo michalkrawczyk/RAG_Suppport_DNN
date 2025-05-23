@@ -5,12 +5,11 @@ LOGGER = Logger(__name__)
 try:
     from typing import TypedDict, List
 
+    from prompts_templates.rag_verifiers import SRC_COMPARE_PROMPT_WITH_SCORES, FINAL_VERDICT_PROMPT
+
     from langgraph.graph import END, START, StateGraph
     from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, BaseMessage
     from tqdm import tqdm
-
-    from prompts_templates.rag_verifiers import SRC_COMPARE_PROMPT_WITH_SCORES, FINAL_VERDICT_PROMPT
-
 
 
     class CheckAgentState(TypedDict):
@@ -141,9 +140,9 @@ try:
             results = []
 
             for idx, row in tqdm(df.iterrows(), total=len(df), desc="Processing sources"):
-                question = row['question']
-                source1 = row['source1']
-                source2 = row['source2']
+                question = row['question_text']
+                source1 = row['answer_text_1']
+                source2 = row['answer_text_2']
                 current_label = row.get('label', -1)
                 try:
 
@@ -171,6 +170,16 @@ try:
 
             return df
 
+        def process_csv(self, csv_path,  skip_labeled=True):
+            """
+            Perform dataset check on a CSV file (Overwriting the file).
+            """
+            import pandas as pd
+
+            df = pd.read_csv(csv_path)
+            self.process_dataframe(df, save_path=csv_path, skip_labeled=skip_labeled)
+
+
 except ImportError as e:
     LOGGER.warning(f"ImportError: {str(e)}. Please ensure all dependencies are installed.")
 
@@ -182,12 +191,3 @@ except ImportError as e:
 except Exception as e:
     LOGGER.error(f"Unexpected error: {str(e)}")
     raise e
-
-
-
-
-
-
-
-
-
