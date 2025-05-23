@@ -5,16 +5,38 @@ LOGGER = Logger(__name__)
 try:
     from typing import List, TypedDict
 
-    from langchain_core.messages import (AIMessage, BaseMessage, HumanMessage,
-                                         SystemMessage)
+    from langchain_core.messages import (
+        AIMessage,
+        BaseMessage,
+        HumanMessage,
+        SystemMessage,
+    )
     from langgraph.graph import END, START, StateGraph
     from tqdm import tqdm
 
     from prompts_templates.rag_verifiers import (
-        FINAL_VERDICT_PROMPT, SRC_COMPARE_PROMPT_WITH_SCORES)
+        FINAL_VERDICT_PROMPT,
+        SRC_COMPARE_PROMPT_WITH_SCORES,
+    )
 
     class CheckAgentState(TypedDict):
-        """State object for the agent."""
+        """State object for the agent.
+
+        Attributes
+        ----------
+        messages : List[BaseMessage]
+            List of messages exchanged during the checking process.
+        question : str
+            The question being analyzed.
+        source1 : str
+            First source text to compare.
+        source2 : str
+            Second source text to compare.
+        analysis : str
+            Analysis result from source comparison.
+        final_choice : int
+            Final choice label (0 for source1, 1 for source2, -1 for error).
+        """
 
         messages: List[BaseMessage]
         question: str
@@ -24,6 +46,24 @@ try:
         final_choice: int
 
     class DatasetCheckAgent:
+        """Agent for checking and comparing text sources in datasets.
+
+        This agent uses LLM-based analysis to compare two text sources for a given
+        question and determine which source is better or if they are duplicates.
+
+        Parameters
+        ----------
+        llm : object
+            Language model instance for performing text analysis.
+
+        Attributes
+        ----------
+        _llm : object
+            The language model used for analysis.
+        _executor : object
+            Compiled workflow executor for the checking process.
+        """
+
         _executor = None
 
         def __init__(self, llm):
@@ -34,9 +74,20 @@ try:
             self._build_graph()
 
         def _build_graph(self):
+            """Build the workflow graph for source checking process."""
+
             def source_check(state: CheckAgentState):
-                """
-                Check the sources for duplicates and other issues.
+                """Check the sources for duplicates and other issues.
+
+                Parameters
+                ----------
+                state : CheckAgentState
+                    Current state containing question and sources to compare.
+
+                Returns
+                -------
+                CheckAgentState
+                    Updated state with analysis results.
                 """
                 prompt = SRC_COMPARE_PROMPT_WITH_SCORES.format(
                     question=state["question"],
@@ -60,8 +111,17 @@ try:
                 return state
 
             def assign_label(state: CheckAgentState):
-                """
-                Assign a label to the sources based on the comparison.
+                """Assign a label to the sources based on the comparison.
+
+                Parameters
+                ----------
+                state : CheckAgentState
+                    Current state containing analysis results.
+
+                Returns
+                -------
+                CheckAgentState
+                    Updated state with final choice label.
                 """
                 # Create final verdict prompt
                 verdict_prompt = FINAL_VERDICT_PROMPT.format(analysis=state["analysis"])
@@ -107,6 +167,29 @@ try:
             return_analysis=False,
             return_messages=False,
         ):
+            """Compare two text sources for a given question.
+
+            Parameters
+            ----------
+            question : str
+                The question to analyze the sources against.
+            source1 : str
+                First source text to compare.
+            source2 : str
+                Second source text to compare.
+            return_analysis : bool, optional
+                Whether to return the analysis text, by default False.
+            return_messages : bool, optional
+                Whether to return the message history, by default False.
+
+            Returns
+            -------
+            dict
+                Dictionary containing:
+                - 'label': int (0 for source1, 1 for source2, -1 for error)
+                - 'analysis': str or None (if return_analysis=True)
+                - 'messages': list or empty list (if return_messages=True)
+            """
             state: CheckAgentState = {
                 "messages": [],
                 "question": question,
@@ -141,8 +224,22 @@ try:
             return result
 
         def process_dataframe(self, df, save_path=None, skip_labeled=True):
-            """
-            Process the dataframe to check for duplicates and other issues.
+            """Process the dataframe to check for duplicates and other issues.
+
+            Parameters
+            ----------
+            df : pandas.DataFrame
+                DataFrame containing columns: 'question_text', 'answer_text_1',
+                'answer_text_2', and optionally 'label'.
+            save_path : str, optional
+                Path to save the processed DataFrame as CSV, by default None.
+            skip_labeled : bool, optional
+                Whether to skip rows that already have labels (!= -1), by default True.
+
+            Returns
+            -------
+            pandas.DataFrame
+                DataFrame with updated 'label' column containing comparison results.
             """
             results = []
 
@@ -184,8 +281,14 @@ try:
             return df
 
         def process_csv(self, csv_path, skip_labeled=True):
-            """
-            Perform dataset check on a CSV file (Overwriting the file).
+            """Perform dataset check on a CSV file (Overwriting the file).
+
+            Parameters
+            ----------
+            csv_path : str
+                Path to the CSV file to process. File will be overwritten with results.
+            skip_labeled : bool, optional
+                Whether to skip rows that already have labels (!= -1), by default True.
             """
             import pandas as pd
 
@@ -198,6 +301,8 @@ except ImportError as e:
     )
 
     class DatasetCheckAgent:
+        """Fallback class when dependencies are not available."""
+
         def __init__(self, *args, **kwargs):
             raise ImportError(
                 "DatasetCheckAgent requires langgraph and langchain_core. Please install them."
