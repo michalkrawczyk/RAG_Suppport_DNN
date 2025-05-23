@@ -66,29 +66,3 @@ Respond strictly with "Source 1" or "Source 2" based on the overall evaluation o
 Analysis:
 {analysis}
 """
-
-def create_verifying_chain(llm, analysis_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES, answer_extraction_prompt:str = FINAL_VERDICT_PROMPT):
-    analysis_chain = LLMChain(
-        llm=llm,
-        prompt=analysis_prompt,
-        output_key="analysis",  # This will be passed to the next chain
-        verbose=True
-    )
-
-    # Create the answer extraction chain
-    answer_chain = LLMChain(
-        llm=llm,
-        prompt=answer_extraction_prompt,
-        output_key="answer",
-        verbose=True
-    )
-
-    # Combine them into a sequential chain
-    full_chain = SequentialChain(
-        chains=[analysis_chain, answer_chain],
-        input_variables=["question", "source1_content", "source2_content"],
-        output_variables=["analysis", "answer"],
-        verbose=True
-    )
-
-    return full_chain
