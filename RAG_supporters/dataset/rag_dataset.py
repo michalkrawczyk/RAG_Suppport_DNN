@@ -9,9 +9,7 @@ from typing import Any, Dict, Iterable, List, Literal, Optional, Union
 from langchain_chroma import Chroma
 from tqdm import tqdm
 
-from prompts_templates.rag_verifiers import (FINAL_VERDICT_PROMPT,
-                                             SRC_COMPARE_PROMPT_WITH_SCORES,
-                                             create_verifying_chain)
+from agents.dataset_check import DatasetCheckAgent
 
 LOGGER = logging.getLogger(__name__)
 
@@ -269,9 +267,10 @@ class BaseRAGDatasetGenerator(ABC):
         self,
         llm,
         samples: List[SampleTripletRAGChroma],
-        analysis_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES,
-        answer_extraction_prompt: str = FINAL_VERDICT_PROMPT,
+        # analysis_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES,
+        # answer_extraction_prompt: str = FINAL_VERDICT_PROMPT,
         skip_labeled: bool = True,
+        overwrite_mismatched_labels: bool = False,
     ) -> List[SampleTripletRAGChroma]:
         """
         Validate triplet samples using LLM-based verification.
@@ -285,12 +284,14 @@ class BaseRAGDatasetGenerator(ABC):
             Language model to use for validation
         samples : List[SampleTripletRAGChroma]
             List of triplet samples to validate
-        analysis_prompt : str, optional
-            Prompt template for analysis. Default is SRC_COMPARE_PROMPT_WITH_SCORES.
-        answer_extraction_prompt : str, optional
-            Prompt template for extracting the final verdict. Default is FINAL_VERDICT_PROMPT.
+        # analysis_prompt : str, optional
+        #     Prompt template for analysis. Default is SRC_COMPARE_PROMPT_WITH_SCORES.
+        # answer_extraction_prompt : str, optional
+        #     Prompt template for extracting the final verdict. Default is FINAL_VERDICT_PROMPT.
         skip_labeled : bool, optional
             If True, skip samples that already have a label. Default is True.
+        overwrite_mismatched_labels : bool
+            If True, overwrite labels other than -1 that have mismatch between ground truth and prediction
 
         Returns
         -------
@@ -298,9 +299,7 @@ class BaseRAGDatasetGenerator(ABC):
             List of validated triplet samples with labels
         """
         # Create verification chain using the provided LLM and prompts
-        verifier = create_verifying_chain(
-            llm, analysis_prompt, answer_extraction_prompt
-        )
+        verifier_agent = DatasetCheckAgent(llm)
         samples_verified = []
 
         for sample in tqdm(samples, desc="Validating samples"):
@@ -319,13 +318,19 @@ class BaseRAGDatasetGenerator(ABC):
                 )["documents"]
 
                 # Invoke the verifier chain to determine which source is better
-                result = verifier.invoke(
-                    {
-                        "question": question_text,
-                        "source1_content": sources[0],
-                        "source2_content": sources[1],
-                    }
+                result = verifier_agent.compare_text_sources(
+                    question=question_text,
+                    source1=sources[0],
+                    source2=sources[1],
                 )
+
+                predicted_label = result["label"]
+                if sample.label != -1 and predicted_label != sample.label:
+                    LOGGER.warning(
+                        f"Label mismatch for sample {sample.question_id}: "
+                        f"Predicted: {predicted_label}, Actual: {sample.label}"
+                    )
+                    predicted_label = predicted_label if overwrite_mismatched_labels else sample.label
 
                 # Create a new sample with the label assigned by the verifier
                 samples_verified.append(
@@ -333,7 +338,7 @@ class BaseRAGDatasetGenerator(ABC):
                         question_id=sample.question_id,
                         answer_id_1=sample.answer_id_1,
                         answer_id_2=sample.answer_id_2,
-                        label=0 if result["answer"] == "Source 1" else 1,
+                        label=predicted_label,
                     )
                 )
             except Exception as e:
