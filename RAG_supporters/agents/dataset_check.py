@@ -66,8 +66,9 @@ try:
 
         _executor = None
 
-        def __init__(self, llm):
+        def __init__(self, llm, compare_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES):
             self._llm = llm
+            self.compare_prompt = compare_prompt
 
             # TODO: Should have websearch tool?
 
@@ -89,7 +90,7 @@ try:
                 CheckAgentState
                     Updated state with analysis results.
                 """
-                prompt = SRC_COMPARE_PROMPT_WITH_SCORES.format(
+                prompt = self.compare_prompt.format(
                     question=state["question"],
                     source1_content=state["source1"],
                     source2_content=state["source2"],

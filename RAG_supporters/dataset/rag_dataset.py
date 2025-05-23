@@ -267,7 +267,7 @@ class BaseRAGDatasetGenerator(ABC):
         self,
         llm,
         samples: List[SampleTripletRAGChroma],
-        # analysis_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES,
+        analysis_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES,
         # answer_extraction_prompt: str = FINAL_VERDICT_PROMPT,
         skip_labeled: bool = True,
         overwrite_mismatched_labels: bool = False,
@@ -284,10 +284,8 @@ class BaseRAGDatasetGenerator(ABC):
             Language model to use for validation
         samples : List[SampleTripletRAGChroma]
             List of triplet samples to validate
-        # analysis_prompt : str, optional
-        #     Prompt template for analysis. Default is SRC_COMPARE_PROMPT_WITH_SCORES.
-        # answer_extraction_prompt : str, optional
-        #     Prompt template for extracting the final verdict. Default is FINAL_VERDICT_PROMPT.
+        analysis_prompt : str, optional
+            Prompt template for analysis. Default is SRC_COMPARE_PROMPT_WITH_SCORES.
         skip_labeled : bool, optional
             If True, skip samples that already have a label. Default is True.
         overwrite_mismatched_labels : bool
