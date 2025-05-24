@@ -237,6 +237,7 @@ try:
                 DataFrame with updated 'label' column containing comparison results.
             """
             results = []
+            interrupted = False
 
             for idx, row in tqdm(
                 df.iterrows(), total=len(df), desc="Processing sources"
@@ -264,11 +265,23 @@ try:
                             )
 
                     results.append(new_label)
+                except KeyboardInterrupt:
+                    # Update processed partial results
+                    LOGGER.info(
+                        f"Process interrupted by user. Saving partial results for {len(results)} processed rows.")
+                    interrupted = True
+                    break
+
                 except Exception as err:
                     LOGGER.error(f"Error processing row {idx}: {str(err)}")
                     results.append(current_label)  # keep current label
 
-            df["label"] = results
+            if not interrupted:
+                df["label"] = results
+            elif len(results) > 0:
+                processed_indices = df.index[:len(results)]
+                df.loc[processed_indices, "label"] = results
+
             if save_path:
                 df.to_csv(save_path, index=False)
                 LOGGER.info(f"Results saved to {save_path}")
