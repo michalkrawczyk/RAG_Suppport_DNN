@@ -1,4 +1,4 @@
-from logging import Logger
+import logging
 from typing import Optional
 
 import pandas as pd
@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from excluded_drafts.rag_dataset import BaseDatasetRAG
 
-LOGGER = Logger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 def load_csv_dataset_pd(
