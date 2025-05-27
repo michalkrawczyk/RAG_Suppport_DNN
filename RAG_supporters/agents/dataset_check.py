@@ -1,6 +1,6 @@
-from logging import Logger
+import logging
 
-LOGGER = Logger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 try:
     from typing import List, TypedDict
@@ -218,7 +218,7 @@ try:
 
             return result
 
-        def process_dataframe(self, df, save_path=None, skip_labeled=True):
+        def process_dataframe(self, df, save_path=None, skip_labeled=True, start_index=0):
             """Process the dataframe to check for duplicates and other issues.
 
             Parameters
@@ -230,6 +230,8 @@ try:
                 Path to save the processed DataFrame as CSV, by default None.
             skip_labeled : bool, optional
                 Whether to skip rows that already have labels (!= -1), by default True.
+            start_index : int, optional
+                Index to start processing from, by default 0.
 
             Returns
             -------
@@ -237,10 +239,17 @@ try:
                 DataFrame with updated 'label' column containing comparison results.
             """
             results = []
+            start_index = max(0, start_index)
             interrupted = False
 
+            if start_index >= len(df):
+                LOGGER.warning(f"start_index ({start_index}) is beyond DataFrame length ({len(df)}). Processing aborted")
+                return df
+
+            sub_df = df.iloc[start_index:]
+
             for idx, row in tqdm(
-                df.iterrows(), total=len(df), desc="Processing sources"
+                sub_df.iterrows(), total=len(sub_df), desc="Processing sources"
             ):
                 question = row["question_text"]
                 source1 = row["answer_text_1"]
@@ -276,11 +285,13 @@ try:
                     LOGGER.error(f"Error processing row {idx}: {str(err)}")
                     results.append(current_label)  # keep current label
 
-            if not interrupted:
-                df["label"] = results
-            elif len(results) > 0:
-                processed_indices = df.index[:len(results)]
-                df.loc[processed_indices, "label"] = results
+            if len(results) > 0:
+                end_index = start_index + len(results)
+                df.iloc[start_index:end_index, df.columns.get_loc("label")] = results
+
+                if interrupted:
+                    LOGGER.info(
+                        f"Processed {len(results)} rows before interruption (rows {start_index} to {end_index - 1})")
 
             if save_path:
                 df.to_csv(save_path, index=False)
@@ -288,7 +299,7 @@ try:
 
             return df
 
-        def process_csv(self, csv_path, skip_labeled=True):
+        def process_csv(self, csv_path, skip_labeled=True, start_index=0):
             """Perform dataset check on a CSV file (Overwriting the file).
 
             Parameters
@@ -297,11 +308,13 @@ try:
                 Path to the CSV file to process. File will be overwritten with results.
             skip_labeled : bool, optional
                 Whether to skip rows that already have labels (!= -1), by default True.
+            start_index : int, optional
+                Index to start processing from, by default 0.
             """
             import pandas as pd
 
             df = pd.read_csv(csv_path)
-            self.process_dataframe(df, save_path=csv_path, skip_labeled=skip_labeled)
+            self.process_dataframe(df, save_path=csv_path, skip_labeled=skip_labeled, start_index=start_index)
 
 except ImportError as e:
     LOGGER.warning(
