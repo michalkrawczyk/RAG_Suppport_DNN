@@ -10,6 +10,7 @@ from langchain_chroma import Chroma
 from tqdm import tqdm
 
 from agents.dataset_check import DatasetCheckAgent
+from prompts_templates import SRC_COMPARE_PROMPT_WITH_SCORES
 
 LOGGER = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class SampleTripletRAGChroma:
     answer_id_2: str
     label: int = (
         -1
-    )  # 1 if answer_2 is better, 0 if answer_1 is better, -1 if not labeled.
+    )  # -1 means not labeled, 0 means both are irrelevant, 1 means answer_1 is better, 2 means answer_2 is better
 
 
 # TODO: For later implementation (for efficient storing)
@@ -297,7 +298,7 @@ class BaseRAGDatasetGenerator(ABC):
             List of validated triplet samples with labels
         """
         # Create verification chain using the provided LLM and prompts
-        verifier_agent = DatasetCheckAgent(llm)
+        verifier_agent = DatasetCheckAgent(llm, compare_prompt=analysis_prompt)
         samples_verified = []
 
         for sample in tqdm(samples, desc="Validating samples"):
