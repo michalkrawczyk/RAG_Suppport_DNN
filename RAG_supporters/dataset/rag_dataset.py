@@ -30,8 +30,7 @@ class SampleTripletRAGChroma:
         Unique identifier for the second answer in ChromaDB
     label : int, optional
         Indicates which answer is better:
-        1 if answer_2 is better, 0 if answer_1 is better, -1 if not labeled.
-        Default is -1.
+        -1 means not labeled, 0 means both are irrelevant, 1 means answer_1 is better, 2 means answer_2 is better
     """
 
     question_id: str
