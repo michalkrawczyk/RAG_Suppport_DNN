@@ -3,6 +3,8 @@ from langchain_openai import ChatOpenAI
 from langchain.chains import LLMChain, SequentialChain
 from langchain_core.output_parsers import StrOutputParser
 
+from excluded_drafts.rag_verifiers import FINAL_VERDICT_PROMPT
+
 SRC_COMPARE_PROMPT= """
 Task: You are acting as a domain expert. Given a question and two sources ([SOURCE 1] and [SOURCE 2]), your task is to choose the source that is better suited to answer the question from your expert perspective, inferring the relevant domain from the question and the content of the sources themselves.
 
@@ -59,9 +61,27 @@ Criteria for choosing a better source (rate each criterion on a scale of 1-5, wh
 
 """
 
+# FINAL_VERDICT_PROMPT = """
+# Based on the following detailed analysis, provide a final verdict on which source is better suited to answer the question.
+# Respond strictly with "Source 1" or "Source 2" based on the overall evaluation of the sources and their scores.
+#
+# Analysis:
+# {analysis}
+# """
+
 FINAL_VERDICT_PROMPT = """
 Based on the following detailed analysis, provide a final verdict on which source is better suited to answer the question.
-Respond strictly with "Source 1" or "Source 2" based on the overall evaluation of the sources and their scores.
+
+**Decision Logic:**
+- If both sources have an average score below 3.0 across all criteria, respond with "Both Insufficient"
+- If one source clearly outperforms the other (higher total/average score), choose that source
+- If scores are very close (within 0.5 average difference), choose the source with higher relevance score
+
+**Response Options:**
+Respond strictly with one of the following:
+- "Source 1" - if Source 1 is better suited
+- "Source 2" - if Source 2 is better suited  
+- "Neither" - if both sources score poorly (average < 3.0) and neither adequately addresses the question
 
 Analysis:
 {analysis}
