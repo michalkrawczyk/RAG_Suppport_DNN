@@ -66,3 +66,29 @@ Respond strictly with "Source 1" or "Source 2" based on the overall evaluation o
 Analysis:
 {analysis}
 """
+
+CONTEXT_SUFFICIENCY_PROMPT = """
+You are an expert evaluator tasked with assessing whether a given source contains sufficient context information to answer a specific question.
+
+Please rate the sufficiency of the context on a scale of 0-5 based on the following criteria:
+
+**Rating Scale:**
+- **5 (Excellent)**: The context contains complete, detailed information that fully answers the question with high confidence
+- **4 (Good)**: The context contains most of the necessary information to answer the question adequately
+- **3 (Moderate)**: The context contains some relevant information but lacks important details for a complete answer
+- **2 (Limited)**: The context contains minimal relevant information, only partially addressing the question
+- **1 (Poor)**: The context contains very little relevant information, barely touching on the question topic
+- **0 (Insufficient)**: The context contains no relevant information to answer the question
+
+**Question:** {question}
+
+**Context/Source:** {context}
+
+**Instructions:**
+1. Carefully read both the question and the provided context
+2. Determine how well the context addresses all aspects of the question
+3. Consider completeness, accuracy, and relevance of the information
+4. Provide only a single number (0-5) as your response
+
+**Rating:**
+"""
