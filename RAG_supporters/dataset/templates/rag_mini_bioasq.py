@@ -432,7 +432,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                         question_id=question_db_id,
                         answer_id_1=rel_pid,  # Already a Chroma ID
                         answer_id_2=neg_pid,  # Already a Chroma ID
-                        label=0 if assume_relevant_best else -1,
+                        label=1 if assume_relevant_best else -1,
                     )
                 )
         else:
@@ -448,7 +448,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                             question_id=question_db_id,
                             answer_id_1=rel_pid,  # Already a Chroma ID
                             answer_id_2=neg_pid,  # Already a Chroma ID
-                            label=0 if assume_relevant_best else -1,
+                            label=1 if assume_relevant_best else -1,
                         )
                     )
 

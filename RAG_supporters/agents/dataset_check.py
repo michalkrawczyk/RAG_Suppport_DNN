@@ -130,9 +130,11 @@ try:
                 verdict = verdict.lower()
 
                 if verdict == "source 1":
-                    label = 0
-                elif verdict == "source 2":
                     label = 1
+                elif verdict == "source 2":
+                    label = 2
+                elif verdict == "neither":
+                    label = 0
                 else:
                     label = -1
                     LOGGER.warning(f"Failed to parse source choice from: {verdict}")
