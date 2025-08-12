@@ -106,3 +106,55 @@ Please rate the sufficiency of the context on a scale of 0-5 based on the follow
 
 **Rating:**
 """
+
+SINGLE_SRC_SCORE_PROMPT = """
+Task: You are acting as a domain expert. Given a question and a source, evaluate how well the source can answer the question from your expert perspective, **inferring the relevant domain from the question and the content of the source.**
+
+Question: {question}
+
+Source:
+{source_content}
+
+Please evaluate the source on each criterion below and provide a score from 0-10 using this scale:
+- **0-2:** Poor/Very Low - Major deficiencies, unsuitable
+- **3-4:** Below Average/Low - Significant issues, limited value
+- **5-6:** Average/Moderate - Adequate but room for improvement
+- **7-8:** Good/High - Strong performance with minor limitations
+- **9-10:** Excellent/Very High - Outstanding, comprehensive, ideal
+
+**Inferred Domain:** [State the domain you've inferred from the question and source]
+
+**Relevance:** How relevant is the source to the question and how directly does it address it?
+Score (0-10): [X]
+Reasoning: [Brief explanation]
+
+**Expertise/Authority:** How well does the source demonstrate expertise in the inferred domain and provide authoritative information?
+Score (0-10): [X] 
+Reasoning: [Brief explanation]
+
+**Depth and Specificity:** How much depth and specific details does the source provide to answer the question comprehensively from an expert's point of view within the inferred domain?
+Score (0-10): [X]
+Reasoning: [Brief explanation]
+
+**Clarity and Conciseness:** How clear, well-organized, and easy to understand is the information in the source for an expert in the inferred domain?
+Score (0-10): [X]
+Reasoning: [Brief explanation]
+
+**Objectivity/Bias:** How objectively and unbiasedly does the source present information, avoiding strong opinions or promotional content within the inferred domain?
+Score (0-10): [X]
+Reasoning: [Brief explanation]
+
+**Completeness:** How comprehensively does the source address all aspects of the question within the inferred domain context?
+Score (0-10): [X]
+Reasoning: [Brief explanation]
+
+**Overall Assessment:** [Brief summary of the source's suitability for answering the question]
+
+**Score Summary:**
+- Relevance: [X]/10
+- Expertise/Authority: [X]/10  
+- Depth and Specificity: [X]/10
+- Clarity and Conciseness: [X]/10
+- Objectivity/Bias: [X]/10
+- Completeness: [X]/10
+"""
