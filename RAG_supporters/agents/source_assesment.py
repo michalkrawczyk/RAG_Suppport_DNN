@@ -1,0 +1,315 @@
+import logging
+LOGGER = logging.getLogger(__name__)
+
+# TODO: Add option to parse multiple sources in a single run and save to csv (Consider if reasoning should be saved in separate file or columns)
+# TODO: Add storage for invalid responses to review later
+
+try:
+    import json
+    from enum import Enum
+    from typing import Any, Dict, List, Optional
+
+    from pydantic import BaseModel, Field, field_validator, model_validator
+
+    from langchain.output_parsers import OutputFixingParser, PydanticOutputParser
+    from langchain_core.language_models import BaseChatModel
+    from langchain_core.prompts import PromptTemplate
+
+    from langgraph.graph import END, StateGraph
+    from langgraph.prebuilt import ToolNode
+
+    from prompts_templates.rag_verifiers import SINGLE_SRC_SCORE_PROMPT
+
+
+    # Pydantic Models for validation (v2.10.3 compatible)
+    class ScoreRange(BaseModel):
+        """Validates score is within 0-10 range"""
+        score: int = Field(..., ge=0, le=10, description="Score between 0 and 10")
+        reasoning: Optional[str] = Field(default=None, description="Optional reasoning for the score")
+
+
+    class SourceEvaluation(BaseModel):
+        """Model for source evaluation scores and reasoning"""
+        inferred_domain: str = Field(..., description="The inferred domain from question and source")
+        relevance: ScoreRange = Field(..., description="Relevance score and reasoning")
+        expertise_authority: ScoreRange = Field(..., description="Expertise/Authority score and reasoning")
+        depth_specificity: ScoreRange = Field(..., description="Depth and Specificity score and reasoning")
+        clarity_conciseness: ScoreRange = Field(..., description="Clarity and Conciseness score and reasoning")
+        objectivity_bias: ScoreRange = Field(..., description="Objectivity/Bias score and reasoning")
+        completeness: ScoreRange = Field(..., description="Completeness score and reasoning")
+
+        @model_validator(mode='after')
+        def validate_all_scores_present(self):
+            """Ensure all required scores are present"""
+            required_fields = [
+                'relevance', 'expertise_authority', 'depth_specificity',
+                'clarity_conciseness', 'objectivity_bias', 'completeness'
+            ]
+            for field in required_fields:
+                if not hasattr(self, field) or getattr(self, field) is None:
+                    raise ValueError(f"Missing required field: {field}")
+                if getattr(self, field).score is None:
+                    raise ValueError(f"Missing score for field: {field}")
+            return self
+
+
+    class AgentState(BaseModel):
+        """State for the LangGraph agent"""
+        question: str
+        source_content: str
+        evaluation: Optional[SourceEvaluation] = None
+        error: Optional[str] = None
+        retry_count: int = 0
+        max_retries: int = 3
+
+
+    class SourceEvaluationAgent:
+        """LangGraph agent for evaluating sources with retry logic"""
+
+        def __init__(self, llm: BaseChatModel = None, max_retries: int = 3, evaluation_prompt: str = SINGLE_SRC_SCORE_PROMPT):
+            """
+            Initialize the agent with an LLM and retry configuration
+
+            Args:
+                llm: Language model to use (defaults to ChatOpenAI)
+                max_retries: Maximum number of retries for getting correct format
+            """
+            self.llm = llm
+            self.max_retries = max_retries
+            self.eval_prompt = evaluation_prompt
+
+            # Set up the parser with Pydantic model
+            self.parser = PydanticOutputParser(pydantic_object=SourceEvaluation)
+
+            # Wrap with OutputFixingParser for automatic retry/fixing
+            self.fixing_parser = OutputFixingParser.from_llm(
+                parser=self.parser,
+                llm=self.llm
+            )
+
+            # Create the prompt template with format instructions
+            self.prompt_template = self._create_prompt_template()
+
+            self.graph = self._build_graph()
+
+        def _create_prompt_template(self) -> PromptTemplate:
+            """Create the prompt template with format instructions from parser"""
+
+            return PromptTemplate(
+                template=self.eval_prompt,
+                input_variables=["question", "source_content"],
+                partial_variables={"format_instructions": self.parser.get_format_instructions()}
+            )
+
+        def _build_graph(self) -> StateGraph:
+            """Build the LangGraph workflow"""
+            workflow = StateGraph(AgentState)
+
+            # Add nodes
+            workflow.add_node("evaluate", self._evaluate_source)
+            workflow.add_node("validate", self._validate_response)
+            workflow.add_node("retry", self._handle_retry)
+
+            # Add edges
+            workflow.set_entry_point("evaluate")
+            workflow.add_edge("evaluate", "validate")
+
+            # Conditional edges from validate
+            workflow.add_conditional_edges(
+                "validate",
+                self._should_retry,
+                {
+                    "retry": "retry",
+                    "end": END
+                }
+            )
+
+            # From retry back to evaluate
+            workflow.add_edge("retry", "evaluate")
+
+            return workflow.compile()
+
+        def _evaluate_source(self, state: AgentState) -> Dict[str, Any]:
+            """Evaluate the source using the LLM with output parser"""
+            try:
+                # Format the prompt
+                prompt = self.prompt_template.format(
+                    question=state.question,
+                    source_content=state.source_content
+                )
+
+                LOGGER.debug(f"Sending prompt to LLM...")
+
+                # Get response from LLM
+                response = self.llm.invoke(prompt)
+
+                # Extract content based on response type
+                if hasattr(response, 'content'):
+                    content = response.content
+                else:
+                    content = str(response)
+
+                LOGGER.debug(f"Raw LLM Response (first 500 chars): {content[:500]}...")
+
+                try:
+                    # Use the fixing parser to parse and potentially fix the output
+                    evaluation = self.fixing_parser.parse(content)
+                    state.evaluation = evaluation
+                    state.error = None
+                    LOGGER.info("Successfully parsed evaluation with parser")
+
+                except Exception as parse_error:
+                    LOGGER.warning(f"Fixing parser failed, trying regular parser: {parse_error}")
+
+                    # Try regular parser as fallback
+                    try:
+                        evaluation = self.parser.parse(content)
+                        state.evaluation = evaluation
+                        state.error = None
+                        LOGGER.info("Successfully parsed with regular parser")
+                    except Exception as e:
+                        LOGGER.error(f"All parsing attempts failed: {e}")
+                        state.error = f"Parsing error: {str(e)}"
+                        state.evaluation = None
+
+            except Exception as e:
+                LOGGER.error(f"Evaluation error: {e}")
+                state.error = str(e)
+                state.evaluation = None
+
+            return {"evaluation": state.evaluation, "error": state.error}
+
+        def _validate_response(self, state: AgentState) -> Dict[str, Any]:
+            """Validate the response using Pydantic"""
+            if state.evaluation is None:
+                state.error = state.error or "No evaluation generated"
+                return {"error": state.error}
+
+            try:
+                # The parser already validates, but we can double-check
+                if isinstance(state.evaluation, SourceEvaluation):
+                    # It's already a valid Pydantic model
+                    state.error = None
+                    LOGGER.info("Validation successful - evaluation is valid SourceEvaluation model")
+                else:
+                    # Try to convert if it's a dict
+                    if isinstance(state.evaluation, dict):
+                        state.evaluation = SourceEvaluation(**state.evaluation)
+                        state.error = None
+                        LOGGER.info("Validation successful - converted dict to SourceEvaluation")
+                    else:
+                        raise ValueError(f"Unexpected evaluation type: {type(state.evaluation)}")
+
+            except Exception as e:
+                LOGGER.error(f"Validation error: {e}")
+                state.error = f"Validation error: {str(e)}"
+                state.evaluation = None
+
+            return {"evaluation": state.evaluation, "error": state.error}
+
+        def _should_retry(self, state: AgentState) -> str:
+            """Determine if we should retry or end"""
+            if state.error is None and state.evaluation is not None:
+                return "end"
+            elif state.retry_count < state.max_retries:
+                return "retry"
+            else:
+                LOGGER.error(f"Max retries ({state.max_retries}) reached")
+                return "end"
+
+        def _handle_retry(self, state: AgentState) -> Dict[str, Any]:
+            """Handle retry logic"""
+            state.retry_count += 1
+            LOGGER.info(f"Retrying... Attempt {state.retry_count}/{state.max_retries}")
+            LOGGER.info(f"Previous error: {state.error}")
+
+            # Clear previous evaluation
+            state.evaluation = None
+            state.error = None
+
+            return {"retry_count": state.retry_count}
+
+        def evaluate(self, question: str, source_content: str) -> Optional[Dict[str, Any]]:
+            """
+            Main function to evaluate a source for a given question
+
+            Args:
+                question: The question to evaluate against
+                source_content: The source content to evaluate
+
+            Returns:
+                Dictionary with evaluation scores or None if failed after retries
+            """
+            initial_state = AgentState(
+                question=question,
+                source_content=source_content,
+                max_retries=self.max_retries
+            )
+
+            # Run the graph
+            result = self.graph.invoke(initial_state.model_dump())
+
+            if result.get("evaluation"):
+                # Convert to dictionary format for easier use
+                evaluation = result["evaluation"]
+
+                # Handle both dict and Pydantic model
+                if isinstance(evaluation, SourceEvaluation):
+                    return self._format_output(evaluation.model_dump())
+                elif isinstance(evaluation, dict):
+                    return self._format_output(evaluation)
+                else:
+                    LOGGER.error(f"Unexpected evaluation type: {type(evaluation)}")
+                    return None
+            else:
+                LOGGER.error(f"Failed to get valid evaluation after {self.max_retries} retries")
+                LOGGER.error(f"Final error: {result.get('error')}")
+                return None
+
+        def _format_output(self, evaluation: Dict[str, Any]) -> Dict[str, Any]:
+            """Format the output to match the expected structure"""
+            return {
+                "inferred_domain": evaluation.get("inferred_domain"),
+                "scores": {
+                    "relevance": evaluation.get("relevance", {}).get("score"),
+                    "expertise_authority": evaluation.get("expertise_authority", {}).get("score"),
+                    "depth_specificity": evaluation.get("depth_specificity", {}).get("score"),
+                    "clarity_conciseness": evaluation.get("clarity_conciseness", {}).get("score"),
+                    "objectivity_bias": evaluation.get("objectivity_bias", {}).get("score"),
+                    "completeness": evaluation.get("completeness", {}).get("score")
+                },
+                "reasoning": {
+                    "relevance": evaluation.get("relevance", {}).get("reasoning"),
+                    "expertise_authority": evaluation.get("expertise_authority", {}).get("reasoning"),
+                    "depth_specificity": evaluation.get("depth_specificity", {}).get("reasoning"),
+                    "clarity_conciseness": evaluation.get("clarity_conciseness", {}).get("reasoning"),
+                    "objectivity_bias": evaluation.get("objectivity_bias", {}).get("reasoning"),
+                    "completeness": evaluation.get("completeness", {}).get("reasoning")
+                },
+                "score_summary": self._generate_score_summary(evaluation)
+            }
+
+        def _generate_score_summary(self, evaluation: Dict[str, Any]) -> str:
+            """Generate a formatted score summary"""
+            scores = [
+                f"- Relevance: {evaluation.get('relevance', {}).get('score')}/10",
+                f"- Expertise/Authority: {evaluation.get('expertise_authority', {}).get('score')}/10",
+                f"- Depth and Specificity: {evaluation.get('depth_specificity', {}).get('score')}/10",
+                f"- Clarity and Conciseness: {evaluation.get('clarity_conciseness', {}).get('score')}/10",
+                f"- Objectivity/Bias: {evaluation.get('objectivity_bias', {}).get('score')}/10",
+                f"- Completeness: {evaluation.get('completeness', {}).get('score')}/10"
+            ]
+            return "\n".join(scores)
+
+except ImportError as e:
+    LOGGER.warning(
+        f"ImportError: {str(e)}. Please ensure all dependencies are installed."
+    )
+
+    class SourceEvaluationAgent:
+        """Placeholder for SourceEvaluationAgent when dependencies are missing"""
+        def __init__(self, *args, **kwargs):
+            raise ImportError("SourceEvaluationAgent requires langgraph, langchain and pydantic to be installed.")
+
+
+
