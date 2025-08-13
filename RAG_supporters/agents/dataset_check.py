@@ -7,6 +7,7 @@ try:
 
     from langchain_core.messages import (AIMessage, BaseMessage, HumanMessage,
                                          SystemMessage)
+    from langchain_core.language_models import BaseChatModel
     from langgraph.graph import END, START, StateGraph
     from tqdm import tqdm
 
@@ -47,12 +48,12 @@ try:
 
         Parameters
         ----------
-        llm : object
+        llm : BaseChatModel
             Language model instance for performing text analysis.
 
         Attributes
         ----------
-        _llm : object
+        _llm : BaseChatModel
             The language model used for analysis.
         _executor : object
             Compiled workflow executor for the checking process.
@@ -60,7 +61,7 @@ try:
 
         _executor = None
 
-        def __init__(self, llm, compare_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES):
+        def __init__(self, llm: BaseChatModel, compare_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES):
             self._llm = llm
             self.compare_prompt = compare_prompt
 
