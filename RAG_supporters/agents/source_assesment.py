@@ -1,22 +1,21 @@
 import logging
 LOGGER = logging.getLogger(__name__)
 
-# TODO: Add option to parse multiple sources in a single run and save to csv (Consider if reasoning should be saved in separate file or columns)
-# TODO: Add storage for invalid responses to review later
+# TODO: Consider batch processing for efficiency in dataframe processing (later)
 
 try:
     import json
     from enum import Enum
     from typing import Any, Dict, List, Optional
 
-    from pydantic import BaseModel, Field, field_validator, model_validator
-
     from langchain.output_parsers import OutputFixingParser, PydanticOutputParser
     from langchain_core.language_models import BaseChatModel
     from langchain_core.prompts import PromptTemplate
-
     from langgraph.graph import END, StateGraph
     from langgraph.prebuilt import ToolNode
+    import pandas as pd
+    from pydantic import BaseModel, Field, field_validator, model_validator
+    from tqdm import tqdm
 
     from prompts_templates.rag_verifiers import SINGLE_SRC_SCORE_PROMPT
 
@@ -229,6 +228,41 @@ try:
 
             return {"retry_count": state.retry_count}
 
+        def _format_output(self, evaluation: Dict[str, Any]) -> Dict[str, Any]:
+            """Format the output to match the expected structure"""
+            return {
+                "inferred_domain": evaluation.get("inferred_domain"),
+                "scores": {
+                    "relevance": evaluation.get("relevance", {}).get("score"),
+                    "expertise_authority": evaluation.get("expertise_authority", {}).get("score"),
+                    "depth_specificity": evaluation.get("depth_specificity", {}).get("score"),
+                    "clarity_conciseness": evaluation.get("clarity_conciseness", {}).get("score"),
+                    "objectivity_bias": evaluation.get("objectivity_bias", {}).get("score"),
+                    "completeness": evaluation.get("completeness", {}).get("score")
+                },
+                "reasoning": {
+                    "relevance": evaluation.get("relevance", {}).get("reasoning"),
+                    "expertise_authority": evaluation.get("expertise_authority", {}).get("reasoning"),
+                    "depth_specificity": evaluation.get("depth_specificity", {}).get("reasoning"),
+                    "clarity_conciseness": evaluation.get("clarity_conciseness", {}).get("reasoning"),
+                    "objectivity_bias": evaluation.get("objectivity_bias", {}).get("reasoning"),
+                    "completeness": evaluation.get("completeness", {}).get("reasoning")
+                },
+                "score_summary": self._generate_score_summary(evaluation)
+            }
+
+        def _generate_score_summary(self, evaluation: Dict[str, Any]) -> str:
+            """Generate a formatted score summary"""
+            scores = [
+                f"- Relevance: {evaluation.get('relevance', {}).get('score')}/10",
+                f"- Expertise/Authority: {evaluation.get('expertise_authority', {}).get('score')}/10",
+                f"- Depth and Specificity: {evaluation.get('depth_specificity', {}).get('score')}/10",
+                f"- Clarity and Conciseness: {evaluation.get('clarity_conciseness', {}).get('score')}/10",
+                f"- Objectivity/Bias: {evaluation.get('objectivity_bias', {}).get('score')}/10",
+                f"- Completeness: {evaluation.get('completeness', {}).get('score')}/10"
+            ]
+            return "\n".join(scores)
+
         def evaluate(self, question: str, source_content: str) -> Optional[Dict[str, Any]]:
             """
             Main function to evaluate a source for a given question
@@ -266,40 +300,107 @@ try:
                 LOGGER.error(f"Final error: {result.get('error')}")
                 return None
 
-        def _format_output(self, evaluation: Dict[str, Any]) -> Dict[str, Any]:
-            """Format the output to match the expected structure"""
-            return {
-                "inferred_domain": evaluation.get("inferred_domain"),
-                "scores": {
-                    "relevance": evaluation.get("relevance", {}).get("score"),
-                    "expertise_authority": evaluation.get("expertise_authority", {}).get("score"),
-                    "depth_specificity": evaluation.get("depth_specificity", {}).get("score"),
-                    "clarity_conciseness": evaluation.get("clarity_conciseness", {}).get("score"),
-                    "objectivity_bias": evaluation.get("objectivity_bias", {}).get("score"),
-                    "completeness": evaluation.get("completeness", {}).get("score")
-                },
-                "reasoning": {
-                    "relevance": evaluation.get("relevance", {}).get("reasoning"),
-                    "expertise_authority": evaluation.get("expertise_authority", {}).get("reasoning"),
-                    "depth_specificity": evaluation.get("depth_specificity", {}).get("reasoning"),
-                    "clarity_conciseness": evaluation.get("clarity_conciseness", {}).get("reasoning"),
-                    "objectivity_bias": evaluation.get("objectivity_bias", {}).get("reasoning"),
-                    "completeness": evaluation.get("completeness", {}).get("reasoning")
-                },
-                "score_summary": self._generate_score_summary(evaluation)
-            }
+        def process_dataframe(self, df: pd.DataFrame,
+                              question_col: str = 'question',
+                              source_col: str = 'source',
+                              include_reasoning: bool = False,
+                              progress_bar: bool = True,
+                              save_csv: bool = False,
+                              csv_output_filepath: str = 'source_evaluation_results.csv'
+                              ) -> pd.DataFrame:
+            """
+            Process a pandas DataFrame with question-source pairs and add score columns
 
-        def _generate_score_summary(self, evaluation: Dict[str, Any]) -> str:
-            """Generate a formatted score summary"""
-            scores = [
-                f"- Relevance: {evaluation.get('relevance', {}).get('score')}/10",
-                f"- Expertise/Authority: {evaluation.get('expertise_authority', {}).get('score')}/10",
-                f"- Depth and Specificity: {evaluation.get('depth_specificity', {}).get('score')}/10",
-                f"- Clarity and Conciseness: {evaluation.get('clarity_conciseness', {}).get('score')}/10",
-                f"- Objectivity/Bias: {evaluation.get('objectivity_bias', {}).get('score')}/10",
-                f"- Completeness: {evaluation.get('completeness', {}).get('score')}/10"
+            Args:
+                df: DataFrame with question and source columns
+                question_col: Name of the question column
+                source_col: Name of the source content column
+                include_reasoning: Whether to include reasoning columns
+                progress_bar: Whether to show progress bar
+                save_csv: Whether to save results to a CSV file
+                csv_output_filepath: File path to save the results CSV (if save_csv is True)
+
+            Returns:
+                DataFrame with added score columns
+            """
+            import pandas as pd
+            from tqdm import tqdm
+
+            # Create a copy to avoid modifying original
+            result_df = df.copy()
+
+            result_columns = [
+                'inferred_domain', 'relevance_score', 'expertise_authority_score',
+                'depth_specificity_score', 'clarity_conciseness_score',
+                'objectivity_bias_score', 'completeness_score', 'average_score',
+                'evaluation_error'
             ]
-            return "\n".join(scores)
+            if include_reasoning:
+                result_columns.extend(
+                    [
+                        'relevance_reasoning', 'expertise_authority_reasoning',
+                        'depth_specificity_reasoning', 'clarity_conciseness_reasoning',
+                        'objectivity_bias_reasoning', 'completeness_reasoning'
+                    ]
+                )
+
+            # Initialize new columns
+            for column in result_columns:
+                if column not in result_df.columns:
+                    result_df[column] = None
+
+            # Process each row
+            iterator = tqdm(result_df.iterrows(), total=len(result_df)) if progress_bar else result_df.iterrows()
+
+            for idx, row in iterator:
+                try:
+                    # Evaluate the source
+                    evaluation = self.evaluate(
+                        question=row[question_col],
+                        source_content=row[source_col]
+                    )
+
+                    if evaluation:
+                        # Add scores
+                        result_df.at[idx, 'inferred_domain'] = evaluation['inferred_domain']
+                        result_df.at[idx, 'relevance_score'] = evaluation['scores']['relevance']
+                        result_df.at[idx, 'expertise_authority_score'] = evaluation['scores']['expertise_authority']
+                        result_df.at[idx, 'depth_specificity_score'] = evaluation['scores']['depth_specificity']
+                        result_df.at[idx, 'clarity_conciseness_score'] = evaluation['scores']['clarity_conciseness']
+                        result_df.at[idx, 'objectivity_bias_score'] = evaluation['scores']['objectivity_bias']
+                        result_df.at[idx, 'completeness_score'] = evaluation['scores']['completeness']
+
+                        # Calculate average score
+                        scores = [v for v in evaluation['scores'].values() if v is not None]
+                        result_df.at[idx, 'average_score'] = sum(scores) / len(scores) if scores else None
+
+                        # Add reasoning if requested
+                        if include_reasoning:
+                            result_df.at[idx, 'relevance_reasoning'] = evaluation['reasoning']['relevance']
+                            result_df.at[idx, 'expertise_authority_reasoning'] = evaluation['reasoning'][
+                                'expertise_authority']
+                            result_df.at[idx, 'depth_specificity_reasoning'] = evaluation['reasoning'][
+                                'depth_specificity']
+                            result_df.at[idx, 'clarity_conciseness_reasoning'] = evaluation['reasoning'][
+                                'clarity_conciseness']
+                            result_df.at[idx, 'objectivity_bias_reasoning'] = evaluation['reasoning'][
+                                'objectivity_bias']
+                            result_df.at[idx, 'completeness_reasoning'] = evaluation['reasoning']['completeness']
+                    else:
+                        result_df.at[idx, 'evaluation_error'] = "Failed to evaluate after retries"
+
+                except Exception as e:
+                    LOGGER.error(f"Error processing row {idx}: {e}")
+                    result_df.at[idx, 'evaluation_error'] = str(e)
+
+            if save_csv:
+                # Save the results to a CSV file
+                result_df.to_csv(csv_output_filepath, index=False)
+                LOGGER.info(f"Results saved to {csv_output_filepath}")
+
+            return result_df
+
+
 
 except ImportError as e:
     LOGGER.warning(
