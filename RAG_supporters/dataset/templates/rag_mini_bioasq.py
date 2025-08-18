@@ -583,7 +583,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
 
         else:
-            raise ValueError(f"Unsupported criterion: {criterion}. Only 'relevance' and 'similarity are supported. (For now)")
+            raise ValueError(f"Unsupported criterion: {criterion}. Only 'ALL_EXISTING' and 'EMBEDDING_SIMILARITY' are supported. (For now)")
 
         return pd.DataFrame(result_rows)
 
