@@ -301,8 +301,8 @@ try:
                 return None
 
         def process_dataframe(self, df: pd.DataFrame,
-                              question_col: str = 'question',
-                              source_col: str = 'source',
+                              question_col: str = 'question_text',
+                              source_col: str = 'source_text',
                               include_reasoning: bool = False,
                               progress_bar: bool = True,
                               save_csv: bool = False,

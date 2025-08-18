@@ -5,14 +5,24 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Literal, Optional, Union
+from enum import Enum
 
+import pandas as pd
 from langchain_chroma import Chroma
+from langchain_core.language_models import BaseChatModel
 from tqdm import tqdm
 
 from agents.dataset_check import DatasetCheckAgent
 from prompts_templates import SRC_COMPARE_PROMPT_WITH_SCORES
 
 LOGGER = logging.getLogger(__name__)
+
+class SamplePairingType(Enum):
+    """Enum representing different types of sample pairings for RAG datasets."""
+
+    RELEVANT = "relevant"                           # Relevant passages assigned to the same question
+    ALL_EXISTING = "all_existing"                   # All existing passages in the database
+    EMBEDDING_SIMILARITY = "embedding_similarity"   # Embedding similarity based on vector search
 
 
 @dataclass
@@ -209,6 +219,25 @@ class BaseRAGDatasetGenerator(ABC):
             List of generated triplet samples
         """
         pass
+
+    @abstractmethod
+    def _generate_pair_samples_df(self, question_db_ids: Optional[List[str]] = None,
+                                  criterion: SamplePairingType = SamplePairingType.EMBEDDING_SIMILARITY,
+                                  # save_batch_part: int = 0,
+                                  **kwargs) -> pd.DataFrame:
+        """ Generate pair variants (questions, source) in dataframe format.
+
+        Parameters
+        ----------
+        question_db_ids : Optional[List[str]], optional
+            List of question IDs to generate pairs for. If None, all questions are used.
+            Default is None.
+        criterion : str, optional
+            Criterion to use for scoring the pairs. Default is "relevance".
+            Possible values: "relevance", "embedding_similarity", "all_existing"
+            """
+        pass
+
 
     def chroma_id_to_embedding(self, chroma_ids: Union[List[str], str], search_db: str):
         """

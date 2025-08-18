@@ -3,13 +3,14 @@ import os
 import random
 import warnings
 from itertools import combinations, product
-from typing import List
+from typing import List, Optional
 
 from datasets import load_dataset
 from langchain_chroma import Chroma
 from tqdm import tqdm
 
-from dataset.rag_dataset import BaseRAGDatasetGenerator, SampleTripletRAGChroma
+from dataset.rag_dataset import BaseRAGDatasetGenerator, SampleTripletRAGChroma, SamplePairingType
+import pandas as pd
 
 try:
     from langchain_openai import OpenAIEmbeddings
@@ -523,6 +524,59 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             )
 
         return sample_triplets
+
+    def _generate_pair_samples_df(self, question_db_ids: Optional[List[str]] = None,
+                                  criterion: SamplePairingType = SamplePairingType.EMBEDDING_SIMILARITY,
+                                  **kwargs) -> List[SampleTripletRAGChroma]:
+        result_rows = []
+
+        if question_db_ids is None:
+            # Get all questions from the database
+            question_data = self._question_db.get(include=["embeddings"])
+            question_db_ids = question_data["ids"]
+        elif not question_db_ids:
+            raise ValueError("question_db_ids cannot be empty")
+
+        if criterion == SamplePairingType.EMBEDDING_SIMILARITY:
+            # Find passages that are similar to the question in embedding space
+            for question_db_id in tqdm(question_db_ids, desc="Generating scored pairs"):
+                # Find close sources based on the question embedding
+                question_text = self._question_db.get(
+                    [question_db_id], include=["documents"])["documents"][0]    # For not overloading memory
+
+                sources = self._raw_similarity_search(
+                    self._question_db.get(ids=[question_db_id], include=["embeddings"])[
+                        "embeddings"
+                    ][0],
+                    search_db="text",
+                    k=kwargs.get("top_k", 3),
+                    include=["distances", "documents"],
+                )
+                for answer_id, answer_text in zip(sources["ids"][0], sources["documents"][0]):
+                    result_rows.append({
+                        "question_id": question_db_id,
+                        "question_text": question_text,
+                        "answer_id": answer_id,
+                        "answer_text": answer_text,
+                        # "similarity_score": 1 - distance  # Convert distance to similarity
+                    })
+
+
+
+        #TODO: Implement other criteria
+        # elif criterion == SamplePairingType.ALL_EXISTING:
+        #     sources = self._text_corpus_db.get(include=["documents"])
+        #     for question_db_id in tqdm(question_db_ids, desc="Generating scored pairs"):
+
+
+
+
+
+        else:
+            raise ValueError(f"Unsupported criterion: {criterion}. Only 'relevance' and 'similarity are supported. (For now)")
+
+        return pd.DataFrame(result_rows)
+
 
     def _save_passage_json(self):
         """
