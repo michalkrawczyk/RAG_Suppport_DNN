@@ -539,7 +539,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         if criterion == SamplePairingType.EMBEDDING_SIMILARITY:
             # Find passages that are similar to the question in embedding space
-            for question_db_id in tqdm(question_db_ids, desc="Generating scored pairs"):
+            for question_db_id in tqdm(question_db_ids, desc="Generating scored pairs by embedding similarity"):
                 # Find close sources based on the question embedding
                 question_text = self._question_db.get(
                     [question_db_id], include=["documents"])["documents"][0]    # For not overloading memory
@@ -552,23 +552,33 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                     k=kwargs.get("top_k", 3),
                     include=["distances", "documents"],
                 )
-                for answer_id, answer_text in zip(sources["ids"][0], sources["documents"][0]):
+                for source_id, source_text in zip(sources["ids"][0], sources["documents"][0]):
                     result_rows.append({
                         "question_id": question_db_id,
                         "question_text": question_text,
-                        "answer_id": answer_id,
-                        "answer_text": answer_text,
+                        "source_id": source_id,
+                        "source_text": source_text,
                         # "similarity_score": 1 - distance  # Convert distance to similarity
                     })
 
-
-
         #TODO: Implement other criteria
-        # elif criterion == SamplePairingType.ALL_EXISTING:
-        #     sources = self._text_corpus_db.get(include=["documents"])
-        #     for question_db_id in tqdm(question_db_ids, desc="Generating scored pairs"):
+        elif criterion == SamplePairingType.ALL_EXISTING:
+            sources = self._text_corpus_db.get(include=["documents"])
 
+            for question_db_id in tqdm(question_db_ids, desc="Generating all-pairs from whole dataset"):
+                question_text = self._question_db.get(
+                    [question_db_id], include=["documents"]
+                )["documents"][0]
 
+                for source_id, source_text in zip(sources["ids"][0], sources["documents"][0]):
+                    result_rows.append({
+                        "question_id": question_db_id,
+                        "question_text": question_text,
+                        "source_id": source_id,
+                        "source_text": source_text,
+                    })
+
+        # TODO: Implement "Relevance" criterion (If needed)
 
 
 
