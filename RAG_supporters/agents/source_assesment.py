@@ -305,8 +305,7 @@ try:
                               source_col: str = 'source_text',
                               include_reasoning: bool = False,
                               progress_bar: bool = True,
-                              save_csv: bool = False,
-                              csv_output_filepath: str = 'source_evaluation_results.csv'
+                              save_path: Optional[str] = None,
                               ) -> pd.DataFrame:
             """
             Process a pandas DataFrame with question-source pairs and add score columns
@@ -317,8 +316,7 @@ try:
                 source_col: Name of the source content column
                 include_reasoning: Whether to include reasoning columns
                 progress_bar: Whether to show progress bar
-                save_csv: Whether to save results to a CSV file
-                csv_output_filepath: File path to save the results CSV (if save_csv is True)
+                save_path: Optional path to save the results as CSV
 
             Returns:
                 DataFrame with added score columns
@@ -393,10 +391,10 @@ try:
                     LOGGER.error(f"Error processing row {idx}: {e}")
                     result_df.at[idx, 'evaluation_error'] = str(e)
 
-            if save_csv:
+            if save_path:
                 # Save the results to a CSV file
-                result_df.to_csv(csv_output_filepath, index=False)
-                LOGGER.info(f"Results saved to {csv_output_filepath}")
+                result_df.to_csv(save_path, index=False)
+                LOGGER.info(f"Results saved to {save_path}")
 
             return result_df
 
