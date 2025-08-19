@@ -141,7 +141,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 # TODO: Think about deleting record instead of raising error
 
     def generate_samples(self, sample_type: str, save_to_csv=True, **kwargs):
-        valid_types = ["positive", "contrastive", "similar"]
+        valid_types = ["positive", "contrastive", "similar",
+                       "pairs_relevant", "pairs_all_existing", "pairs_embedding_similarity"]
         if sample_type not in valid_types:
             raise ValueError(
                 f"Invalid sample_type: {sample_type}. Must be one of {valid_types}"
