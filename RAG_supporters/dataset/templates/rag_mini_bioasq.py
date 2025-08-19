@@ -578,12 +578,50 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                         "source_text": source_text,
                     })
 
-        # TODO: Implement "Relevance" criterion (If needed)
+        elif criterion == SamplePairingType.RELEVANT:
+            # Get questions with their relevant passages based on stored metadata
+            for question_db_id in tqdm(question_db_ids, desc="Generating relevant question-passage pairs"):
+                # Get question text and metadata
+                question_data = self._question_db.get(
+                    ids=[question_db_id],
+                    include=["documents", "metadatas"]
+                )
+                question_text = question_data["documents"][0]
+                metadata = question_data["metadatas"][0]
 
+                # Extract relevant passage IDs from metadata
+                relevant_chroma_ids_str = metadata.get("relevant_chroma_ids", "[]")
+
+                # Parse the string representation of the list
+                try:
+                    relevant_passage_ids = eval(relevant_chroma_ids_str)
+                except (SyntaxError, NameError):
+                    # Handle malformed data
+                    relevant_passage_ids = []
+
+                # Skip questions with no relevant passages
+                if not relevant_passage_ids:
+                    continue
+
+                # Get the text content of relevant passages
+                if relevant_passage_ids:  # Only query if we have IDs
+                    relevant_passages_data = self._text_corpus_db.get(
+                        ids=relevant_passage_ids,
+                        include=["documents"]
+                    )
+
+                    # Create pairs for each relevant passage
+                    for source_id, source_text in zip(relevant_passage_ids, relevant_passages_data["documents"]):
+                        result_rows.append({
+                            "question_id": question_db_id,
+                            "question_text": question_text,
+                            "source_id": source_id,
+                            "source_text": source_text,
+                        })
 
 
         else:
-            raise ValueError(f"Unsupported criterion: {criterion}. Only 'ALL_EXISTING' and 'EMBEDDING_SIMILARITY' are supported. (For now)")
+            raise ValueError(f"Unsupported criterion: {criterion}. Only 'ALL_EXISTING', 'RELEVANT' and 'EMBEDDING_SIMILARITY' are supported. (For now)")
 
         return pd.DataFrame(result_rows)
 
