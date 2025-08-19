@@ -306,6 +306,7 @@ try:
                               include_reasoning: bool = False,
                               progress_bar: bool = True,
                               save_path: Optional[str] = None,
+                              skip_existing: bool = True
                               ) -> pd.DataFrame:
             """
             Process a pandas DataFrame with question-source pairs and add score columns
@@ -317,6 +318,7 @@ try:
                 include_reasoning: Whether to include reasoning columns
                 progress_bar: Whether to show progress bar
                 save_path: Optional path to save the results as CSV
+                skip_existing: Whether to skip rows that already have scores
 
             Returns:
                 DataFrame with added score columns
@@ -342,6 +344,9 @@ try:
                     ]
                 )
 
+            if skip_existing:
+                score_columns = [c for c in result_columns if "score" in c] # for skipping existing rows
+
             # Initialize new columns
             for column in result_columns:
                 if column not in result_df.columns:
@@ -349,9 +354,21 @@ try:
 
             # Process each row
             iterator = tqdm(result_df.iterrows(), total=len(result_df)) if progress_bar else result_df.iterrows()
+            total_rows = len(result_df)
+            processed_rows = 0
+            skipped_rows = 0
+            error_rows = 0
 
             for idx, row in iterator:
                 try:
+                    if skip_existing:
+                        # Skip rows that already have scores
+                        for col in score_columns:
+                            if col not in result_df.columns or pd.isna(row[col]):
+                                skipped_rows += 1
+                                continue
+
+
                     # Evaluate the source
                     evaluation = self.evaluate(
                         question=row[question_col],
@@ -387,9 +404,15 @@ try:
                     else:
                         result_df.at[idx, 'evaluation_error'] = "Failed to evaluate after retries"
 
+                    processed_rows += 1
+
                 except Exception as e:
                     LOGGER.error(f"Error processing row {idx}: {e}")
                     result_df.at[idx, 'evaluation_error'] = str(e)
+                    error_rows += 1
+
+            LOGGER.info(
+                f"Processing complete: {processed_rows} processed, {skipped_rows} skipped, {error_rows} errors out of {total_rows} total rows")
 
             if save_path:
                 # Save the results to a CSV file
