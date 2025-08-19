@@ -141,8 +141,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 # TODO: Think about deleting record instead of raising error
 
     def generate_samples(self, sample_type: str, save_to_csv=True, **kwargs):
+        # TODO: This method has inconsistency in returning types (list or DataFrame).
+        #  Consider rewrtiing triplets to return DataFrame (if decide to keep old way with triplets)
         valid_types = ["positive", "contrastive", "similar",
                        "pairs_relevant", "pairs_all_existing", "pairs_embedding_similarity"]
+
         if sample_type not in valid_types:
             raise ValueError(
                 f"Invalid sample_type: {sample_type}. Must be one of {valid_types}"
@@ -155,6 +158,20 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         # Get all questions from the database
         question_data = self._question_db.get(include=["metadatas"])  # ids are included
+
+        if sample_type in ["pairs_relevant", "pairs_all_existing", "pairs_embedding_similarity"]:
+            # Generate pair samples based on the requested type
+            sample_df =  self._generate_pair_samples_df(
+                question_db_ids=question_data["ids"],
+                criterion=SamplePairingType(sample_type.replace("pairs_", "")),
+                **kwargs)
+            if save_to_csv:
+                # Save the generated pairs to a CSV file
+                pd.DataFrame(sample_df).to_csv(
+                    f"{self._dataset_dir}{os.sep}pairs_{sample_type}.csv", index=False, encoding="utf-8"
+                )
+            return sample_df
+
 
         for i, question_id in enumerate(
             tqdm(question_data["ids"], desc=f"Generating {sample_type} samples")
@@ -562,7 +579,6 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                         # "similarity_score": 1 - distance  # Convert distance to similarity
                     })
 
-        #TODO: Implement other criteria
         elif criterion == SamplePairingType.ALL_EXISTING:
             sources = self._text_corpus_db.get(include=["documents"])
 
