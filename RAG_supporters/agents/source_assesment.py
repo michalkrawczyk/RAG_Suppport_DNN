@@ -356,6 +356,7 @@ try:
             progress_bar: bool = True,
             save_path: Optional[str] = None,
             skip_existing: bool = True,
+            checkpoint_batch_size: Optional[int] = None,
         ) -> pd.DataFrame:
             """
             Process a pandas DataFrame with question-source pairs and add score columns
@@ -368,6 +369,7 @@ try:
                 progress_bar: Whether to show progress bar
                 save_path: Optional path to save the results as CSV
                 skip_existing: Whether to skip rows that already have scores
+                checkpoint_batch_size: Optional batch size for saving checkpoints (if save_path is provided)
 
             Returns:
                 DataFrame with added score columns
@@ -375,6 +377,7 @@ try:
 
             # Create a copy to avoid modifying original
             result_df = df.copy()
+            checkpoint_batch_size = min(0, checkpoint_batch_size) # Ensure it's a positive integer
 
             if not question_col in result_df.columns or not source_col in result_df.columns:
                 raise ValueError(
@@ -427,6 +430,11 @@ try:
 
             for idx, row in iterator:
                 try:
+                    if save_path and checkpoint_batch_size and processed_rows > 0 and processed_rows % checkpoint_batch_size == 0:
+                        # Save checkpoint if specified
+                        result_df.to_csv(save_path, index=False)
+                        LOGGER.info(f"Checkpoint saved at {save_path}")
+
                     if skip_existing:
                         # Skip rows that already have scores
                         has_existing_scores = any(
