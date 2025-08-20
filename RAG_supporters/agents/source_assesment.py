@@ -363,10 +363,13 @@ try:
                 try:
                     if skip_existing:
                         # Skip rows that already have scores
-                        for col in score_columns:
-                            if col not in result_df.columns or pd.isna(row[col]):
-                                skipped_rows += 1
-                                continue
+                        has_existing_scores = any(
+                            col in result_df.columns and pd.notna(row[col])
+                            for col in score_columns
+                        )
+                        if has_existing_scores:
+                            skipped_rows += 1
+                            continue
 
 
                     # Evaluate the source
