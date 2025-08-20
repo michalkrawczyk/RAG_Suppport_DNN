@@ -292,6 +292,105 @@ class BaseRAGDatasetGenerator(ABC):
         """
         return self._question_db.get(include=list(include))
 
+    def evaluate_pair_samples(
+            self,
+            llm: BaseChatModel,
+            pairs_df: pd.DataFrame,
+            skip_evaluated: bool = True,
+            include_reasoning: bool = False,
+            save_path: Optional[str] = None,
+            max_retries: int = 3,
+    ) -> pd.DataFrame:
+        """
+        Evaluate pair samples using LLM-based source evaluation.
+
+        This method uses the SourceEvaluationAgent to evaluate question-source pairs
+        and assign comprehensive scores across multiple dimensions.
+
+        Parameters
+        ----------
+        llm : BaseChatModel
+            Language model to use for evaluation
+        pairs_df : pd.DataFrame
+            DataFrame containing pair samples. If None, generates new pairs.
+        skip_evaluated : bool, optional
+            If True, skip pairs that already have evaluation scores. Default is True.
+        include_reasoning : bool, optional
+            If True, include reasoning for each score dimension. Default is False.
+        save_path : Optional[str], optional
+            Path to save the evaluated pairs as CSV. Default is None.
+        max_retries : int, optional
+            Maximum retries for LLM evaluation. Default is 3.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with evaluated pairs including scores across all dimensions
+
+        Raises
+        ------
+        ValueError
+            If neither pairs_df nor question_db_ids are provided and no questions exist
+        """
+
+        if pairs_df.empty:
+            raise ValueError("No pair samples generated for validation")
+
+        LOGGER.info(f"Starting validation of {len(pairs_df)} pair samples")
+
+        # Initialize the SourceEvaluationAgent
+        try:
+            from agents.source_evaluation_agent import SourceEvaluationAgent
+            evaluator = SourceEvaluationAgent(
+                llm=llm,
+                max_retries=max_retries,
+            )
+        except ImportError:
+            raise ImportError(
+                "SourceEvaluationAgent not available. Please ensure all dependencies are installed."
+            )
+
+        # Ensure required columns exist in the DataFrame
+        required_columns = ['question_id', 'source_id']
+        if not all(col in pairs_df.columns for col in required_columns):
+            # Try to get texts from ChromaDB if only IDs are provided
+            if 'question_text' not in pairs_df.columns:
+                LOGGER.info("Retrieving question texts from ChromaDB...")
+                pairs_df['question_text'] = pairs_df['question_id'].apply(
+                    lambda qid: self._question_db.get(ids=[qid])["documents"][0]
+                )
+
+            if 'source_text' not in pairs_df.columns:
+                LOGGER.info("Retrieving source texts from ChromaDB...")
+                pairs_df['source_text'] = pairs_df['source_id'].apply(
+                    lambda sid: self._text_corpus_db.get(ids=[sid])["documents"][0]
+                )
+
+        # Process the DataFrame with the evaluator
+        try:
+            evaluated_df = evaluator.process_dataframe(
+                df=pairs_df,
+                question_col='question_text',
+                source_col='source_text',
+                include_reasoning=include_reasoning,
+                progress_bar=True,
+                save_path=save_path,
+                skip_existing=skip_evaluated
+            )
+
+            LOGGER.info(f"Successfully evaluated {len(evaluated_df)} pair samples")
+
+            # Log error rate
+            error_count = evaluated_df['evaluation_error'].notna().sum()
+            if error_count > 0:
+                LOGGER.warning(f"Failed to evaluate {error_count} pairs ({error_count / len(evaluated_df) * 100:.1f}%)")
+
+            return evaluated_df
+
+        except Exception as e:
+            LOGGER.error(f"Error during pair validation: {e}")
+            raise
+
     def validate_triplet_samples(
         self,
         llm,
