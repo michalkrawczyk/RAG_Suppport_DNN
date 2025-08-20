@@ -55,7 +55,17 @@ try:
 
         @model_validator(mode="after")
         def validate_all_scores_present(self):
-            """Ensure all required scores are present"""
+            """
+            Ensure all required scores are present and valid.
+
+            Validates that all six evaluation dimensions have scores assigned
+            and that none of the score values are None.
+
+            Raises
+            ------
+            ValueError
+                If any required field is missing or if any score is None
+            """
             required_fields = [
                 "relevance",
                 "expertise_authority",
@@ -91,11 +101,19 @@ try:
             evaluation_prompt: str = SINGLE_SRC_SCORE_PROMPT,
         ):
             """
-            Initialize the agent with an LLM and retry configuration
+            Initialize the agent with an LLM and retry configuration.
 
-            Args:
-                llm: Language model to use (defaults to ChatOpenAI)
-                max_retries: Maximum number of retries for getting correct format
+            Sets up the evaluation pipeline with output parsers, prompt templates,
+            and the LangGraph workflow for reliable source evaluation.
+
+            Parameters
+            ----------
+            llm : BaseChatModel, optional
+                Language model to use for evaluation. Default is None.
+            max_retries : int, optional
+                Maximum number of retries for getting correct format. Default is 3.
+            evaluation_prompt : str, optional
+                Prompt template for evaluation. Default is SINGLE_SRC_SCORE_PROMPT.
             """
             self.llm = llm
             self.max_retries = max_retries
@@ -310,14 +328,22 @@ try:
             self, question: str, source_content: str
         ) -> Optional[Dict[str, Any]]:
             """
-            Main function to evaluate a source for a given question
+            Evaluate a source for a given question using the LangGraph workflow.
 
-            Args:
-                question: The question to evaluate against
-                source_content: The source content to evaluate
+            Main interface method that orchestrates the complete evaluation process
+            including retry logic and output formatting.
 
-            Returns:
-                Dictionary with evaluation scores or None if failed after retries
+            Parameters
+            ----------
+            question : str
+                The question to evaluate the source against
+            source_content : str
+                The source content to evaluate for relevance and quality
+
+            Returns
+            -------
+            Optional[Dict[str, Any]]
+                Dictionary with evaluation scores and reasoning, or None if evaluation failed
             """
             initial_state = AgentState(
                 question=question,
@@ -359,20 +385,34 @@ try:
             checkpoint_batch_size: Optional[int] = None,
         ) -> pd.DataFrame:
             """
-            Process a pandas DataFrame with question-source pairs and add score columns
+            Process a pandas DataFrame with question-source pairs and add evaluation scores.
 
-            Args:
-                df: DataFrame with question and source columns
-                question_col: Name of the question column
-                source_col: Name of the source content column
-                include_reasoning: Whether to include reasoning columns
-                progress_bar: Whether to show progress bar
-                save_path: Optional path to save the results as CSV
-                skip_existing: Whether to skip rows that already have scores
-                checkpoint_batch_size: Optional batch size for saving checkpoints (if save_path is provided)
+            Batch processes multiple question-source pairs, adding comprehensive
+            evaluation scores across all dimensions with optional reasoning text.
 
-            Returns:
-                DataFrame with added score columns
+            Parameters
+            ----------
+            df : pd.DataFrame
+                DataFrame containing question and source columns to evaluate
+            question_col : str, optional
+                Name of the column containing questions. Default is "question_text".
+            source_col : str, optional
+                Name of the column containing source content. Default is "source_text".
+            include_reasoning : bool, optional
+                Whether to include reasoning text for each score. Default is False.
+            progress_bar : bool, optional
+                Whether to display a progress bar during processing. Default is True.
+            save_path : str, optional
+                Path to save the results as CSV. Default is None.
+            skip_existing : bool, optional
+                Whether to skip rows that already have evaluation scores. Default is True.
+            checkpoint_batch_size : int, optional
+                Batch size for saving intermediate checkpoints. Default is None.
+
+            Returns
+            -------
+            pd.DataFrame
+                DataFrame with added evaluation score columns and optional reasoning
             """
 
             # Create a copy to avoid modifying original
