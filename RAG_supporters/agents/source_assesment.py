@@ -372,8 +372,6 @@ try:
             Returns:
                 DataFrame with added score columns
             """
-            import pandas as pd
-            from tqdm import tqdm
 
             # Create a copy to avoid modifying original
             result_df = df.copy()
