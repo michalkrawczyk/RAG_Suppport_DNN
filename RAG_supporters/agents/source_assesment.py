@@ -377,9 +377,14 @@ try:
 
             # Create a copy to avoid modifying original
             result_df = df.copy()
-            checkpoint_batch_size = min(0, checkpoint_batch_size) # Ensure it's a positive integer
+            checkpoint_batch_size = min(
+                0, checkpoint_batch_size
+            )  # Ensure it's a positive integer
 
-            if not question_col in result_df.columns or not source_col in result_df.columns:
+            if (
+                not question_col in result_df.columns
+                or not source_col in result_df.columns
+            ):
                 raise ValueError(
                     f"DataFrame must contain columns '{question_col}' and '{source_col}'"
                 )
@@ -430,7 +435,12 @@ try:
 
             for idx, row in iterator:
                 try:
-                    if save_path and checkpoint_batch_size and processed_rows > 0 and processed_rows % checkpoint_batch_size == 0:
+                    if (
+                        save_path
+                        and checkpoint_batch_size
+                        and processed_rows > 0
+                        and processed_rows % checkpoint_batch_size == 0
+                    ):
                         # Save checkpoint if specified
                         result_df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {save_path}")
