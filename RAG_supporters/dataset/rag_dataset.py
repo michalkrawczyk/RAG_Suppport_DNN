@@ -13,7 +13,7 @@ from langchain_core.language_models import BaseChatModel
 from tqdm import tqdm
 
 from agents.dataset_check import DatasetCheckAgent
-from prompts_templates import SRC_COMPARE_PROMPT_WITH_SCORES
+from prompts_templates.rag_verifiers import SRC_COMPARE_PROMPT_WITH_SCORES, SINGLE_SRC_SCORE_PROMPT
 
 LOGGER = logging.getLogger(__name__)
 
@@ -300,6 +300,7 @@ class BaseRAGDatasetGenerator(ABC):
             include_reasoning: bool = False,
             save_path: Optional[str] = None,
             max_retries: int = 3,
+            evaluation_prompt: str = SINGLE_SRC_SCORE_PROMPT,
     ) -> pd.DataFrame:
         """
         Evaluate pair samples using LLM-based source evaluation.
@@ -321,6 +322,8 @@ class BaseRAGDatasetGenerator(ABC):
             Path to save the evaluated pairs as CSV. Default is None.
         max_retries : int, optional
             Maximum retries for LLM evaluation. Default is 3.
+        evaluation_prompt : str, optional
+            Prompt template for evaluation. Default is SINGLE_SRC_SCORE_PROMPT.
 
         Returns
         -------
@@ -344,6 +347,7 @@ class BaseRAGDatasetGenerator(ABC):
             evaluator = SourceEvaluationAgent(
                 llm=llm,
                 max_retries=max_retries,
+                evaluation_prompt=evaluation_prompt,
             )
         except ImportError:
             raise ImportError(
