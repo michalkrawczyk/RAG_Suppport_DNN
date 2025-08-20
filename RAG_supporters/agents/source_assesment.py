@@ -437,6 +437,13 @@ try:
                             skipped_rows += 1
                             continue
 
+                    if pd.isna(row[question_col]) or pd.isna(row[source_col]):
+                        LOGGER.warning(
+                            f"Skipping row {idx} due to missing question or source content"
+                        )
+                        skipped_rows += 1
+                        continue
+
                     # Evaluate the source
                     evaluation = self.evaluate(
                         question=row[question_col], source_content=row[source_col]
