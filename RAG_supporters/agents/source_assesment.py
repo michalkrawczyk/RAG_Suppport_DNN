@@ -376,6 +376,11 @@ try:
             # Create a copy to avoid modifying original
             result_df = df.copy()
 
+            if not question_col in result_df.columns or not source_col in result_df.columns:
+                raise ValueError(
+                    f"DataFrame must contain columns '{question_col}' and '{source_col}'"
+                )
+
             result_columns = [
                 "inferred_domain",
                 "relevance_score",
