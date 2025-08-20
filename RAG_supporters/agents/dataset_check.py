@@ -5,14 +5,20 @@ LOGGER = logging.getLogger(__name__)
 try:
     from typing import List, TypedDict
 
-    from langchain_core.messages import (AIMessage, BaseMessage, HumanMessage,
-                                         SystemMessage)
+    from langchain_core.messages import (
+        AIMessage,
+        BaseMessage,
+        HumanMessage,
+        SystemMessage,
+    )
     from langchain_core.language_models import BaseChatModel
     from langgraph.graph import END, START, StateGraph
     from tqdm import tqdm
 
     from prompts_templates.rag_verifiers import (
-        FINAL_VERDICT_PROMPT, SRC_COMPARE_PROMPT_WITH_SCORES)
+        FINAL_VERDICT_PROMPT,
+        SRC_COMPARE_PROMPT_WITH_SCORES,
+    )
 
     class CheckAgentState(TypedDict):
         """State object for the agent.
@@ -61,7 +67,11 @@ try:
 
         _executor = None
 
-        def __init__(self, llm: BaseChatModel, compare_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES):
+        def __init__(
+            self,
+            llm: BaseChatModel,
+            compare_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES,
+        ):
             self._llm = llm
             self.compare_prompt = compare_prompt
 
@@ -221,7 +231,9 @@ try:
 
             return result
 
-        def process_dataframe(self, df, save_path=None, skip_labeled=True, start_index=0):
+        def process_dataframe(
+            self, df, save_path=None, skip_labeled=True, start_index=0
+        ):
             """Process the dataframe to check for duplicates and other issues.
 
             Parameters
@@ -246,7 +258,9 @@ try:
             interrupted = False
 
             if start_index >= len(df):
-                LOGGER.warning(f"start_index ({start_index}) is beyond DataFrame length ({len(df)}). Processing aborted")
+                LOGGER.warning(
+                    f"start_index ({start_index}) is beyond DataFrame length ({len(df)}). Processing aborted"
+                )
                 return df
 
             sub_df = df.iloc[start_index:]
@@ -280,7 +294,8 @@ try:
                 except KeyboardInterrupt:
                     # Update processed partial results
                     LOGGER.info(
-                        f"Process interrupted by user. Saving partial results for {len(results)} processed rows.")
+                        f"Process interrupted by user. Saving partial results for {len(results)} processed rows."
+                    )
                     interrupted = True
                     break
 
@@ -294,7 +309,8 @@ try:
 
                 if interrupted:
                     LOGGER.info(
-                        f"Processed {len(results)} rows before interruption (rows {start_index} to {end_index - 1})")
+                        f"Processed {len(results)} rows before interruption (rows {start_index} to {end_index - 1})"
+                    )
 
             if save_path:
                 df.to_csv(save_path, index=False)
@@ -317,7 +333,12 @@ try:
             import pandas as pd
 
             df = pd.read_csv(csv_path)
-            self.process_dataframe(df, save_path=csv_path, skip_labeled=skip_labeled, start_index=start_index)
+            self.process_dataframe(
+                df,
+                save_path=csv_path,
+                skip_labeled=skip_labeled,
+                start_index=start_index,
+            )
 
 except ImportError as e:
     LOGGER.warning(
