@@ -2,6 +2,7 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 # TODO: Consider batch processing for efficiency in dataframe processing (later)
+# TODO: Consider partial saves (checkpoint)
 
 try:
     import json
