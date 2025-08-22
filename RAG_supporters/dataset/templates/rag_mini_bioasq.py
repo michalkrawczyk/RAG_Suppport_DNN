@@ -12,6 +12,8 @@ from tqdm import tqdm
 from dataset.rag_dataset import BaseRAGDatasetGenerator, SampleTripletRAGChroma, SamplePairingType
 import pandas as pd
 
+# TODO: add method to search text corpus subset
+
 try:
     from langchain_openai import OpenAIEmbeddings
 
@@ -589,6 +591,10 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 )["documents"][0]
 
                 for source_id, source_text in zip(sources["ids"], sources["documents"]):
+                    if source_text is None or source_text.strip() == "" or source_id == "nan":
+                        # Skip empty or invalid passages
+                        continue
+
                     result_rows.append({
                         "question_id": question_db_id,
                         "question_text": question_text,
@@ -630,6 +636,10 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
                     # Create pairs for each relevant passage
                     for source_id, source_text in zip(relevant_passage_ids, relevant_passages_data["documents"]):
+                        if source_text is None or source_text.strip() == "" or source_id == "nan":
+                            # Skip empty or invalid passages
+                            continue
+
                         result_rows.append({
                             "question_id": question_db_id,
                             "question_text": question_text,
