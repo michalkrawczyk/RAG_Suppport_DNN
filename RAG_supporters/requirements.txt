@@ -8,8 +8,7 @@ numpy>=2.0.2
 pandas>=2.2.3
 
 # Move bellow to optional in setup
-langchain-chroma==0.1.1
-langchain==0.3.20
-langchain-community==0.3.19
-langchain-core==0.3.41
-
+langchain-core==0.3.52
+langchain>=0.3.20
+langchain-community>=0.3.19
+langchain-chroma>=0.2.3
