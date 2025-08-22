@@ -588,7 +588,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                     [question_db_id], include=["documents"]
                 )["documents"][0]
 
-                for source_id, source_text in zip(sources["ids"][0], sources["documents"][0]):
+                for source_id, source_text in zip(sources["ids"], sources["documents"]):
                     result_rows.append({
                         "question_id": question_db_id,
                         "question_text": question_text,
