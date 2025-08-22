@@ -60,6 +60,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 model=kwargs.get("model", "text-embedding-3-small"),
             )
         )
+        self.loading_batch_size = kwargs.get("loading_batch_size", 100) #
 
         self.load_dataset()
         self._passage_id_to_db_id = {}
@@ -88,7 +89,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         # Check if text corpus is initialized, if not - initialize it
         if len(self._text_corpus_db.get()["ids"]) == 0:
-            self._init_text_corpus_db()
+            self._init_text_corpus_db(batch_size=self.loading_batch_size)
             self._save_passage_json()  # Save the mapping of passage IDs to Chroma IDs for future use
         else:
             # Text corpus is already initialized - load mapping from passage_id to chroma_id
@@ -104,7 +105,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         # Check if question database is empty and load dataset if necessary
         if len(self._question_db.get()["ids"]) == 0:
-            self._init_questions_db()
+            self._init_questions_db(batch_size=self.loading_batch_size)
 
     def validate_dataset(self):
         """
@@ -222,7 +223,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         return all_samples
 
-    def _init_text_corpus_db(self, batch_size: int = 20):
+    def _init_text_corpus_db(self, batch_size: int = 100):
         """
         Initialize the text corpus database with passages from the BioASQ dataset.
 
@@ -262,7 +263,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
                 pbar.update(batch_end - i)
 
-    def _init_questions_db(self, batch_size: int = 10):
+    def _init_questions_db(self, batch_size: int = 100):
         """
         Initialize the question database with questions from the BioASQ dataset.
 
