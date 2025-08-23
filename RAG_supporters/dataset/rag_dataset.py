@@ -346,7 +346,8 @@ class BaseRAGDatasetGenerator(ABC):
 
         # Initialize the SourceEvaluationAgent
         try:
-            from agents.source_evaluation_agent import SourceEvaluationAgent
+            from agents.source_assesment import SourceEvaluationAgent
+
             evaluator = SourceEvaluationAgent(
                 llm=llm,
                 max_retries=max_retries,
