@@ -301,6 +301,7 @@ class BaseRAGDatasetGenerator(ABC):
             save_path: Optional[str] = None,
             max_retries: int = 3,
             evaluation_prompt: str = SINGLE_SRC_SCORE_PROMPT,
+            checkpoint_batch_size: Optional[int] = None,
     ) -> pd.DataFrame:
         """
         Evaluate pair samples using LLM-based source evaluation.
@@ -324,6 +325,8 @@ class BaseRAGDatasetGenerator(ABC):
             Maximum retries for LLM evaluation. Default is 3.
         evaluation_prompt : str, optional
             Prompt template for evaluation. Default is SINGLE_SRC_SCORE_PROMPT.
+        checkpoint_batch_size : Optional[int], optional
+            If provided, saves intermediate results every N processed pairs.
 
         Returns
         -------
@@ -379,7 +382,8 @@ class BaseRAGDatasetGenerator(ABC):
                 include_reasoning=include_reasoning,
                 progress_bar=True,
                 save_path=save_path,
-                skip_existing=skip_evaluated
+                skip_existing=skip_evaluated,
+                checkpoint_batch_size=checkpoint_batch_size
             )
 
             LOGGER.info(f"Successfully evaluated {len(evaluated_df)} pair samples")
