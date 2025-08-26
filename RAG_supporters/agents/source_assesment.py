@@ -711,6 +711,8 @@ try:
                         else:
                             result_df.at[idx, "evaluation_error"] = "Failed to evaluate in batch"
                             error_count += 1
+                    if progress_bar:
+                        iterator.set_postfix({"Processed": processed_count, "Errors": error_count})
 
                 except Exception as e:
                     LOGGER.error(f"Error processing batch {batch_start}-{batch_end}: {e}")
@@ -848,6 +850,9 @@ try:
                     LOGGER.error(f"Error processing row {idx}: {e}")
                     result_df.at[idx, "evaluation_error"] = str(e)
                     error_rows += 1
+
+            if progress_bar:
+                iterator.set_postfix({"Processed": processed_rows, "Errors": error_rows, "Skipped": skipped_rows})
 
             LOGGER.info(
                 f"Processing complete: {processed_rows} processed, {skipped_rows} skipped, {error_rows} errors out of {total_rows} total rows")
