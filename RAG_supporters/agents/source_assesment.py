@@ -2,8 +2,14 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
-# TODO: Consider batch processing for efficiency in dataframe processing (later)
-# TODO: Consider partial saves (checkpoint)
+
+def _is_empty_text(text: str) -> bool:
+    """Check if the text is empty or only whitespace"""
+    if not text or text.strip() == "":
+        return True
+    if text.lower() == "nan":
+        return True
+    return False
 
 try:
     import json
@@ -637,6 +643,12 @@ try:
                     if has_existing_scores:
                         continue
 
+                # If empty question or source, set error
+                if pd.isna(row[question_col]) or pd.isna(row[source_col]) or \
+                    _is_empty_text(row[question_col]) or _is_empty_text(row[source_col]):
+                    result_df.at[idx, "evaluation_error"] = "Missing or empty question or source content"
+                    continue
+
                 # Skip rows with missing data
                 if pd.isna(row[question_col]) or pd.isna(row[source_col]):
                     LOGGER.warning(f"Skipping row {idx} due to missing question or source content")
@@ -804,7 +816,10 @@ try:
                             skipped_rows += 1
                             continue
 
-                    if pd.isna(row[question_col]) or pd.isna(row[source_col]):
+                    if pd.isna(row[question_col]) or pd.isna(row[source_col]) or \
+                        _is_empty_text(row[question_col]) or _is_empty_text(row[source_col]):
+                        result_df.at[idx, "evaluation_error"] = "Missing or empty question or source content"
+
                         LOGGER.warning(f"Skipping row {idx} due to missing question or source content")
                         skipped_rows += 1
                         continue
