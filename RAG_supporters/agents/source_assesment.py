@@ -1,14 +1,22 @@
 import logging
 
 LOGGER = logging.getLogger(__name__)
+# TODO: Consider if errors should be reprocessed when skip_existing is True?
 
-# TODO: Consider batch processing for efficiency in dataframe processing (later)
-# TODO: Consider partial saves (checkpoint)
+
+def _is_empty_text(text: str) -> bool:
+    """Check if the text is empty or only whitespace"""
+    if not text or text.strip() == "":
+        return True
+    if text.lower() == "nan":
+        return True
+    return False
+
 
 try:
     import json
     from enum import Enum
-    from typing import Any, Dict, List, Optional
+    from typing import Any, Dict, List, Optional, Union
 
     from langchain.output_parsers import OutputFixingParser, PydanticOutputParser
     from langchain_core.language_models import BaseChatModel
@@ -99,6 +107,7 @@ try:
             llm: BaseChatModel = None,
             max_retries: int = 3,
             evaluation_prompt: str = SINGLE_SRC_SCORE_PROMPT,
+            batch_size: int = 10,  # Add default batch size
         ):
             """
             Initialize the agent with an LLM and retry configuration.
@@ -114,10 +123,13 @@ try:
                 Maximum number of retries for getting correct format. Default is 3.
             evaluation_prompt : str, optional
                 Prompt template for evaluation. Default is SINGLE_SRC_SCORE_PROMPT.
+            batch_size : int, optional
+                Default batch size for batch processing. Default is 10.
             """
             self.llm = llm
             self.max_retries = max_retries
             self.eval_prompt = evaluation_prompt
+            self.batch_size = batch_size
 
             # Set up the parser with Pydantic model
             self.parser = PydanticOutputParser(pydantic_object=SourceEvaluation)
@@ -131,6 +143,31 @@ try:
             self.prompt_template = self._create_prompt_template()
 
             self.graph = self._build_graph()
+
+            # Check if LLM is OpenAI for batch processing
+            self._is_openai_llm = self._check_openai_llm()
+
+        def _check_openai_llm(self) -> bool:
+            """
+            Check if the LLM is from OpenAI (ChatOpenAI).
+
+            Returns
+            -------
+            bool
+                True if LLM is from OpenAI, False otherwise
+            """
+            try:
+                from langchain_openai import ChatOpenAI, AzureChatOpenAI
+
+                return isinstance(self.llm, (ChatOpenAI, AzureChatOpenAI))
+            except ImportError:
+                LOGGER.debug(
+                    "langchain_openai not installed, batch processing unavailable"
+                )
+                return False
+            except Exception as e:
+                LOGGER.debug(f"Could not determine if LLM is OpenAI: {e}")
+                return False
 
         def _create_prompt_template(self) -> PromptTemplate:
             """Create the prompt template with format instructions from parser"""
@@ -373,6 +410,103 @@ try:
                 LOGGER.error(f"Final error: {result.get('error')}")
                 return None
 
+        def evaluate_batch(
+            self, questions: List[str], source_contents: List[str]
+        ) -> List[Optional[Dict[str, Any]]]:
+            """
+            Evaluate multiple question-source pairs in a batch using LangChain's batch processing.
+
+            Only available for OpenAI LLMs. Falls back to sequential processing for other LLMs.
+
+            Parameters
+            ----------
+            questions : List[str]
+                List of questions to evaluate
+            source_contents : List[str]
+                List of source contents corresponding to each question
+
+            Returns
+            -------
+            List[Optional[Dict[str, Any]]]
+                List of evaluation results, None for failed evaluations
+            """
+            if not self._is_openai_llm:
+                LOGGER.info(
+                    "Batch processing not available for non-OpenAI LLMs, using sequential processing"
+                )
+                return [self.evaluate(q, s) for q, s in zip(questions, source_contents)]
+
+            if len(questions) != len(source_contents):
+                raise ValueError(
+                    "questions and source_contents must have the same length"
+                )
+
+            LOGGER.info(
+                f"Processing batch of {len(questions)} evaluations using OpenAI batch API"
+            )
+
+            # Prepare batch prompts
+            prompts = []
+            for question, source in zip(questions, source_contents):
+                prompt = self.prompt_template.format(
+                    question=question, source_content=source
+                )
+                prompts.append(prompt)
+
+            try:
+                # Use LangChain's batch method for OpenAI
+                # This handles rate limiting and retries internally
+                responses = self.llm.batch(prompts)
+
+                # Parse each response
+                results = []
+                for i, response in enumerate(responses):
+                    try:
+                        # Extract content based on response type
+                        if hasattr(response, "content"):
+                            content = response.content
+                        else:
+                            content = str(response)
+
+                        # Parse the response
+                        try:
+                            evaluation = self.fixing_parser.parse(content)
+                            if isinstance(evaluation, SourceEvaluation):
+                                results.append(
+                                    self._format_output(evaluation.model_dump())
+                                )
+                            else:
+                                results.append(self._format_output(evaluation))
+                        except Exception as parse_error:
+                            LOGGER.warning(
+                                f"Failed to parse batch item {i}: {parse_error}"
+                            )
+                            # Try regular parser as fallback
+                            try:
+                                evaluation = self.parser.parse(content)
+                                if isinstance(evaluation, SourceEvaluation):
+                                    results.append(
+                                        self._format_output(evaluation.model_dump())
+                                    )
+                                else:
+                                    results.append(self._format_output(evaluation))
+                            except Exception as e:
+                                LOGGER.error(
+                                    f"All parsing attempts failed for batch item {i}: {e}"
+                                )
+                                results.append(None)
+                    except Exception as e:
+                        LOGGER.error(f"Error processing batch response {i}: {e}")
+                        results.append(None)
+
+                return results
+
+            except Exception as e:
+                LOGGER.error(f"Batch processing failed: {e}")
+                LOGGER.info("Falling back to sequential processing")
+                # Fallback to sequential processing
+                return [self.evaluate(q, s) for q, s in zip(questions, source_contents)]
+
         def process_dataframe(
             self,
             df: pd.DataFrame,
@@ -383,6 +517,8 @@ try:
             save_path: Optional[str] = None,
             skip_existing: bool = True,
             checkpoint_batch_size: Optional[int] = None,
+            use_batch_processing: bool = True,
+            batch_size: Optional[int] = None,
         ) -> pd.DataFrame:
             """
             Process a pandas DataFrame with question-source pairs and add evaluation scores.
@@ -408,6 +544,10 @@ try:
                 Whether to skip rows that already have evaluation scores. Default is True.
             checkpoint_batch_size : int, optional
                 Batch size for saving intermediate checkpoints. Default is None.
+            use_batch_processing : bool, optional
+                Whether to use batch processing for OpenAI LLMs. Default is True.
+            batch_size : int, optional
+                Size of batches for batch processing. If None, uses default from init. Default is None.
 
             Returns
             -------
@@ -415,10 +555,283 @@ try:
                 DataFrame with added evaluation score columns and optional reasoning
             """
 
+            # Determine if we should use batch processing
+            should_batch = use_batch_processing and self._is_openai_llm
+            batch_size = batch_size or self.batch_size
+
+            if should_batch:
+                LOGGER.info(f"Using batch processing with batch size {batch_size}")
+                return self._process_dataframe_batch(
+                    df=df,
+                    question_col=question_col,
+                    source_col=source_col,
+                    include_reasoning=include_reasoning,
+                    progress_bar=progress_bar,
+                    save_path=save_path,
+                    skip_existing=skip_existing,
+                    checkpoint_batch_size=checkpoint_batch_size,
+                    batch_size=batch_size,
+                )
+            else:
+                if use_batch_processing and not self._is_openai_llm:
+                    LOGGER.info(
+                        "Batch processing requested but LLM is not OpenAI, using sequential processing"
+                    )
+                return self._process_dataframe_sequential(
+                    df=df,
+                    question_col=question_col,
+                    source_col=source_col,
+                    include_reasoning=include_reasoning,
+                    progress_bar=progress_bar,
+                    save_path=save_path,
+                    skip_existing=skip_existing,
+                    checkpoint_batch_size=checkpoint_batch_size,
+                )
+
+        def _process_dataframe_batch(
+            self,
+            df: pd.DataFrame,
+            question_col: str,
+            source_col: str,
+            include_reasoning: bool,
+            progress_bar: bool,
+            save_path: Optional[str],
+            skip_existing: bool,
+            checkpoint_batch_size: Optional[int],
+            batch_size: int,
+        ) -> pd.DataFrame:
+            """
+            Process DataFrame using batch processing for OpenAI LLMs.
+
+            Internal method that handles the batch processing logic.
+            """
             # Create a copy to avoid modifying original
             result_df = df.copy()
-            checkpoint_batch_size = min(
-                0, checkpoint_batch_size
+
+            if (
+                not question_col in result_df.columns
+                or not source_col in result_df.columns
+            ):
+                raise ValueError(
+                    f"DataFrame must contain columns '{question_col}' and '{source_col}'"
+                )
+
+            # Initialize result columns
+            result_columns = [
+                "inferred_domain",
+                "relevance_score",
+                "expertise_authority_score",
+                "depth_specificity_score",
+                "clarity_conciseness_score",
+                "objectivity_bias_score",
+                "completeness_score",
+                "evaluation_error",
+            ]
+            if include_reasoning:
+                result_columns.extend(
+                    [
+                        "relevance_reasoning",
+                        "expertise_authority_reasoning",
+                        "depth_specificity_reasoning",
+                        "clarity_conciseness_reasoning",
+                        "objectivity_bias_reasoning",
+                        "completeness_reasoning",
+                    ]
+                )
+
+            for column in result_columns:
+                if column not in result_df.columns:
+                    result_df[column] = None
+
+            # Prepare rows for batch processing
+            rows_to_process = []
+            indices_to_process = []
+
+            score_columns = [c for c in result_columns if "score" in c]
+
+            for idx, row in result_df.iterrows():
+                # Skip if requested and has existing scores
+                if skip_existing:
+                    has_existing_scores = any(
+                        col in result_df.columns and pd.notna(row[col])
+                        for col in score_columns
+                    )
+                    if has_existing_scores:
+                        continue
+
+                # If empty question or source, set error
+                if (
+                    pd.isna(row[question_col])
+                    or pd.isna(row[source_col])
+                    or _is_empty_text(row[question_col])
+                    or _is_empty_text(row[source_col])
+                ):
+                    result_df.at[idx, "evaluation_error"] = (
+                        "Missing or empty question or source content"
+                    )
+                    continue
+
+                # Skip rows with missing data
+                if pd.isna(row[question_col]) or pd.isna(row[source_col]):
+                    LOGGER.warning(
+                        f"Skipping row {idx} due to missing question or source content"
+                    )
+                    continue
+
+                rows_to_process.append(row)
+                indices_to_process.append(idx)
+
+            if not rows_to_process:
+                LOGGER.info("No rows to process")
+                return result_df
+
+            # Process in batches
+            total_batches = (len(rows_to_process) + batch_size - 1) // batch_size
+
+            iterator = (
+                tqdm(
+                    range(0, len(rows_to_process), batch_size),
+                    total=total_batches,
+                    desc="Processing batches",
+                )
+                if progress_bar
+                else range(0, len(rows_to_process), batch_size)
+            )
+
+            processed_count = 0
+            error_count = 0
+
+            for batch_start in iterator:
+                batch_end = min(batch_start + batch_size, len(rows_to_process))
+                batch_rows = rows_to_process[batch_start:batch_end]
+                batch_indices = indices_to_process[batch_start:batch_end]
+
+                # Extract questions and sources for this batch
+                batch_questions = [row[question_col] for row in batch_rows]
+                batch_sources = [row[source_col] for row in batch_rows]
+
+                try:
+                    # Process batch
+                    batch_results = self.evaluate_batch(batch_questions, batch_sources)
+
+                    # Update DataFrame with results
+                    for idx, evaluation in zip(batch_indices, batch_results):
+                        if evaluation:
+                            # Prepare scores
+                            update_dict = {
+                                "inferred_domain": evaluation["inferred_domain"],
+                                "relevance_score": evaluation["scores"]["relevance"],
+                                "expertise_authority_score": evaluation["scores"][
+                                    "expertise_authority"
+                                ],
+                                "depth_specificity_score": evaluation["scores"][
+                                    "depth_specificity"
+                                ],
+                                "clarity_conciseness_score": evaluation["scores"][
+                                    "clarity_conciseness"
+                                ],
+                                "objectivity_bias_score": evaluation["scores"][
+                                    "objectivity_bias"
+                                ],
+                                "completeness_score": evaluation["scores"][
+                                    "completeness"
+                                ],
+                            }
+
+                            # Add reasoning if requested
+                            if include_reasoning:
+                                update_dict.update(
+                                    {
+                                        "relevance_reasoning": evaluation["reasoning"][
+                                            "relevance"
+                                        ],
+                                        "expertise_authority_reasoning": evaluation[
+                                            "reasoning"
+                                        ]["expertise_authority"],
+                                        "depth_specificity_reasoning": evaluation[
+                                            "reasoning"
+                                        ]["depth_specificity"],
+                                        "clarity_conciseness_reasoning": evaluation[
+                                            "reasoning"
+                                        ]["clarity_conciseness"],
+                                        "objectivity_bias_reasoning": evaluation[
+                                            "reasoning"
+                                        ]["objectivity_bias"],
+                                        "completeness_reasoning": evaluation[
+                                            "reasoning"
+                                        ]["completeness"],
+                                    }
+                                )
+
+                            result_df.loc[idx, list(update_dict.keys())] = list(
+                                update_dict.values()
+                            )
+
+                            processed_count += 1
+
+                            # Save checkpoint if specified
+                            if (
+                                save_path
+                                and checkpoint_batch_size
+                                and processed_count > 0
+                                and processed_count % checkpoint_batch_size == 0
+                            ):
+                                result_df.to_csv(save_path, index=False)
+                                LOGGER.info(
+                                    f"Checkpoint saved at {save_path} after {processed_count} rows"
+                                )
+                        else:
+                            result_df.at[idx, "evaluation_error"] = (
+                                "Failed to evaluate in batch"
+                            )
+                            error_count += 1
+                    if progress_bar:
+                        iterator.set_postfix(
+                            {"Processed": processed_count, "Errors": error_count}
+                        )
+
+                except KeyboardInterrupt:
+                    LOGGER.warning("Batch processing interrupted by user")
+                    break
+
+                except Exception as e:
+                    LOGGER.error(
+                        f"Error processing batch {batch_start}-{batch_end}: {e}"
+                    )
+                    for idx in batch_indices:
+                        result_df.at[idx, "evaluation_error"] = f"Batch error: {str(e)}"
+                    error_count += len(batch_indices)
+
+            LOGGER.info(
+                f"Batch processing complete: {processed_count} successful, {error_count} errors"
+            )
+
+            if save_path:
+                result_df.to_csv(save_path, index=False)
+                LOGGER.info(f"Final results saved to {save_path}")
+
+            return result_df
+
+        def _process_dataframe_sequential(
+            self,
+            df: pd.DataFrame,
+            question_col: str,
+            source_col: str,
+            include_reasoning: bool,
+            progress_bar: bool,
+            save_path: Optional[str],
+            skip_existing: bool,
+            checkpoint_batch_size: Optional[int],
+        ) -> pd.DataFrame:
+            """
+            Original sequential processing method.
+
+            This is the existing process_dataframe logic moved to a separate method.
+            """
+            # Create a copy to avoid modifying original
+            result_df = df.copy()
+            checkpoint_batch_size = max(
+                0, checkpoint_batch_size or 0
             )  # Ensure it's a positive integer
 
             if (
@@ -437,7 +850,6 @@ try:
                 "clarity_conciseness_score",
                 "objectivity_bias_score",
                 "completeness_score",
-                "average_score",
                 "evaluation_error",
             ]
             if include_reasoning:
@@ -453,9 +865,7 @@ try:
                 )
 
             if skip_existing:
-                score_columns = [
-                    c for c in result_columns if "score" in c
-                ]  # for skipping existing rows
+                score_columns = [c for c in result_columns if "score" in c]
 
             # Initialize new columns
             for column in result_columns:
@@ -481,12 +891,10 @@ try:
                         and processed_rows > 0
                         and processed_rows % checkpoint_batch_size == 0
                     ):
-                        # Save checkpoint if specified
                         result_df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {save_path}")
 
                     if skip_existing:
-                        # Skip rows that already have scores
                         has_existing_scores = any(
                             col in result_df.columns and pd.notna(row[col])
                             for col in score_columns
@@ -495,7 +903,16 @@ try:
                             skipped_rows += 1
                             continue
 
-                    if pd.isna(row[question_col]) or pd.isna(row[source_col]):
+                    if (
+                        pd.isna(row[question_col])
+                        or pd.isna(row[source_col])
+                        or _is_empty_text(row[question_col])
+                        or _is_empty_text(row[source_col])
+                    ):
+                        result_df.at[idx, "evaluation_error"] = (
+                            "Missing or empty question or source content"
+                        )
+
                         LOGGER.warning(
                             f"Skipping row {idx} due to missing question or source content"
                         )
@@ -509,56 +926,51 @@ try:
 
                     if evaluation:
                         # Add scores
-                        result_df.at[idx, "inferred_domain"] = evaluation[
-                            "inferred_domain"
-                        ]
-                        result_df.at[idx, "relevance_score"] = evaluation["scores"][
-                            "relevance"
-                        ]
-                        result_df.at[idx, "expertise_authority_score"] = evaluation[
-                            "scores"
-                        ]["expertise_authority"]
-                        result_df.at[idx, "depth_specificity_score"] = evaluation[
-                            "scores"
-                        ]["depth_specificity"]
-                        result_df.at[idx, "clarity_conciseness_score"] = evaluation[
-                            "scores"
-                        ]["clarity_conciseness"]
-                        result_df.at[idx, "objectivity_bias_score"] = evaluation[
-                            "scores"
-                        ]["objectivity_bias"]
-                        result_df.at[idx, "completeness_score"] = evaluation["scores"][
-                            "completeness"
-                        ]
+                        update_dict = {
+                            "inferred_domain": evaluation["inferred_domain"],
+                            "relevance_score": evaluation["scores"]["relevance"],
+                            "expertise_authority_score": evaluation["scores"][
+                                "expertise_authority"
+                            ],
+                            "depth_specificity_score": evaluation["scores"][
+                                "depth_specificity"
+                            ],
+                            "clarity_conciseness_score": evaluation["scores"][
+                                "clarity_conciseness"
+                            ],
+                            "objectivity_bias_score": evaluation["scores"][
+                                "objectivity_bias"
+                            ],
+                            "completeness_score": evaluation["scores"]["completeness"],
+                        }
 
-                        # Calculate average score
-                        scores = [
-                            v for v in evaluation["scores"].values() if v is not None
-                        ]
-                        result_df.at[idx, "average_score"] = (
-                            sum(scores) / len(scores) if scores else None
-                        )
-
-                        # Add reasoning if requested
                         if include_reasoning:
-                            result_df.at[idx, "relevance_reasoning"] = evaluation[
-                                "reasoning"
-                            ]["relevance"]
-                            result_df.at[idx, "expertise_authority_reasoning"] = (
-                                evaluation["reasoning"]["expertise_authority"]
+                            update_dict.update(
+                                {
+                                    "relevance_reasoning": evaluation["reasoning"][
+                                        "relevance"
+                                    ],
+                                    "expertise_authority_reasoning": evaluation[
+                                        "reasoning"
+                                    ]["expertise_authority"],
+                                    "depth_specificity_reasoning": evaluation[
+                                        "reasoning"
+                                    ]["depth_specificity"],
+                                    "clarity_conciseness_reasoning": evaluation[
+                                        "reasoning"
+                                    ]["clarity_conciseness"],
+                                    "objectivity_bias_reasoning": evaluation[
+                                        "reasoning"
+                                    ]["objectivity_bias"],
+                                    "completeness_reasoning": evaluation["reasoning"][
+                                        "completeness"
+                                    ],
+                                }
                             )
-                            result_df.at[idx, "depth_specificity_reasoning"] = (
-                                evaluation["reasoning"]["depth_specificity"]
-                            )
-                            result_df.at[idx, "clarity_conciseness_reasoning"] = (
-                                evaluation["reasoning"]["clarity_conciseness"]
-                            )
-                            result_df.at[idx, "objectivity_bias_reasoning"] = (
-                                evaluation["reasoning"]["objectivity_bias"]
-                            )
-                            result_df.at[idx, "completeness_reasoning"] = evaluation[
-                                "reasoning"
-                            ]["completeness"]
+
+                        result_df.loc[idx, list(update_dict.keys())] = list(
+                            update_dict.values()
+                        )
                     else:
                         result_df.at[idx, "evaluation_error"] = (
                             "Failed to evaluate after retries"
@@ -566,17 +978,29 @@ try:
 
                     processed_rows += 1
 
+                except KeyboardInterrupt:
+                    LOGGER.warning("Processing interrupted by user")
+                    break
+
                 except Exception as e:
                     LOGGER.error(f"Error processing row {idx}: {e}")
                     result_df.at[idx, "evaluation_error"] = str(e)
                     error_rows += 1
+
+                if progress_bar:
+                    iterator.set_postfix(
+                        {
+                            "Processed": processed_rows,
+                            "Errors": error_rows,
+                            "Skipped": skipped_rows,
+                        }
+                    )
 
             LOGGER.info(
                 f"Processing complete: {processed_rows} processed, {skipped_rows} skipped, {error_rows} errors out of {total_rows} total rows"
             )
 
             if save_path:
-                # Save the results to a CSV file
                 result_df.to_csv(save_path, index=False)
                 LOGGER.info(f"Results saved to {save_path}")
 
