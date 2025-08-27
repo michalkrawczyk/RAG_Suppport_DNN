@@ -605,7 +605,6 @@ try:
                 "clarity_conciseness_score",
                 "objectivity_bias_score",
                 "completeness_score",
-                "average_score",
                 "evaluation_error",
             ]
             if include_reasoning:
@@ -687,12 +686,6 @@ try:
                                 "completeness_score": evaluation["scores"]["completeness"]
                             }
 
-
-
-                            # Calculate average score
-                            scores = [v for v in evaluation["scores"].values() if v is not None]
-                            result_df.at[idx, "average_score"] = sum(scores) / len(scores) if scores else None
-
                             # Add reasoning if requested
                             if include_reasoning:
                                 update_dict.update({
@@ -769,7 +762,6 @@ try:
                 "clarity_conciseness_score",
                 "objectivity_bias_score",
                 "completeness_score",
-                "average_score",
                 "evaluation_error",
             ]
             if include_reasoning:
@@ -835,9 +827,6 @@ try:
                             "completeness_score": evaluation["scores"]["completeness"]
                         }
 
-                        # Calculate average score
-                        scores = [v for v in evaluation["scores"].values() if v is not None]
-                        result_df.at[idx, "average_score"] = sum(scores) / len(scores) if scores else None
 
                         if include_reasoning:
                             update_dict.update({
