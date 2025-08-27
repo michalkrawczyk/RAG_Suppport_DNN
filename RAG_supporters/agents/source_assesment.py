@@ -676,14 +676,18 @@ try:
                     # Update DataFrame with results
                     for idx, evaluation in zip(batch_indices, batch_results):
                         if evaluation:
-                            # Add scores
-                            result_df.at[idx, "inferred_domain"] = evaluation["inferred_domain"]
-                            result_df.at[idx, "relevance_score"] = evaluation["scores"]["relevance"]
-                            result_df.at[idx, "expertise_authority_score"] = evaluation["scores"]["expertise_authority"]
-                            result_df.at[idx, "depth_specificity_score"] = evaluation["scores"]["depth_specificity"]
-                            result_df.at[idx, "clarity_conciseness_score"] = evaluation["scores"]["clarity_conciseness"]
-                            result_df.at[idx, "objectivity_bias_score"] = evaluation["scores"]["objectivity_bias"]
-                            result_df.at[idx, "completeness_score"] = evaluation["scores"]["completeness"]
+                            # Prepare scores
+                            update_dict = {
+                                "inferred_domain": evaluation["inferred_domain"],
+                                "relevance_score": evaluation["scores"]["relevance"],
+                                "expertise_authority_score": evaluation["scores"]["expertise_authority"],
+                                "depth_specificity_score": evaluation["scores"]["depth_specificity"],
+                                "clarity_conciseness_score": evaluation["scores"]["clarity_conciseness"],
+                                "objectivity_bias_score": evaluation["scores"]["objectivity_bias"],
+                                "completeness_score": evaluation["scores"]["completeness"]
+                            }
+
+
 
                             # Calculate average score
                             scores = [v for v in evaluation["scores"].values() if v is not None]
@@ -691,16 +695,16 @@ try:
 
                             # Add reasoning if requested
                             if include_reasoning:
-                                result_df.at[idx, "relevance_reasoning"] = evaluation["reasoning"]["relevance"]
-                                result_df.at[idx, "expertise_authority_reasoning"] = evaluation["reasoning"][
-                                    "expertise_authority"]
-                                result_df.at[idx, "depth_specificity_reasoning"] = evaluation["reasoning"][
-                                    "depth_specificity"]
-                                result_df.at[idx, "clarity_conciseness_reasoning"] = evaluation["reasoning"][
-                                    "clarity_conciseness"]
-                                result_df.at[idx, "objectivity_bias_reasoning"] = evaluation["reasoning"][
-                                    "objectivity_bias"]
-                                result_df.at[idx, "completeness_reasoning"] = evaluation["reasoning"]["completeness"]
+                                update_dict.update({
+                                    "relevance_reasoning": evaluation["reasoning"]["relevance"],
+                                    "expertise_authority_reasoning": evaluation["reasoning"]["expertise_authority"],
+                                    "depth_specificity_reasoning": evaluation["reasoning"]["depth_specificity"],
+                                    "clarity_conciseness_reasoning": evaluation["reasoning"]["clarity_conciseness"],
+                                    "objectivity_bias_reasoning": evaluation["reasoning"]["objectivity_bias"],
+                                    "completeness_reasoning": evaluation["reasoning"]["completeness"]
+                                })
+
+                            result_df.loc[idx, list(update_dict.keys())] = list(update_dict.values())
 
                             processed_count += 1
 
@@ -821,30 +825,31 @@ try:
 
                     if evaluation:
                         # Add scores
-                        result_df.at[idx, "inferred_domain"] = evaluation["inferred_domain"]
-                        result_df.at[idx, "relevance_score"] = evaluation["scores"]["relevance"]
-                        result_df.at[idx, "expertise_authority_score"] = evaluation["scores"]["expertise_authority"]
-                        result_df.at[idx, "depth_specificity_score"] = evaluation["scores"]["depth_specificity"]
-                        result_df.at[idx, "clarity_conciseness_score"] = evaluation["scores"]["clarity_conciseness"]
-                        result_df.at[idx, "objectivity_bias_score"] = evaluation["scores"]["objectivity_bias"]
-                        result_df.at[idx, "completeness_score"] = evaluation["scores"]["completeness"]
+                        update_dict = {
+                            "inferred_domain": evaluation["inferred_domain"],
+                            "relevance_score": evaluation["scores"]["relevance"],
+                            "expertise_authority_score": evaluation["scores"]["expertise_authority"],
+                            "depth_specificity_score": evaluation["scores"]["depth_specificity"],
+                            "clarity_conciseness_score": evaluation["scores"]["clarity_conciseness"],
+                            "objectivity_bias_score": evaluation["scores"]["objectivity_bias"],
+                            "completeness_score": evaluation["scores"]["completeness"]
+                        }
 
                         # Calculate average score
                         scores = [v for v in evaluation["scores"].values() if v is not None]
                         result_df.at[idx, "average_score"] = sum(scores) / len(scores) if scores else None
 
-                        # Add reasoning if requested
                         if include_reasoning:
-                            result_df.at[idx, "relevance_reasoning"] = evaluation["reasoning"]["relevance"]
-                            result_df.at[idx, "expertise_authority_reasoning"] = evaluation["reasoning"][
-                                "expertise_authority"]
-                            result_df.at[idx, "depth_specificity_reasoning"] = evaluation["reasoning"][
-                                "depth_specificity"]
-                            result_df.at[idx, "clarity_conciseness_reasoning"] = evaluation["reasoning"][
-                                "clarity_conciseness"]
-                            result_df.at[idx, "objectivity_bias_reasoning"] = evaluation["reasoning"][
-                                "objectivity_bias"]
-                            result_df.at[idx, "completeness_reasoning"] = evaluation["reasoning"]["completeness"]
+                            update_dict.update({
+                                "relevance_reasoning": evaluation["reasoning"]["relevance"],
+                                "expertise_authority_reasoning": evaluation["reasoning"]["expertise_authority"],
+                                "depth_specificity_reasoning": evaluation["reasoning"]["depth_specificity"],
+                                "clarity_conciseness_reasoning": evaluation["reasoning"]["clarity_conciseness"],
+                                "objectivity_bias_reasoning": evaluation["reasoning"]["objectivity_bias"],
+                                "completeness_reasoning": evaluation["reasoning"]["completeness"]
+                            })
+
+                        result_df.loc[idx, list(update_dict.keys())] = list(update_dict.values())
                     else:
                         result_df.at[idx, "evaluation_error"] = "Failed to evaluate after retries"
 
