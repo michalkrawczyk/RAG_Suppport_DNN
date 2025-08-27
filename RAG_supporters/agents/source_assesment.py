@@ -504,8 +504,8 @@ try:
                 save_path: Optional[str] = None,
                 skip_existing: bool = True,
                 checkpoint_batch_size: Optional[int] = None,
-                use_batch_processing: bool = True,  # New parameter
-                batch_size: Optional[int] = None,  # New parameter
+                use_batch_processing: bool = True,
+                batch_size: Optional[int] = None,
         ) -> pd.DataFrame:
             """
             Process a pandas DataFrame with question-source pairs and add evaluation scores.
@@ -714,6 +714,10 @@ try:
                     if progress_bar:
                         iterator.set_postfix({"Processed": processed_count, "Errors": error_count})
 
+                except KeyboardInterrupt:
+                    LOGGER.warning("Batch processing interrupted by user")
+                    break
+
                 except Exception as e:
                     LOGGER.error(f"Error processing batch {batch_start}-{batch_end}: {e}")
                     for idx in batch_indices:
@@ -846,13 +850,17 @@ try:
 
                     processed_rows += 1
 
+                except KeyboardInterrupt:
+                    LOGGER.warning("Processing interrupted by user")
+                    break
+
                 except Exception as e:
                     LOGGER.error(f"Error processing row {idx}: {e}")
                     result_df.at[idx, "evaluation_error"] = str(e)
                     error_rows += 1
 
-            if progress_bar:
-                iterator.set_postfix({"Processed": processed_rows, "Errors": error_rows, "Skipped": skipped_rows})
+                if progress_bar:
+                    iterator.set_postfix({"Processed": processed_rows, "Errors": error_rows, "Skipped": skipped_rows})
 
             LOGGER.info(
                 f"Processing complete: {processed_rows} processed, {skipped_rows} skipped, {error_rows} errors out of {total_rows} total rows")
