@@ -9,7 +9,11 @@ from datasets import load_dataset
 from langchain_chroma import Chroma
 from tqdm import tqdm
 
-from dataset.rag_dataset import BaseRAGDatasetGenerator, SampleTripletRAGChroma, SamplePairingType
+from dataset.rag_dataset import (
+    BaseRAGDatasetGenerator,
+    SampleTripletRAGChroma,
+    SamplePairingType,
+)
 import pandas as pd
 
 # TODO: add method to search text corpus subset
@@ -62,7 +66,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 model=kwargs.get("model", "text-embedding-3-small"),
             )
         )
-        self.loading_batch_size = kwargs.get("loading_batch_size", 100) #
+        self.loading_batch_size = kwargs.get("loading_batch_size", 100)  #
 
         self.load_dataset()
         self._passage_id_to_db_id = {}
@@ -146,8 +150,14 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
     def generate_samples(self, sample_type: str, save_to_csv=True, **kwargs):
         # TODO: This method has inconsistency in returning types (list or DataFrame).
         #  Consider rewrtiing triplets to return DataFrame (if decide to keep old way with triplets)
-        valid_types = ["positive", "contrastive", "similar",
-                       "pairs_relevant", "pairs_all_existing", "pairs_embedding_similarity"]
+        valid_types = [
+            "positive",
+            "contrastive",
+            "similar",
+            "pairs_relevant",
+            "pairs_all_existing",
+            "pairs_embedding_similarity",
+        ]
 
         if sample_type not in valid_types:
             raise ValueError(
@@ -162,19 +172,25 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         # Get all questions from the database
         question_data = self._question_db.get(include=["metadatas"])  # ids are included
 
-        if sample_type in ["pairs_relevant", "pairs_all_existing", "pairs_embedding_similarity"]:
+        if sample_type in [
+            "pairs_relevant",
+            "pairs_all_existing",
+            "pairs_embedding_similarity",
+        ]:
             # Generate pair samples based on the requested type
-            sample_df =  self._generate_pair_samples_df(
+            sample_df = self._generate_pair_samples_df(
                 question_db_ids=question_data["ids"],
                 criterion=SamplePairingType(sample_type.replace("pairs_", "")),
-                **kwargs)
+                **kwargs,
+            )
             if save_to_csv:
                 # Save the generated pairs to a CSV file
                 pd.DataFrame(sample_df).to_csv(
-                    f"{self._dataset_dir}{os.sep}pairs_{sample_type}.csv", index=False, encoding="utf-8"
+                    f"{self._dataset_dir}{os.sep}pairs_{sample_type}.csv",
+                    index=False,
+                    encoding="utf-8",
                 )
             return sample_df
-
 
         for i, question_id in enumerate(
             tqdm(question_data["ids"], desc=f"Generating {sample_type} samples")
@@ -240,16 +256,20 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         """
         # Load the text corpus from HuggingFace dataset
         dataset = load_dataset("enelpol/rag-mini-bioasq")["train"]
-        
+
         # Filter for passages only (exclude questions)
         # The new dataset likely has both passages and questions in the same split
         passages_data = []
         passage_ids = []
-        
+
         for i in range(len(dataset)):
             item = dataset[i]
             # Skip if this is a question (has 'question' field) or if passage is empty/nan
-            if "passage" in item and item["passage"] and str(item["passage"]).lower() != "nan":
+            if (
+                "passage" in item
+                and item["passage"]
+                and str(item["passage"]).lower() != "nan"
+            ):
                 passages_data.append(item["passage"])
                 passage_ids.append(item["id"])
 
@@ -297,24 +317,26 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         # Filter for questions only and skip items with NaN values
         for i in range(len(dataset)):
             item = dataset[i]
-            
+
             # Skip if this doesn't have question data or if question is empty/nan
-            if ("question" not in item or 
-                not item["question"] or 
-                str(item["question"]).lower() == "nan" or
-                "relevant_passage_ids" not in item or
-                not item["relevant_passage_ids"] or
-                str(item["relevant_passage_ids"]).lower() == "nan"):
+            if (
+                "question" not in item
+                or not item["question"]
+                or str(item["question"]).lower() == "nan"
+                or "relevant_passage_ids" not in item
+                or not item["relevant_passage_ids"]
+                or str(item["relevant_passage_ids"]).lower() == "nan"
+            ):
                 continue
-                
+
             question = item["question"]
             qid = item["id"]
             relevant_ids_str = item["relevant_passage_ids"]
-            
+
             metadata = {"id": qid, "relevant_ids": relevant_ids_str}
             batch_list.append(question)
             batch_metadata.append(metadata)
-            
+
             # Parse relevant passage IDs
             if isinstance(relevant_ids_str, str):
                 relevant_ids = relevant_ids_str.strip("[]").split(",")
@@ -328,7 +350,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             # TODO: Think about storing relevant ids in separate keys and method to search them in chroma at once
             try:
                 metadata["relevant_chroma_ids"] = str(
-                    [self._passage_id_to_db_id[pid] for pid in relevant_ids if pid in self._passage_id_to_db_id]
+                    [
+                        self._passage_id_to_db_id[pid]
+                        for pid in relevant_ids
+                        if pid in self._passage_id_to_db_id
+                    ]
                 )
             except (KeyError, TypeError):
                 # Skip if passage IDs are not found in the mapping
@@ -576,9 +602,12 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         return sample_triplets
 
-    def _generate_pair_samples_df(self, question_db_ids: Optional[List[str]] = None,
-                                  criterion: SamplePairingType = SamplePairingType.EMBEDDING_SIMILARITY,
-                                  **kwargs) -> List[SampleTripletRAGChroma]:
+    def _generate_pair_samples_df(
+        self,
+        question_db_ids: Optional[List[str]] = None,
+        criterion: SamplePairingType = SamplePairingType.EMBEDDING_SIMILARITY,
+        **kwargs,
+    ) -> List[SampleTripletRAGChroma]:
         result_rows = []
 
         if question_db_ids is None:
@@ -590,10 +619,15 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         if criterion == SamplePairingType.EMBEDDING_SIMILARITY:
             # Find passages that are similar to the question in embedding space
-            for question_db_id in tqdm(question_db_ids, desc="Generating scored pairs by embedding similarity"):
+            for question_db_id in tqdm(
+                question_db_ids, desc="Generating scored pairs by embedding similarity"
+            ):
                 # Find close sources based on the question embedding
                 question_text = self._question_db.get(
-                    [question_db_id], include=["documents"])["documents"][0]    # For not overloading memory
+                    [question_db_id], include=["documents"]
+                )["documents"][
+                    0
+                ]  # For not overloading memory
 
                 sources = self._raw_similarity_search(
                     self._question_db.get(ids=[question_db_id], include=["embeddings"])[
@@ -603,42 +637,55 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                     k=kwargs.get("top_k", 3),
                     include=["distances", "documents"],
                 )
-                for source_id, source_text in zip(sources["ids"][0], sources["documents"][0]):
-                    result_rows.append({
-                        "question_id": question_db_id,
-                        "question_text": question_text,
-                        "source_id": source_id,
-                        "source_text": source_text,
-                        # "similarity_score": 1 - distance  # Convert distance to similarity
-                    })
+                for source_id, source_text in zip(
+                    sources["ids"][0], sources["documents"][0]
+                ):
+                    result_rows.append(
+                        {
+                            "question_id": question_db_id,
+                            "question_text": question_text,
+                            "source_id": source_id,
+                            "source_text": source_text,
+                            # "similarity_score": 1 - distance  # Convert distance to similarity
+                        }
+                    )
 
         elif criterion == SamplePairingType.ALL_EXISTING:
             sources = self._text_corpus_db.get(include=["documents"])
 
-            for question_db_id in tqdm(question_db_ids, desc="Generating all-pairs from whole dataset"):
+            for question_db_id in tqdm(
+                question_db_ids, desc="Generating all-pairs from whole dataset"
+            ):
                 question_text = self._question_db.get(
                     [question_db_id], include=["documents"]
                 )["documents"][0]
 
                 for source_id, source_text in zip(sources["ids"], sources["documents"]):
-                    if source_text is None or source_text.strip() == "" or source_id == "nan":
+                    if (
+                        source_text is None
+                        or source_text.strip() == ""
+                        or source_id == "nan"
+                    ):
                         # Skip empty or invalid passages
                         continue
 
-                    result_rows.append({
-                        "question_id": question_db_id,
-                        "question_text": question_text,
-                        "source_id": source_id,
-                        "source_text": source_text,
-                    })
+                    result_rows.append(
+                        {
+                            "question_id": question_db_id,
+                            "question_text": question_text,
+                            "source_id": source_id,
+                            "source_text": source_text,
+                        }
+                    )
 
         elif criterion == SamplePairingType.RELEVANT:
             # Get questions with their relevant passages based on stored metadata
-            for question_db_id in tqdm(question_db_ids, desc="Generating relevant question-passage pairs"):
+            for question_db_id in tqdm(
+                question_db_ids, desc="Generating relevant question-passage pairs"
+            ):
                 # Get question text and metadata
                 question_data = self._question_db.get(
-                    ids=[question_db_id],
-                    include=["documents", "metadatas"]
+                    ids=[question_db_id], include=["documents", "metadatas"]
                 )
                 question_text = question_data["documents"][0]
                 metadata = question_data["metadatas"][0]
@@ -660,29 +707,36 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 # Get the text content of relevant passages
                 if relevant_passage_ids:  # Only query if we have IDs
                     relevant_passages_data = self._text_corpus_db.get(
-                        ids=relevant_passage_ids,
-                        include=["documents"]
+                        ids=relevant_passage_ids, include=["documents"]
                     )
 
                     # Create pairs for each relevant passage
-                    for source_id, source_text in zip(relevant_passage_ids, relevant_passages_data["documents"]):
-                        if source_text is None or source_text.strip() == "" or source_id == "nan":
+                    for source_id, source_text in zip(
+                        relevant_passage_ids, relevant_passages_data["documents"]
+                    ):
+                        if (
+                            source_text is None
+                            or source_text.strip() == ""
+                            or source_id == "nan"
+                        ):
                             # Skip empty or invalid passages
                             continue
 
-                        result_rows.append({
-                            "question_id": question_db_id,
-                            "question_text": question_text,
-                            "source_id": source_id,
-                            "source_text": source_text,
-                        })
-
+                        result_rows.append(
+                            {
+                                "question_id": question_db_id,
+                                "question_text": question_text,
+                                "source_id": source_id,
+                                "source_text": source_text,
+                            }
+                        )
 
         else:
-            raise ValueError(f"Unsupported criterion: {criterion}. Only 'ALL_EXISTING', 'RELEVANT' and 'EMBEDDING_SIMILARITY' are supported. (For now)")
+            raise ValueError(
+                f"Unsupported criterion: {criterion}. Only 'ALL_EXISTING', 'RELEVANT' and 'EMBEDDING_SIMILARITY' are supported. (For now)"
+            )
 
         return pd.DataFrame(result_rows)
-
 
     def _save_passage_json(self):
         """
