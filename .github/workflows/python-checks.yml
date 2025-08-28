@@ -32,7 +32,7 @@ jobs:
   continue-on-error: true
 
       - name: Run pylint
-  run: pylint $(find . -name "*.py" | xargs)
+  run: find . -name "*.py" -exec pylint {} +
   continue-on-error: true
 
       - name: Check for TODOs
