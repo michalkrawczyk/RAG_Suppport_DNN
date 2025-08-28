@@ -29,7 +29,13 @@ jobs:
 
       - name: Run pylint on changed files
         run: |
-          files=$(git diff --name-only ${{ github.base_ref }}...${{ github.head_ref }} -- '*.py')
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            files=$(git diff --name-only ${{ github.base_ref }}...${{ github.head_ref }} -- '*.py')
+          elif [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            files=$(git diff --name-only ${{ github.event.before }}...${{ github.event.after }} -- '*.py')
+          else
+            files=""
+          fi
           if [ -n "$files" ]; then
             pylint $files
           else
