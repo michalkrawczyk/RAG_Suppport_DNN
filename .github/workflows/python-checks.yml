@@ -24,16 +24,16 @@ jobs:
           pip install black pylint pydocstyle
 
       - name: Run black (check only)
-  run: black --check .
-  continue-on-error: true
+        run: black --check .
+        continue-on-error: true
 
       - name: Run pydocstyle (missing docs)
-  run: pydocstyle .
-  continue-on-error: true
+        run: pydocstyle .
+        continue-on-error: true
 
       - name: Run pylint
-  run: find . -name "*.py" -exec pylint {} +
-  continue-on-error: true
+        run: find . -name "*.py" -exec pylint {} +
+        continue-on-error: true
 
       - name: Check for TODOs
         run: |
