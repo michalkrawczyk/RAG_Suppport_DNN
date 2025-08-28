@@ -13,6 +13,7 @@ from dataset.rag_dataset import BaseRAGDatasetGenerator, SampleTripletRAGChroma,
 import pandas as pd
 
 # TODO: add method to search text corpus subset
+# TODO: Consider if "answer" should be required in default BaseRAGDatasetGenerator
 
 try:
     from langchain_openai import OpenAIEmbeddings
@@ -287,18 +288,20 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         batch_metadata = []
 
         # Process questions in batches
-        for i, (question, qid, relevant_ids_str) in enumerate(
+        for i, (question, qid, relevant_ids_str, answer) in enumerate(
             tqdm(
                 zip(
                     combined_dataset["question"],
                     combined_dataset["id"],
-                    combined_dataset["relevant_passage_ids"]
+                    combined_dataset["relevant_passage_ids"],
+                    combined_dataset["answer"]
                 ),
                 desc="Loading dataset",
                 total=len(combined_dataset),
             )
         ):
-            metadata = {"id": qid, "relevant_ids": relevant_ids_str}
+            metadata = {"id": qid, "relevant_ids": relevant_ids_str, "answer": answer}
+            # TODO: Should answers be stored also as embeddings?
             batch_list.append(question)
             batch_metadata.append(metadata)
             relevant_ids = relevant_ids_str.strip("[]").split(",")
