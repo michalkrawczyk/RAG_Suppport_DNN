@@ -23,10 +23,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install black pylint pydocstyle
 
-      - name: Run black (check only)
-        run: black --check .
-        continue-on-error: true
-
       - name: Run pydocstyle (missing docs)
         run: pydocstyle .
         continue-on-error: true
@@ -39,3 +35,6 @@ jobs:
         run: |
           grep -rni 'TODO' . || echo "No TODOs found"
         continue-on-error: true
+
+      - name: Run black (check only)
+        run: black --check .
