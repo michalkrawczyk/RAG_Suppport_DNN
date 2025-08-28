@@ -5,7 +5,7 @@ import warnings
 from itertools import combinations, product
 from typing import List, Optional
 
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets
 from langchain_chroma import Chroma
 from tqdm import tqdm
 
@@ -239,8 +239,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             Number of passages to process in a single batch.
         """
         # Load the text corpus from HuggingFace dataset
-        dataset = load_dataset("rag-datasets/rag-mini-bioasq", "text-corpus")[
-            "passages"
+        dataset = load_dataset("enelpol/rag-mini-bioasq", "text-corpus")[
+            "test"
         ]
 
         self._passage_id_to_db_id = {}
@@ -278,9 +278,10 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             Number of questions to process in a single batch.
         """
         # Load the question-answer-passages dataset
-        dataset = load_dataset(
-            "rag-datasets/rag-mini-bioasq", "question-answer-passages"
-        )["test"]
+        dataset_full = load_dataset("enelpol/rag-mini-bioasq", "question-answer-passages")
+
+        # Merge train and test splits
+        combined_dataset = concatenate_datasets([dataset_full["train"], dataset_full["test"]])
 
         batch_list = []
         batch_metadata = []
@@ -289,10 +290,12 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         for i, (question, qid, relevant_ids_str) in enumerate(
             tqdm(
                 zip(
-                    dataset["question"], dataset["id"], dataset["relevant_passage_ids"]
+                    combined_dataset["question"],
+                    combined_dataset["id"],
+                    combined_dataset["relevant_passage_ids"]
                 ),
                 desc="Loading dataset",
-                total=len(dataset["id"]),
+                total=len(combined_dataset),
             )
         ):
             metadata = {"id": qid, "relevant_ids": relevant_ids_str}
@@ -303,6 +306,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
             # Convert passage IDs to Chroma IDs for the relevant passages
             # TODO: Think about storing relevant ids in separate keys and method to search them in chroma at once
+            # relevant_ids is now a list of ints (not a string), so no parsing needed
+            # Convert passage IDs to Chroma IDs for the relevant passages
             metadata["relevant_chroma_ids"] = str(
                 [self._passage_id_to_db_id[pid] for pid in relevant_ids]
             )
