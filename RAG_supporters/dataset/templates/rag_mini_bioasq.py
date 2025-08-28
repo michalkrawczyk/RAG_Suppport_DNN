@@ -239,20 +239,30 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             Number of passages to process in a single batch.
         """
         # Load the text corpus from HuggingFace dataset
-        dataset = load_dataset("rag-datasets/rag-mini-bioasq", "text-corpus")[
-            "passages"
-        ]
+        dataset = load_dataset("enelpol/rag-mini-bioasq")["train"]
+        
+        # Filter for passages only (exclude questions)
+        # The new dataset likely has both passages and questions in the same split
+        passages_data = []
+        passage_ids = []
+        
+        for i in range(len(dataset)):
+            item = dataset[i]
+            # Skip if this is a question (has 'question' field) or if passage is empty/nan
+            if "passage" in item and item["passage"] and str(item["passage"]).lower() != "nan":
+                passages_data.append(item["passage"])
+                passage_ids.append(item["id"])
 
         self._passage_id_to_db_id = {}
-        total = len(dataset["passage"])
+        total = len(passages_data)
 
         # Process passages in batches
         with tqdm(total=total, desc="Loading text corpus") as pbar:
             for i in range(0, total, batch_size):
                 # Extract batch data
                 batch_end = min(i + batch_size, total)
-                batch_passages = dataset["passage"][i:batch_end]
-                batch_ids = dataset["id"][i:batch_end]
+                batch_passages = passages_data[i:batch_end]
+                batch_ids = passage_ids[i:batch_end]
                 batch_metadata = [{"id": pid} for pid in batch_ids]
 
                 # Add batch to Chroma
@@ -278,38 +288,58 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             Number of questions to process in a single batch.
         """
         # Load the question-answer-passages dataset
-        dataset = load_dataset(
-            "rag-datasets/rag-mini-bioasq", "question-answer-passages"
-        )["test"]
+        dataset = load_dataset("enelpol/rag-mini-bioasq")["train"]
 
         batch_list = []
         batch_metadata = []
 
         # Process questions in batches
-        for i, (question, qid, relevant_ids_str) in enumerate(
-            tqdm(
-                zip(
-                    dataset["question"], dataset["id"], dataset["relevant_passage_ids"]
-                ),
-                desc="Loading dataset",
-                total=len(dataset["id"]),
-            )
-        ):
+        # Filter for questions only and skip items with NaN values
+        for i in range(len(dataset)):
+            item = dataset[i]
+            
+            # Skip if this doesn't have question data or if question is empty/nan
+            if ("question" not in item or 
+                not item["question"] or 
+                str(item["question"]).lower() == "nan" or
+                "relevant_passage_ids" not in item or
+                not item["relevant_passage_ids"] or
+                str(item["relevant_passage_ids"]).lower() == "nan"):
+                continue
+                
+            question = item["question"]
+            qid = item["id"]
+            relevant_ids_str = item["relevant_passage_ids"]
+            
             metadata = {"id": qid, "relevant_ids": relevant_ids_str}
             batch_list.append(question)
             batch_metadata.append(metadata)
-            relevant_ids = relevant_ids_str.strip("[]").split(",")
-            relevant_ids = [int(x.strip()) for x in relevant_ids]
+            
+            # Parse relevant passage IDs
+            if isinstance(relevant_ids_str, str):
+                relevant_ids = relevant_ids_str.strip("[]").split(",")
+                relevant_ids = [int(x.strip()) for x in relevant_ids if x.strip()]
+            elif isinstance(relevant_ids_str, list):
+                relevant_ids = relevant_ids_str
+            else:
+                relevant_ids = []
 
             # Convert passage IDs to Chroma IDs for the relevant passages
             # TODO: Think about storing relevant ids in separate keys and method to search them in chroma at once
-            metadata["relevant_chroma_ids"] = str(
-                [self._passage_id_to_db_id[pid] for pid in relevant_ids]
-            )
+            try:
+                metadata["relevant_chroma_ids"] = str(
+                    [self._passage_id_to_db_id[pid] for pid in relevant_ids if pid in self._passage_id_to_db_id]
+                )
+            except (KeyError, TypeError):
+                # Skip if passage IDs are not found in the mapping
+                batch_list.pop()  # Remove the question we just added
+                batch_metadata.pop()  # Remove the metadata we just added
+                continue
 
             # Process batch when it reaches the desired size
-            if i % batch_size == 0 and i > 0:
-                self._question_db.add_texts(batch_list, batch_metadata)
+            if len(batch_list) >= batch_size:
+                if batch_list:  # Only add if we have data
+                    self._question_db.add_texts(batch_list, batch_metadata)
                 batch_list = []
                 batch_metadata = []
 
