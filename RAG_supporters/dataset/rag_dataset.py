@@ -34,9 +34,9 @@ class SampleTripletRAGChroma:
     ----------
     question_id : str
         Unique identifier for the question in ChromaDB
-    answer_id_1 : str
+    source_id_1 : str
         Unique identifier for the first answer in ChromaDB
-    answer_id_2 : str
+    source_id_2 : str
         Unique identifier for the second answer in ChromaDB
     label : int, optional
         Indicates which answer is better:
@@ -44,11 +44,13 @@ class SampleTripletRAGChroma:
     """
 
     question_id: str
-    answer_id_1: str
-    answer_id_2: str
+    source_id_1: str
+    source_id_2: str
     label: int = (
         -1
     )  # -1 means not labeled, 0 means both are irrelevant, 1 means answer_1 is better, 2 means answer_2 is better
+    #answer: Optional[str] = None  # Optional field for storing extracted answer text
+    #TODO: Consider is answer should included for extra guidance (if needed)
 
 
 # TODO: For later implementation (for efficient storing)
@@ -450,7 +452,7 @@ class BaseRAGDatasetGenerator(ABC):
                     "documents"
                 ][0]
                 sources = self._text_corpus_db.get_by_ids(
-                    [sample.answer_id_1, sample.answer_id_2]
+                    [sample.source_id_1, sample.source_id_2]
                 )["documents"]
 
                 # Invoke the verifier chain to determine which source is better
@@ -474,8 +476,8 @@ class BaseRAGDatasetGenerator(ABC):
                 samples_verified.append(
                     SampleTripletRAGChroma(
                         question_id=sample.question_id,
-                        answer_id_1=sample.answer_id_1,
-                        answer_id_2=sample.answer_id_2,
+                        source_id_1=sample.source_id_1,
+                        source_id_2=sample.source_id_2,
                         label=predicted_label,
                     )
                 )
@@ -593,15 +595,15 @@ class BaseRAGDatasetGenerator(ABC):
                     "documents"
                 ][0]
                 answer_texts = self._text_corpus_db.get(
-                    ids=[triplet.answer_id_1, triplet.answer_id_2]
+                    ids=[triplet.source_id_1, triplet.source_id_2]
                 )["documents"]
 
                 row = {
                     "question_id": triplet.question_id,
                     "question_text": question_text,
-                    "answer_id_1": triplet.answer_id_1,
+                    "answer_id_1": triplet.source_id_1,
                     "answer_text_1": answer_texts[0],
-                    "answer_id_2": triplet.answer_id_2,
+                    "answer_id_2": triplet.source_id_2,
                     "answer_text_2": answer_texts[1],
                     "label": triplet.label,
                 }
@@ -613,7 +615,7 @@ class BaseRAGDatasetGenerator(ABC):
                     )["embeddings"][0]
 
                     answer_embeddings = self._text_corpus_db.get(
-                        ids=[triplet.answer_id_1, triplet.answer_id_2],
+                        ids=[triplet.source_id_1, triplet.source_id_2],
                         include=["embeddings"],
                     )["embeddings"]
 

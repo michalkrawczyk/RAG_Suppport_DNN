@@ -396,8 +396,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 sample_triplets.append(
                     SampleTripletRAGChroma(
                         question_id=question_db_id,
-                        answer_id_1=pid_1,
-                        answer_id_2=pid_2,
+                        source_id_1=pid_1,
+                        source_id_2=pid_2,
                         label=-1,  # -1 indicates no preference (both are relevant)
                     )
                 )
@@ -461,8 +461,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 sample_triplets.append(
                     SampleTripletRAGChroma(
                         question_id=question_db_id,
-                        answer_id_1=rel_pid,  # Already a Chroma ID
-                        answer_id_2=neg_pid,  # Already a Chroma ID
+                        source_id_1=rel_pid,  # Already a Chroma ID
+                        source_id_2=neg_pid,  # Already a Chroma ID
                         label=1 if assume_relevant_best else -1,
                     )
                 )
@@ -477,8 +477,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                     sample_triplets.append(
                         SampleTripletRAGChroma(
                             question_id=question_db_id,
-                            answer_id_1=rel_pid,  # Already a Chroma ID
-                            answer_id_2=neg_pid,  # Already a Chroma ID
+                            source_id_1=rel_pid,  # Already a Chroma ID
+                            source_id_2=neg_pid,  # Already a Chroma ID
                             label=1 if assume_relevant_best else -1,
                         )
                     )
@@ -547,8 +547,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             sample_triplets.append(
                 SampleTripletRAGChroma(
                     question_id=question_db_id,
-                    answer_id_1=source_id_1,
-                    answer_id_2=source_id_2,
+                    source_id_1=source_id_1,
+                    source_id_2=source_id_2,
                     label=1 if assume_relevant_best else -1,
                 )
             )
