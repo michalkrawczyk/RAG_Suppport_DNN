@@ -54,12 +54,7 @@ jobs:
           if [ -n "$todos" ]; then
             echo "::warning title=TODOs Found::Found TODO items in codebase"
             echo "$todos" | while IFS= read -r line; do
-              if [[ "$line" == *:*:* ]]; then  # Ensure line has the expected format
-                file=$(echo "$line" | cut -d':' -f1)
-                line_num=$(echo "$line" | cut -d':' -f2)
-                content=$(echo "$line" | cut -d':' -f3- | sed 's/^[[:space:]]*//')  # Trim leading spaces
-                echo "::warning file=$file,line=$line_num::TODO found:$content"
-              fi
+              echo "::warning::TODO found: $line"
             done
           else
             echo "No TODOs found."
