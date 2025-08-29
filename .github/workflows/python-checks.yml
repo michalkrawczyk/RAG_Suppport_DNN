@@ -27,7 +27,7 @@ jobs:
         run: |
           result=$(pydocstyle . || true)
           if [ -n "$result" ]; then
-            echo "::warning file=pydocstyle::Brakujące docstringi:"
+            echo "::warning file=pydocstyle::Missing docstrings:"
             echo "$result"
           else
             echo "No missing docstrings found."
