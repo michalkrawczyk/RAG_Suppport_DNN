@@ -52,7 +52,7 @@ jobs:
         run: |
           todos=$(grep -rni 'TODO' . --exclude-dir=.git --exclude-dir=.github || true)
           if [ -n "$todos" ]; then
-            echo "::warning file=todos::Found TODO items:"
+            echo "::warning title=TODOs Found::Found TODO items in codebase"
             echo "$todos" | while IFS= read -r line; do
               file=$(echo "$line" | cut -d':' -f1)
               line_num=$(echo "$line" | cut -d':' -f2)
