@@ -25,22 +25,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install black pylint pydocstyle
 
-      - name: Run pydocstyle (missing docs)
-        run: |
-          result=$(pydocstyle . || true)
-          if [ -n "$result" ]; then
-            echo "::warning file=pydocstyle::Missing docstrings:"
-            echo "$result"
-          else
-            echo "No missing docstrings found."
-          fi
-        continue-on-error: true
-
       - name: Get changed files
         id: changed-files
         uses: tj-actions/changed-files@v40
         with:
           files: "**/*.py"
+
+      - name: Run pydocstyle on changed files (missing docs)
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          result=$(pydocstyle ${{ steps.changed-files.outputs.all_changed_files }} || true)
+          if [ -n "$result" ]; then
+            echo "::warning file=pydocstyle::Missing docstrings in changed files:"
+            echo "$result"
+          else
+            echo "No missing docstrings found in changed files."
+          fi
+        continue-on-error: true
           
       - name: Run pylint on changed files
         if: steps.changed-files.outputs.any_changed == 'true'
