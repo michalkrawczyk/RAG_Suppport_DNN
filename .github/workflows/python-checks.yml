@@ -36,12 +36,12 @@ jobs:
         run: |
           result=$(pydocstyle ${{ steps.changed-files.outputs.all_changed_files }} || true)
           if [ -n "$result" ]; then
-            echo "::warning file=pydocstyle::Missing docstrings in changed files:"
+            echo "::error file=pydocstyle::Missing docstrings in changed files:"
             echo "$result"
+            exit 1
           else
             echo "No missing docstrings found in changed files."
           fi
-        continue-on-error: true
           
       - name: Run pylint on changed files
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -66,4 +66,3 @@ jobs:
         run: |
           echo "Running black --check on: ${{ steps.changed-files.outputs.all_changed_files }}"
           black --check ${{ steps.changed-files.outputs.all_changed_files }}
-        continue-on-error: true
