@@ -64,18 +64,8 @@ jobs:
         continue-on-error: true
 
       - name: Run black on changed files (check only)
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git fetch origin ${{ github.base_ref }}
-            files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.py')
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            files=$(git diff --name-only ${{ github.event.before }}...${{ github.event.after }} -- '*.py')
-          else
-            files=""
-          fi
-          if [ -n "$files" ]; then
-            echo "Running black --check on: $files"
-            black --check $files
-          else
-            echo "No Python files changed."
-          fi
+          echo "Running black --check on: ${{ steps.changed-files.outputs.all_changed_files }}"
+          black --check ${{ steps.changed-files.outputs.all_changed_files }}
+        continue-on-error: true
