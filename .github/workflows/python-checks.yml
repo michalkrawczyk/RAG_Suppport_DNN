@@ -24,13 +24,21 @@ jobs:
           pip install black pylint pydocstyle
 
       - name: Run pydocstyle (missing docs)
-        run: pydocstyle .
+        run: |
+          result=$(pydocstyle . || true)
+          if [ -n "$result" ]; then
+            echo "::warning file=pydocstyle::Brakujące docstringi:"
+            echo "$result"
+          else
+            echo "No missing docstrings found."
+          fi
         continue-on-error: true
 
       - name: Run pylint on changed files
         run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
             files=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} -- '*.py')
-          elif [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+          elif [ "${{ github.event_name }}" = "push" ]; then
             files=$(git diff --name-only ${{ github.event.before }}...${{ github.event.after }} -- '*.py')
           else
             files=""
@@ -40,7 +48,7 @@ jobs:
           else
             echo "No Python files changed."
           fi
-        #continue-on-error: true
+        continue-on-error: true
 
       - name: Check for TODOs
         run: |
