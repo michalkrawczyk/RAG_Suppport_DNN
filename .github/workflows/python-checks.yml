@@ -56,7 +56,18 @@ jobs:
 
       - name: Check for TODOs
         run: |
-          grep -rni 'TODO' . --exclude-dir=.git --exclude-dir=.github || echo "No TODOs found"
+          todos=$(grep -rni 'TODO' . --exclude-dir=.git --exclude-dir=.github || true)
+          if [ -n "$todos" ]; then
+            echo "::warning file=todos::Found TODO items:"
+            echo "$todos" | while IFS= read -r line; do
+              file=$(echo "$line" | cut -d':' -f1)
+              line_num=$(echo "$line" | cut -d':' -f2)
+              content=$(echo "$line" | cut -d':' -f3-)
+              echo "::warning file=$file,line=$line_num::TODO found: $content"
+            done
+          else
+            echo "No TODOs found."
+          fi
         continue-on-error: true
 
       - name: Run black (check only)
