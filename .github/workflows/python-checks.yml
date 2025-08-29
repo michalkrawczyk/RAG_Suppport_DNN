@@ -50,14 +50,16 @@ jobs:
 
       - name: Check for TODOs
         run: |
-          todos=$(grep -rni 'TODO' . --exclude-dir=.git --exclude-dir=.github || true)
+          todos=$(grep -rni 'TODO' . --exclude-dir=.git --exclude-dir=.github --exclude-dir=__pycache__ || true)
           if [ -n "$todos" ]; then
             echo "::warning title=TODOs Found::Found TODO items in codebase"
             echo "$todos" | while IFS= read -r line; do
-              file=$(echo "$line" | cut -d':' -f1)
-              line_num=$(echo "$line" | cut -d':' -f2)
-              content=$(echo "$line" | cut -d':' -f3-)
-              echo "::warning file=$file,line=$line_num::TODO found: $content"
+              if [[ "$line" == *:*:* ]]; then  # Ensure line has the expected format
+                file=$(echo "$line" | cut -d':' -f1)
+                line_num=$(echo "$line" | cut -d':' -f2)
+                content=$(echo "$line" | cut -d':' -f3- | sed 's/^[[:space:]]*//')  # Trim leading spaces
+                echo "::warning file=$file,line=$line_num::TODO found:$content"
+              fi
             done
           else
             echo "No TODOs found."
