@@ -13,16 +13,22 @@ from langchain_core.language_models import BaseChatModel
 from tqdm import tqdm
 
 from agents.dataset_check import DatasetCheckAgent
-from prompts_templates.rag_verifiers import SRC_COMPARE_PROMPT_WITH_SCORES, SINGLE_SRC_SCORE_PROMPT
+from prompts_templates.rag_verifiers import (
+    SRC_COMPARE_PROMPT_WITH_SCORES,
+    SINGLE_SRC_SCORE_PROMPT,
+)
 
 LOGGER = logging.getLogger(__name__)
+
 
 class SamplePairingType(Enum):
     """Enum representing different types of sample pairings for RAG datasets."""
 
-    RELEVANT = "relevant"                           # Relevant passages assigned to the same question
-    ALL_EXISTING = "all_existing"                   # All existing passages in the database
-    EMBEDDING_SIMILARITY = "embedding_similarity"   # Embedding similarity based on vector search
+    RELEVANT = "relevant"  # Relevant passages assigned to the same question
+    ALL_EXISTING = "all_existing"  # All existing passages in the database
+    EMBEDDING_SIMILARITY = (
+        "embedding_similarity"  # Embedding similarity based on vector search
+    )
 
 
 @dataclass
@@ -49,8 +55,8 @@ class SampleTripletRAGChroma:
     label: int = (
         -1
     )  # -1 means not labeled, 0 means both are irrelevant, 1 means answer_1 is better, 2 means answer_2 is better
-    #answer: Optional[str] = None  # Optional field for storing extracted answer text
-    #TODO: Consider is answer should included for extra guidance (if needed)
+    # answer: Optional[str] = None  # Optional field for storing extracted answer text
+    # TODO: Consider is answer should included for extra guidance (if needed)
 
 
 # TODO: For later implementation (for efficient storing)
@@ -223,11 +229,14 @@ class BaseRAGDatasetGenerator(ABC):
         pass
 
     @abstractmethod
-    def _generate_pair_samples_df(self, question_db_ids: Optional[List[str]] = None,
-                                  criterion: SamplePairingType = SamplePairingType.EMBEDDING_SIMILARITY,
-                                  # save_batch_part: int = 0,
-                                  **kwargs) -> pd.DataFrame:
-        """ Generate pair variants (questions, source) in dataframe format.
+    def _generate_pair_samples_df(
+        self,
+        question_db_ids: Optional[List[str]] = None,
+        criterion: SamplePairingType = SamplePairingType.EMBEDDING_SIMILARITY,
+        # save_batch_part: int = 0,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """Generate pair variants (questions, source) in dataframe format.
 
         Parameters
         ----------
@@ -237,9 +246,8 @@ class BaseRAGDatasetGenerator(ABC):
         criterion : str, optional
             Criterion to use for scoring the pairs. Default is "relevance".
             Possible values: "relevance", "embedding_similarity", "all_existing"
-            """
+        """
         pass
-
 
     def chroma_id_to_embedding(self, chroma_ids: Union[List[str], str], search_db: str):
         """
@@ -295,15 +303,15 @@ class BaseRAGDatasetGenerator(ABC):
         return self._question_db.get(include=list(include))
 
     def evaluate_pair_samples(
-            self,
-            llm: BaseChatModel,
-            pairs_df: pd.DataFrame,
-            skip_evaluated: bool = True,
-            include_reasoning: bool = False,
-            save_path: Optional[str] = None,
-            max_retries: int = 3,
-            evaluation_prompt: str = SINGLE_SRC_SCORE_PROMPT,
-            checkpoint_batch_size: Optional[int] = None,
+        self,
+        llm: BaseChatModel,
+        pairs_df: pd.DataFrame,
+        skip_evaluated: bool = True,
+        include_reasoning: bool = False,
+        save_path: Optional[str] = None,
+        max_retries: int = 3,
+        evaluation_prompt: str = SINGLE_SRC_SCORE_PROMPT,
+        checkpoint_batch_size: Optional[int] = None,
     ) -> pd.DataFrame:
         """
         Evaluate pair samples using LLM-based source evaluation.
@@ -362,18 +370,18 @@ class BaseRAGDatasetGenerator(ABC):
 
         # Ensure required columns exist in the DataFrame
         # TODO: should also answer be in required?
-        required_columns = ['question_id', 'source_id']
+        required_columns = ["question_id", "source_id"]
         if not all(col in pairs_df.columns for col in required_columns):
             # Try to get texts from ChromaDB if only IDs are provided
-            if 'question_text' not in pairs_df.columns:
+            if "question_text" not in pairs_df.columns:
                 LOGGER.info("Retrieving question texts from ChromaDB...")
-                pairs_df['question_text'] = pairs_df['question_id'].apply(
+                pairs_df["question_text"] = pairs_df["question_id"].apply(
                     lambda qid: self._question_db.get(ids=[qid])["documents"][0]
                 )
 
-            if 'source_text' not in pairs_df.columns:
+            if "source_text" not in pairs_df.columns:
                 LOGGER.info("Retrieving source texts from ChromaDB...")
-                pairs_df['source_text'] = pairs_df['source_id'].apply(
+                pairs_df["source_text"] = pairs_df["source_id"].apply(
                     lambda sid: self._text_corpus_db.get(ids=[sid])["documents"][0]
                 )
 
@@ -381,21 +389,23 @@ class BaseRAGDatasetGenerator(ABC):
         try:
             evaluated_df = evaluator.process_dataframe(
                 df=pairs_df,
-                question_col='question_text',
-                source_col='source_text',
+                question_col="question_text",
+                source_col="source_text",
                 include_reasoning=include_reasoning,
                 progress_bar=True,
                 save_path=save_path,
                 skip_existing=skip_evaluated,
-                checkpoint_batch_size=checkpoint_batch_size
+                checkpoint_batch_size=checkpoint_batch_size,
             )
 
             LOGGER.info(f"Successfully evaluated {len(evaluated_df)} pair samples")
 
             # Log error rate
-            error_count = evaluated_df['evaluation_error'].notna().sum()
+            error_count = evaluated_df["evaluation_error"].notna().sum()
             if error_count > 0:
-                LOGGER.warning(f"Failed to evaluate {error_count} pairs ({error_count / len(evaluated_df) * 100:.1f}%)")
+                LOGGER.warning(
+                    f"Failed to evaluate {error_count} pairs ({error_count / len(evaluated_df) * 100:.1f}%)"
+                )
 
             return evaluated_df
 
