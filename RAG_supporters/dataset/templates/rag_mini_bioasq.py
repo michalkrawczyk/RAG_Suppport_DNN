@@ -14,6 +14,8 @@ import pandas as pd
 
 # TODO: add method to search text corpus subset
 # TODO: Consider if "answer" should be required in default BaseRAGDatasetGenerator
+# TODO: Include in generated csv (samples) answer field (triplets)
+# TODO: Review if passage json is still needed
 
 try:
     from langchain_openai import OpenAIEmbeddings
@@ -560,8 +562,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         if question_db_ids is None:
             # Get all questions from the database
-            question_data = self._question_db.get(include=["embeddings"])
-            question_db_ids = question_data["ids"]
+            question_db_ids = self._question_db.get(include=["embeddings"])["ids"]
         elif not question_db_ids:
             raise ValueError("question_db_ids cannot be empty")
 
@@ -569,8 +570,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             # Find passages that are similar to the question in embedding space
             for question_db_id in tqdm(question_db_ids, desc="Generating scored pairs by embedding similarity"):
                 # Find close sources based on the question embedding
-                question_text = self._question_db.get(
-                    [question_db_id], include=["documents"])["documents"][0]    # For not overloading memory
+                question_data = self._question_db.get(
+                    ids=[question_db_id], include=["metadatas", "documents"]    # For not overloading memory
+                )
+                question_text = question_data["documents"][0]
+                question_metadata = question_data["metadatas"][0]
 
                 sources = self._raw_similarity_search(
                     self._question_db.get(ids=[question_db_id], include=["embeddings"])[
@@ -586,16 +590,20 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                         "question_text": question_text,
                         "source_id": source_id,
                         "source_text": source_text,
+                        "answer": question_metadata.get("answer", "")
                         # "similarity_score": 1 - distance  # Convert distance to similarity
                     })
 
         elif criterion == SamplePairingType.ALL_EXISTING:
+            # TODO: This method runs out RAM - Rewrite
             sources = self._text_corpus_db.get(include=["documents"])
 
             for question_db_id in tqdm(question_db_ids, desc="Generating all-pairs from whole dataset"):
-                question_text = self._question_db.get(
-                    [question_db_id], include=["documents"]
-                )["documents"][0]
+                question_data = self._question_db.get(
+                    ids=[question_db_id], include=["metadatas", "documents"]  # For not overloading memory
+                )
+                question_text = question_data["documents"][0]
+                question_metadata = question_data["metadatas"][0]
 
                 for source_id, source_text in zip(sources["ids"], sources["documents"]):
                     if source_text is None or source_text.strip() == "" or source_id == "nan":
@@ -607,6 +615,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                         "question_text": question_text,
                         "source_id": source_id,
                         "source_text": source_text,
+                        "answer": question_metadata.get("answer", "")
                     })
 
         elif criterion == SamplePairingType.RELEVANT:
@@ -618,10 +627,10 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                     include=["documents", "metadatas"]
                 )
                 question_text = question_data["documents"][0]
-                metadata = question_data["metadatas"][0]
+                question_metadata = question_data["metadatas"][0]
 
                 # Extract relevant passage IDs from metadata
-                relevant_chroma_ids_str = metadata.get("relevant_chroma_ids", "[]")
+                relevant_chroma_ids_str = question_metadata.get("relevant_chroma_ids", "[]")
 
                 # Parse the string representation of the list
                 try:
@@ -652,6 +661,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                             "question_text": question_text,
                             "source_id": source_id,
                             "source_text": source_text,
+                            "answer": question_metadata.get("answer", "")
                         })
 
 
