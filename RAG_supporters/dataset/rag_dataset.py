@@ -359,6 +359,7 @@ class BaseRAGDatasetGenerator(ABC):
             )
 
         # Ensure required columns exist in the DataFrame
+        # TODO: should also answer be in required?
         required_columns = ['question_id', 'source_id']
         if not all(col in pairs_df.columns for col in required_columns):
             # Try to get texts from ChromaDB if only IDs are provided
