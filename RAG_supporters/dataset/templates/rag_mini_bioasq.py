@@ -309,7 +309,6 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
             # Convert passage IDs to Chroma IDs for the relevant passages
             # TODO: Think about storing relevant ids in separate keys and method to search them in chroma at once
-            # relevant_ids is now a list of ints (not a string), so no parsing needed
             # Convert passage IDs to Chroma IDs for the relevant passages
             metadata["relevant_chroma_ids"] = str(
                 [self._passage_id_to_db_id[pid] for pid in relevant_ids]
