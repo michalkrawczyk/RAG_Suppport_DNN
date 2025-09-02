@@ -331,7 +331,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 relevant_ids = [int(x.strip()) for x in relevant_ids]
             else:
                 # Already as list of int
-                relevant_ids
+                relevant_ids = relevant_ids_obj
 
             metadata = {
                 "id": qid,
