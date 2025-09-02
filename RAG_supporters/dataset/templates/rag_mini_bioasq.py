@@ -327,8 +327,12 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         ):
             if isinstance(relevant_ids_obj, str):
                 # old rag-mini-bioasq version had relevant_ids as string representation of list
-                relevant_ids = json.loads(relevant_ids_obj)
-                relevant_ids = [int(x) for x in relevant_ids]
+                try:
+                    relevant_ids = json.loads(relevant_ids_obj)
+                    relevant_ids = [int(x) for x in relevant_ids]
+                except json.JSONDecodeError as e:
+                    LOGGER.warning(f"Failed to decode relevant_passage_ids for question {qid}: {e}")
+                    relevant_ids = []
             else:
                 # Already as list of int
                 relevant_ids = relevant_ids_obj
