@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 import warnings
@@ -16,9 +17,12 @@ from dataset.rag_dataset import (
 )
 import pandas as pd
 
+LOGGER = logging.getLogger(__name__)
+
 # TODO: add method to search text corpus subset
 # TODO: Consider if "answer" should be required in default BaseRAGDatasetGenerator
 # TODO: Review if passage json is still needed
+# TODO: Review for logging consistency and needs
 
 try:
     from langchain_openai import OpenAIEmbeddings
@@ -205,7 +209,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 relevant_passage_ids = json.loads(relevant_chroma_ids_str)
             except (json.JSONDecodeError, TypeError):
                 # Handle malformed data
-                # TODO: log warning
+                LOGGER.warning(
+                    f"Malformed relevant_chroma_ids for question ID {question_id} : '{relevant_chroma_ids_str}'"
+                )
                 relevant_passage_ids = []
 
             # Skip questions with no relevant passages
@@ -681,7 +687,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                     relevant_passage_ids = json.loads(relevant_chroma_ids_str)
                 except (json.JSONDecodeError, TypeError):
                     # Handle malformed data
-                    #TODO: log warning
+                    LOGGER.warning(
+                        f"Malformed relevant_chroma_ids for question ID {question_db_id} : '{relevant_chroma_ids_str}'"
+                    )
                     relevant_passage_ids = []
 
                 # Skip questions with no relevant passages
