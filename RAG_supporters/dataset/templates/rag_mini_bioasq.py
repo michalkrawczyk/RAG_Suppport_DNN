@@ -307,7 +307,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         batch_metadata = []
 
         # Process questions in batches
-        for i, (question, qid, relevant_ids_str, answer) in enumerate(
+        for i, (question, qid, relevant_ids_obj, answer) in enumerate(
             tqdm(
                 zip(
                     combined_dataset["question"],
@@ -319,15 +319,22 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 total=len(combined_dataset),
             )
         ):
-            metadata = {"id": qid, "relevant_ids": relevant_ids_str, "answer": answer}
-            # TODO: Should answers be stored also as embeddings?
+            metadata = {"id": qid, "relevant_ids": str(relevant_ids_obj), "answer": answer}
+
             batch_list.append(question)
             batch_metadata.append(metadata)
-            relevant_ids = relevant_ids_str.strip("[]").split(",")
-            relevant_ids = [int(x.strip()) for x in relevant_ids]
+            if isinstance(relevant_ids_obj, str):
+                # Handle case where relevant_ids_obj is a string representation of a list
+                relevant_ids = relevant_ids_obj.strip("[]").split(",")
+                relevant_ids = [int(x.strip()) for x in relevant_ids]
+            else:
+                # Already as list of int
+                relevant_ids = relevant_ids_obj
+
 
             # Convert passage IDs to Chroma IDs for the relevant passages
             # TODO: Think about storing relevant ids in separate keys and method to search them in chroma at once
+            # TODO: or as str json for where clause search
             # Convert passage IDs to Chroma IDs for the relevant passages
             metadata["relevant_chroma_ids"] = str(
                 [self._passage_id_to_db_id[pid] for pid in relevant_ids]
