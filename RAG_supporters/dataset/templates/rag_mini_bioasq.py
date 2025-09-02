@@ -178,16 +178,23 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         # Get all questions from the database
         question_data = self._question_db.get(include=["metadatas"])  # ids are included
 
-        if sample_type in ["pairs_relevant", "pairs_all_existing", "pairs_embedding_similarity"]:
+        if sample_type in [
+            "pairs_relevant",
+            "pairs_all_existing",
+            "pairs_embedding_similarity",
+        ]:
             # Generate pair samples based on the requested type
-            sample_df =  self._generate_pair_samples_df(
+            sample_df = self._generate_pair_samples_df(
                 question_db_ids=question_data["ids"],
                 criterion=SamplePairingType(sample_type.replace("pairs_", "")),
-                **kwargs)
+                **kwargs,
+            )
             if save_to_csv:
                 # Save the generated pairs to a CSV file
                 pd.DataFrame(sample_df).to_csv(
-                    f"{self._dataset_dir}{os.sep}pairs_{sample_type}.csv", index=False, encoding="utf-8"
+                    f"{self._dataset_dir}{os.sep}pairs_{sample_type}.csv",
+                    index=False,
+                    encoding="utf-8",
                 )
             return sample_df
 
@@ -326,10 +333,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 # Already as list of int
                 relevant_ids
 
-
-            metadata = {"id": qid,
-                        "relevant_ids": json.dumps(relevant_ids),
-                        "answer": answer}
+            metadata = {
+                "id": qid,
+                "relevant_ids": json.dumps(relevant_ids),
+                "answer": answer,
+            }
 
             batch_list.append(question)
             batch_metadata.append(metadata)
