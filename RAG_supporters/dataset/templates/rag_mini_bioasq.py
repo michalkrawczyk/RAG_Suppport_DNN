@@ -207,7 +207,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
             try:
                 relevant_passage_ids = json.loads(relevant_chroma_ids_str)
-            except (json.JSONDecodeError, TypeError):
+            except (json.JSONDecodeError, TypeError, ValueError):
                 # Handle malformed data
                 LOGGER.warning(
                     f"Malformed relevant_chroma_ids for question ID {question_id} : '{relevant_chroma_ids_str}'"
@@ -686,7 +686,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
                 try:
                     relevant_passage_ids = json.loads(relevant_chroma_ids_str)
-                except (json.JSONDecodeError, TypeError):
+                except (json.JSONDecodeError, TypeError, ValueError):
                     # Handle malformed data
                     LOGGER.warning(
                         f"Malformed relevant_chroma_ids for question ID {question_db_id} : '{relevant_chroma_ids_str}'"
