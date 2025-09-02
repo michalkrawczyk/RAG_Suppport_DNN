@@ -201,11 +201,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             metadata = question_data["metadatas"][i]
             relevant_chroma_ids_str = metadata.get("relevant_chroma_ids", "[]")
 
-            # Parse the string representation of the list
             try:
-                relevant_passage_ids = eval(relevant_chroma_ids_str)
-            except (SyntaxError, NameError):
+                relevant_passage_ids = json.loads(relevant_chroma_ids_str)
+            except (json.JSONDecodeError, TypeError):
                 # Handle malformed data
+                # TODO: log warning
                 relevant_passage_ids = []
 
             # Skip questions with no relevant passages
@@ -319,24 +319,24 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 total=len(combined_dataset),
             )
         ):
-            metadata = {"id": qid, "relevant_ids": str(relevant_ids_obj), "answer": answer}
-
-            batch_list.append(question)
-            batch_metadata.append(metadata)
             if isinstance(relevant_ids_obj, str):
-                # Handle case where relevant_ids_obj is a string representation of a list
+                # old rag-mini-bioasq version had relevant_ids as string representation of list
                 relevant_ids = relevant_ids_obj.strip("[]").split(",")
                 relevant_ids = [int(x.strip()) for x in relevant_ids]
             else:
                 # Already as list of int
-                relevant_ids = relevant_ids_obj
+                relevant_ids
 
 
+            metadata = {"id": qid,
+                        "relevant_ids": json.dumps(relevant_ids),
+                        "answer": answer}
+
+            batch_list.append(question)
+            batch_metadata.append(metadata)
+
             # Convert passage IDs to Chroma IDs for the relevant passages
-            # TODO: Think about storing relevant ids in separate keys and method to search them in chroma at once
-            # TODO: or as str json for where clause search
-            # Convert passage IDs to Chroma IDs for the relevant passages
-            metadata["relevant_chroma_ids"] = str(
+            metadata["relevant_chroma_ids"] = json.dumps(
                 [self._passage_id_to_db_id[pid] for pid in relevant_ids]
             )
 
@@ -673,16 +673,15 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 question_text = question_data["documents"][0]
                 question_metadata = question_data["metadatas"][0]
 
-                # Extract relevant passage IDs from metadata
                 relevant_chroma_ids_str = question_metadata.get(
                     "relevant_chroma_ids", "[]"
                 )
 
-                # Parse the string representation of the list
                 try:
-                    relevant_passage_ids = eval(relevant_chroma_ids_str)
-                except (SyntaxError, NameError):
+                    relevant_passage_ids = json.loads(relevant_chroma_ids_str)
+                except (json.JSONDecodeError, TypeError):
                     # Handle malformed data
+                    #TODO: log warning
                     relevant_passage_ids = []
 
                 # Skip questions with no relevant passages
