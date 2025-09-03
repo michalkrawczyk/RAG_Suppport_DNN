@@ -30,18 +30,6 @@ jobs:
         uses: tj-actions/changed-files@v40
         with:
           files: "**/*.py"
-
-      - name: Run pydocstyle on changed files (missing docs)
-        if: steps.changed-files.outputs.any_changed == 'true'
-        run: |
-          result=$(pydocstyle ${{ steps.changed-files.outputs.all_changed_files }} || true)
-          if [ -n "$result" ]; then
-            echo "::error file=pydocstyle::Missing docstrings in changed files:"
-            echo "$result"
-            exit 1
-          else
-            echo "No missing docstrings found in changed files."
-          fi
           
       - name: Run pylint on changed files
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -66,3 +54,15 @@ jobs:
         run: |
           echo "Running black --check on: ${{ steps.changed-files.outputs.all_changed_files }}"
           black --check ${{ steps.changed-files.outputs.all_changed_files }}
+      
+      - name: Run pydocstyle on changed files (missing docs)
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          result=$(pydocstyle ${{ steps.changed-files.outputs.all_changed_files }} || true)
+          if [ -n "$result" ]; then
+            echo "::error file=pydocstyle::Missing docstrings in changed files:"
+            echo "$result"
+            exit 1
+          else
+            echo "No missing docstrings found in changed files."
+          fi
