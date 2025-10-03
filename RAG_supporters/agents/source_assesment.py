@@ -4,15 +4,6 @@ LOGGER = logging.getLogger(__name__)
 # TODO: Consider if errors should be reprocessed when skip_existing is True?
 
 
-def _is_empty_text(text: str) -> bool:
-    """Check if the text is empty or only whitespace"""
-    if not text or text.strip() == "":
-        return True
-    if text.lower() == "nan":
-        return True
-    return False
-
-
 try:
     import json
     from enum import Enum
@@ -27,6 +18,7 @@ try:
     from pydantic import BaseModel, Field, field_validator, model_validator
     from tqdm import tqdm
 
+    from utils.text_utils import is_empty_text
     from prompts_templates.rag_verifiers import SINGLE_SRC_SCORE_PROMPT
 
     # Pydantic Models for validation (v2.10.3 compatible)
@@ -663,8 +655,8 @@ try:
                 if (
                     pd.isna(row[question_col])
                     or pd.isna(row[source_col])
-                    or _is_empty_text(row[question_col])
-                    or _is_empty_text(row[source_col])
+                    or is_empty_text(row[question_col])
+                    or is_empty_text(row[source_col])
                 ):
                     result_df.at[idx, "evaluation_error"] = (
                         "Missing or empty question or source content"
@@ -906,8 +898,8 @@ try:
                     if (
                         pd.isna(row[question_col])
                         or pd.isna(row[source_col])
-                        or _is_empty_text(row[question_col])
-                        or _is_empty_text(row[source_col])
+                        or is_empty_text(row[question_col])
+                        or is_empty_text(row[source_col])
                     ):
                         result_df.at[idx, "evaluation_error"] = (
                             "Missing or empty question or source content"

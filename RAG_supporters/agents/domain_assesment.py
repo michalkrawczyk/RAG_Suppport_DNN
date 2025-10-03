@@ -15,6 +15,7 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field, field_validator, model_validator
 from tqdm import tqdm
 
+from utils.text_utils import is_empty_text
 from prompts_templates.domain_extraction import (
     SRC_DOMAIN_EXTRACTION_PROMPT,
     QUESTION_DOMAIN_GUESS_PROMPT,
@@ -22,15 +23,6 @@ from prompts_templates.domain_extraction import (
 )
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _is_empty_text(text: str) -> bool:
-    """Check if the text is empty or only whitespace"""
-    if not text or text.strip() == "":
-        return True
-    if text.lower() == "nan":
-        return True
-    return False
 
 
 class OperationMode(str, Enum):
@@ -730,11 +722,11 @@ class DomainAnalysisAgent:
 
             # Check for empty inputs
             if mode == OperationMode.EXTRACT:
-                if pd.isna(row[text_source_col]) or _is_empty_text(row[text_source_col]):
+                if pd.isna(row[text_source_col]) or is_empty_text(row[text_source_col]):
                     result_df.at[idx, "domain_analysis_error"] = "Missing or empty text source"
                     continue
             else:
-                if pd.isna(row[question_col]) or _is_empty_text(row[question_col]):
+                if pd.isna(row[question_col]) or is_empty_text(row[question_col]):
                     result_df.at[idx, "domain_analysis_error"] = "Missing or empty question"
                     continue
 
