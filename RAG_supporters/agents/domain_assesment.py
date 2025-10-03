@@ -15,7 +15,7 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field, field_validator, model_validator
 from tqdm import tqdm
 
-from prompts_templates.domain import (
+from prompts_templates.domain_extraction import (
     SRC_DOMAIN_EXTRACTION_PROMPT,
     QUESTION_DOMAIN_GUESS_PROMPT,
     QUESTION_DOMAIN_ASSESS_PROMPT,
