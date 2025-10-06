@@ -1,3 +1,30 @@
+# Code formatting
 black>=24.10.0
+isort>=5.13.2
+
+# Linting and code quality
 pylint>=3.3.8
+flake8>=7.0.0
 pydocstyle>=6.3.0
+
+# Type checking
+mypy>=1.11.0
+
+# Testing
+pytest>=8.3.0
+pytest-cov>=5.0.0
+pytest-mock>=3.14.0
+
+# Documentation
+sphinx>=8.1.0
+sphinx-rtd-theme>=3.0.0
+
+# Pre-commit hooks
+pre-commit>=4.0.0
+
+# YAML validation
+yamllint>=1.35.0
+
+# Jupyter/notebook tools (for development and experimentation)
+jupyter>=1.1.0
+ipykernel>=6.29.0
