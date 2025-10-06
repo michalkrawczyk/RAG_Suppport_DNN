@@ -640,9 +640,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                     )
 
         elif criterion == SamplePairingType.ALL_EXISTING:
-            # TODO: This method runs out RAM - Rewrite
-            sources = self._text_corpus_db.get(include=["documents"])
-
+            # Optimized version: Process text corpus in batches to avoid RAM exhaustion
+            # First, get all source IDs without loading documents
+            all_source_ids = self._text_corpus_db.get(include=[])["ids"]
+            batch_size = kwargs.get("batch_size", self.loading_batch_size)
+            
             for question_db_id in tqdm(
                 question_db_ids, desc="Generating all-pairs from whole dataset"
             ):
@@ -653,24 +655,33 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 question_text = question_data["documents"][0]
                 question_metadata = question_data["metadatas"][0]
 
-                for source_id, source_text in zip(sources["ids"], sources["documents"]):
-                    if (
-                        source_text is None
-                        or source_text.strip() == ""
-                        or source_id == "nan"
-                    ):
-                        # Skip empty or invalid passages
-                        continue
-
-                    result_rows.append(
-                        {
-                            "question_id": question_db_id,
-                            "question_text": question_text,
-                            "source_id": source_id,
-                            "source_text": source_text,
-                            "answer": question_metadata.get("answer", ""),
-                        }
+                # Process sources in batches to avoid loading all documents at once
+                for i in range(0, len(all_source_ids), batch_size):
+                    batch_ids = all_source_ids[i:i + batch_size]
+                    sources_batch = self._text_corpus_db.get(
+                        ids=batch_ids, include=["documents"]
                     )
+                    
+                    for source_id, source_text in zip(
+                        sources_batch["ids"], sources_batch["documents"]
+                    ):
+                        if (
+                            source_text is None
+                            or source_text.strip() == ""
+                            or source_id == "nan"
+                        ):
+                            # Skip empty or invalid passages
+                            continue
+
+                        result_rows.append(
+                            {
+                                "question_id": question_db_id,
+                                "question_text": question_text,
+                                "source_id": source_id,
+                                "source_text": source_text,
+                                "answer": question_metadata.get("answer", ""),
+                            }
+                        )
 
         elif criterion == SamplePairingType.RELEVANT:
             # Get questions with their relevant passages based on stored metadata
