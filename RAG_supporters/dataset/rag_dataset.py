@@ -1,4 +1,5 @@
 import csv
+import json
 import logging
 import os
 from abc import ABC, abstractmethod
@@ -85,12 +86,15 @@ class BaseRAGDatasetGenerator(ABC):
         Directory path for storing dataset files
     _embed_function : callable, optional
         Function used for embedding text
+    _dataset_metadata : dict, optional
+        Dictionary containing dataset metadata (source, embedding method, etc.)
     """
 
     _question_db: Chroma
     _text_corpus_db: Chroma
     _dataset_dir: str
     _embed_function = None
+    _dataset_metadata: Dict[str, Any] = None
 
     @abstractmethod
     def load_dataset(self):
@@ -301,6 +305,71 @@ class BaseRAGDatasetGenerator(ABC):
             Dictionary containing the requested data fields
         """
         return self._question_db.get(include=list(include))
+
+    def save_dataset_metadata(self, metadata_file: Optional[str] = None) -> None:
+        """
+        Save dataset metadata to a JSON file.
+
+        This method saves information about the dataset including source,
+        embedding method, and other relevant metadata for later features
+        like concatenation.
+
+        Parameters
+        ----------
+        metadata_file : Optional[str], optional
+            Path where the metadata file will be saved.
+            If None, saves to {dataset_dir}/dataset_info.json
+
+        Returns
+        -------
+        None
+        """
+        if self._dataset_metadata is None:
+            LOGGER.warning("No dataset metadata available to save")
+            return
+
+        if metadata_file is None:
+            metadata_file = os.path.join(self._dataset_dir, "dataset_info.json")
+
+        # Create directory if it doesn't exist
+        Path(os.path.dirname(metadata_file)).mkdir(parents=True, exist_ok=True)
+
+        with open(metadata_file, "w") as f:
+            json.dump(self._dataset_metadata, f, indent=2)
+
+        LOGGER.info(f"Dataset metadata saved to {metadata_file}")
+
+    def load_dataset_metadata(self, metadata_file: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Load dataset metadata from a JSON file.
+
+        Parameters
+        ----------
+        metadata_file : Optional[str], optional
+            Path to the metadata file.
+            If None, loads from {dataset_dir}/dataset_info.json
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing dataset metadata
+
+        Raises
+        ------
+        FileNotFoundError
+            If the metadata file does not exist
+        """
+        if metadata_file is None:
+            metadata_file = os.path.join(self._dataset_dir, "dataset_info.json")
+
+        if not os.path.exists(metadata_file):
+            raise FileNotFoundError(f"Metadata file not found: {metadata_file}")
+
+        with open(metadata_file, "r") as f:
+            self._dataset_metadata = json.load(f)
+
+        LOGGER.info(f"Dataset metadata loaded from {metadata_file}")
+        return self._dataset_metadata
 
     def evaluate_pair_samples(
         self,
@@ -640,3 +709,8 @@ class BaseRAGDatasetGenerator(ABC):
                 writer.writerow(row)
 
         LOGGER.info(f"Successfully saved triplets to {output_file}")
+
+        # Save dataset metadata alongside the CSV file
+        if self._dataset_metadata is not None:
+            metadata_file = output_file.replace(".csv", "_metadata.json")
+            self.save_dataset_metadata(metadata_file)

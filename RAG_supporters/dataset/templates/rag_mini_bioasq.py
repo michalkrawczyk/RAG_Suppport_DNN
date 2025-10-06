@@ -74,8 +74,44 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         )
         self.loading_batch_size = kwargs.get("loading_batch_size", 100)  #
 
+        # Initialize dataset metadata
+        self._init_dataset_metadata(embed_function, kwargs)
+
         self.load_dataset()
         self._passage_id_to_db_id = {}
+
+    def _init_dataset_metadata(self, embed_function, kwargs):
+        """
+        Initialize dataset metadata with information about source and embedding method.
+        
+        Parameters
+        ----------
+        embed_function : callable
+            The embedding function used
+        kwargs : dict
+            Additional parameters passed to __init__
+        """
+        # Get embedding model information
+        embedding_info = {}
+        if embed_function is None:
+            # Using OpenAI embeddings
+            embedding_info = {
+                "type": "OpenAIEmbeddings",
+                "model": kwargs.get("model", "text-embedding-3-small"),
+            }
+        else:
+            # Custom embedding function
+            embedding_info = {
+                "type": type(embed_function).__name__,
+                "model": getattr(embed_function, "model", "unknown"),
+            }
+
+        self._dataset_metadata = {
+            "dataset_source": "enelpol/rag-mini-bioasq",
+            "dataset_type": "BioASQ mini",
+            "embedding_function": embedding_info,
+            "loading_batch_size": self.loading_batch_size,
+        }
 
     def load_dataset(self):
         """
@@ -103,6 +139,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         if len(self._text_corpus_db.get()["ids"]) == 0:
             self._init_text_corpus_db(batch_size=self.loading_batch_size)
             self._save_passage_json()  # Save the mapping of passage IDs to Chroma IDs for future use
+            # Save dataset metadata when initializing for the first time
+            self.save_dataset_metadata()
         else:
             # Text corpus is already initialized - load mapping from passage_id to chroma_id
             if not os.path.exists(os.path.join(self._passage_id_cast_json)):
@@ -113,11 +151,19 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 with open(self._passage_id_cast_json, "r") as f:
                     self._passage_id_to_db_id = json.load(f)
 
+            # Try to load existing dataset metadata
+            try:
+                self.load_dataset_metadata()
+            except FileNotFoundError:
+                LOGGER.warning("Dataset metadata file not found. Metadata will be created on next save.")
+
             self.validate_dataset()
 
         # Check if question database is empty and load dataset if necessary
         if len(self._question_db.get()["ids"]) == 0:
             self._init_questions_db(batch_size=self.loading_batch_size)
+            # Save metadata after questions are loaded
+            self.save_dataset_metadata()
 
     def validate_dataset(self):
         """
