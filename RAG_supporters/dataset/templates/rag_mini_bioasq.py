@@ -595,9 +595,12 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         question_db_ids: Optional[List[str]] = None,
         criterion: SamplePairingType = SamplePairingType.EMBEDDING_SIMILARITY,
         **kwargs,
-    ) -> List[SampleTripletRAGChroma]:
-        result_rows = []
-
+    ):
+        """Generator that yields question-source pair rows.
+        
+        Yields rows as dictionaries to minimize memory usage by avoiding 
+        accumulation of all results before returning.
+        """
         if question_db_ids is None:
             # Get all questions from the database
             question_db_ids = self._question_db.get(include=["embeddings"])["ids"]
@@ -628,16 +631,14 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 for source_id, source_text in zip(
                     sources["ids"][0], sources["documents"][0]
                 ):
-                    result_rows.append(
-                        {
-                            "question_id": question_db_id,
-                            "question_text": question_text,
-                            "source_id": source_id,
-                            "source_text": source_text,
-                            "answer": question_metadata.get("answer", ""),
-                            # "similarity_score": 1 - distance  # Convert distance to similarity
-                        }
-                    )
+                    yield {
+                        "question_id": question_db_id,
+                        "question_text": question_text,
+                        "source_id": source_id,
+                        "source_text": source_text,
+                        "answer": question_metadata.get("answer", ""),
+                        # "similarity_score": 1 - distance  # Convert distance to similarity
+                    }
 
         elif criterion == SamplePairingType.ALL_EXISTING:
             # Optimized version: Process text corpus in batches to avoid RAM exhaustion
@@ -673,15 +674,13 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                             # Skip empty or invalid passages
                             continue
 
-                        result_rows.append(
-                            {
-                                "question_id": question_db_id,
-                                "question_text": question_text,
-                                "source_id": source_id,
-                                "source_text": source_text,
-                                "answer": question_metadata.get("answer", ""),
-                            }
-                        )
+                        yield {
+                            "question_id": question_db_id,
+                            "question_text": question_text,
+                            "source_id": source_id,
+                            "source_text": source_text,
+                            "answer": question_metadata.get("answer", ""),
+                        }
 
         elif criterion == SamplePairingType.RELEVANT:
             # Get questions with their relevant passages based on stored metadata
@@ -730,22 +729,18 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                             # Skip empty or invalid passages
                             continue
 
-                        result_rows.append(
-                            {
-                                "question_id": question_db_id,
-                                "question_text": question_text,
-                                "source_id": source_id,
-                                "source_text": source_text,
-                                "answer": question_metadata.get("answer", ""),
-                            }
-                        )
+                        yield {
+                            "question_id": question_db_id,
+                            "question_text": question_text,
+                            "source_id": source_id,
+                            "source_text": source_text,
+                            "answer": question_metadata.get("answer", ""),
+                        }
 
         else:
             raise ValueError(
                 f"Unsupported criterion: {criterion}. Only 'ALL_EXISTING', 'RELEVANT' and 'EMBEDDING_SIMILARITY' are supported. (For now)"
             )
-
-        return pd.DataFrame(result_rows)
 
     def _save_passage_json(self):
         """
