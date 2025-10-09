@@ -386,16 +386,7 @@ print(f"Total triplets: {len(triplets)}")
 print(f"Label distribution: {[t.label for t in triplets[:10]]}")
 ```
 
-### 5. Use Appropriate Batch Sizes
-
-Guidelines for batch size selection:
-
-- **RAM < 8 GB**: Use `batch_size=25-50`
-- **RAM 8-16 GB**: Use `batch_size=50-100` (default)
-- **RAM 16-32 GB**: Use `batch_size=100-200`
-- **RAM > 32 GB**: Use `batch_size=200-500`
-
-### 6. Save Intermediate Results
+### 5. Save Intermediate Results
 
 For long-running operations:
 
