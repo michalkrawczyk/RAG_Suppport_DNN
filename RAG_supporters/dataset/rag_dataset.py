@@ -97,6 +97,40 @@ class BaseRAGDatasetGenerator(ABC):
     _embed_function = None
     _dataset_metadata: Dict[str, Any] = None
 
+    def _init_dataset_metadata(self, dataset_names: List[str], dataset_sources: List[str], 
+                                embed_function, **kwargs) -> None:
+        """
+        Initialize dataset metadata with information about source and embedding method.
+        
+        Parameters
+        ----------
+        dataset_names : List[str]
+            List of dataset names
+        dataset_sources : List[str]
+            List of dataset sources (e.g., HuggingFace repo names)
+        embed_function : callable
+            The embedding function used
+        **kwargs : dict
+            Additional parameters for metadata
+        """
+        # Get embedding name from the function
+        if embed_function is not None:
+            embedding_name = getattr(embed_function, "model", type(embed_function).__name__)
+        else:
+            embedding_name = kwargs.get("embedding_name", None)
+        
+        # Template structure
+        self._dataset_metadata = {
+            "dataset_info": {
+                "names": dataset_names,
+                "sources": dataset_sources
+            },
+            "embedding_info": {
+                "name": embedding_name
+            },
+            "additional_info": kwargs.get("additional_info", {})
+        }
+
     @abstractmethod
     def load_dataset(self):
         """

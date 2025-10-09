@@ -75,49 +75,17 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         self.loading_batch_size = kwargs.get("loading_batch_size", 100)  #
 
         # Initialize dataset metadata
-        self._init_dataset_metadata(embed_function, kwargs)
+        additional_info = {"loading_batch_size": self.loading_batch_size}
+        self._init_dataset_metadata(
+            dataset_names=["BioASQ mini"],
+            dataset_sources=["enelpol/rag-mini-bioasq"],
+            embed_function=embed_function,
+            embedding_name=kwargs.get("model") if embed_function is None else None,
+            additional_info=additional_info
+        )
 
         self.load_dataset()
         self._passage_id_to_db_id = {}
-
-    def _init_dataset_metadata(self, embed_function, kwargs):
-        """
-        Initialize dataset metadata with information about source and embedding method.
-        
-        Parameters
-        ----------
-        embed_function : callable
-            The embedding function used
-        kwargs : dict
-            Additional parameters passed to __init__
-        """
-        # Get embedding model information
-        embedding_name = ""
-        embedding_method = ""
-        
-        if embed_function is None:
-            # Using OpenAI embeddings
-            embedding_name = kwargs.get("model", "text-embedding-3-small")
-            embedding_method = "OpenAI Embeddings API"
-        else:
-            # Custom embedding function
-            embedding_name = getattr(embed_function, "model", type(embed_function).__name__)
-            embedding_method = f"Custom embedding function: {type(embed_function).__name__}"
-
-        # Template structure as requested
-        self._dataset_metadata = {
-            "dataset_info": {
-                "names": ["BioASQ mini"],
-                "sources": ["enelpol/rag-mini-bioasq"]
-            },
-            "embedding_info": {
-                "name": embedding_name,
-                "method": embedding_method
-            },
-            "additional_info": {
-                "loading_batch_size": self.loading_batch_size
-            }
-        }
 
     def load_dataset(self):
         """
