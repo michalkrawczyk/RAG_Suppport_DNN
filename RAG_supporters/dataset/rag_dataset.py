@@ -1,6 +1,8 @@
 import csv
+import json
 import logging
 import os
+import yaml
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -85,12 +87,49 @@ class BaseRAGDatasetGenerator(ABC):
         Directory path for storing dataset files
     _embed_function : callable, optional
         Function used for embedding text
+    _dataset_metadata : dict, optional
+        Dictionary containing dataset metadata (source, embedding method, etc.)
     """
 
     _question_db: Chroma
     _text_corpus_db: Chroma
     _dataset_dir: str
     _embed_function = None
+    _dataset_metadata: Dict[str, Any] = None
+
+    def _init_dataset_metadata(self, dataset_names: List[str], dataset_sources: List[str], 
+                                embed_function, **kwargs) -> None:
+        """
+        Initialize dataset metadata with information about source and embedding method.
+        
+        Parameters
+        ----------
+        dataset_names : List[str]
+            List of dataset names
+        dataset_sources : List[str]
+            List of dataset sources (e.g., HuggingFace repo names)
+        embed_function : callable
+            The embedding function used
+        **kwargs : dict
+            Additional parameters for metadata
+        """
+        # Get embedding name from the function
+        if embed_function is not None:
+            embedding_name = getattr(embed_function, "model", type(embed_function).__name__)
+        else:
+            embedding_name = None
+        
+        # Template structure
+        self._dataset_metadata = {
+            "dataset_info": {
+                "names": dataset_names,
+                "sources": dataset_sources
+            },
+            "embedding_info": {
+                "name": embedding_name
+            },
+            "additional_info": kwargs.get("additional_info", {})
+        }
 
     @abstractmethod
     def load_dataset(self):
@@ -301,6 +340,71 @@ class BaseRAGDatasetGenerator(ABC):
             Dictionary containing the requested data fields
         """
         return self._question_db.get(include=list(include))
+
+    def save_dataset_metadata(self, metadata_file: Optional[str] = None) -> None:
+        """
+        Save dataset metadata to a YAML file.
+
+        This method saves information about the dataset including source,
+        embedding method, and other relevant metadata for later features
+        like concatenation.
+
+        Parameters
+        ----------
+        metadata_file : Optional[str], optional
+            Path where the metadata file will be saved.
+            If None, saves to {dataset_dir}/dataset_info.yaml
+
+        Returns
+        -------
+        None
+        """
+        if self._dataset_metadata is None:
+            LOGGER.warning("No dataset metadata available to save")
+            return
+
+        if metadata_file is None:
+            metadata_file = os.path.join(self._dataset_dir, "dataset_info.yaml")
+
+        # Create directory if it doesn't exist
+        Path(os.path.dirname(metadata_file)).mkdir(parents=True, exist_ok=True)
+
+        with open(metadata_file, "w") as f:
+            yaml.dump(self._dataset_metadata, f, default_flow_style=False, sort_keys=False)
+
+        LOGGER.info(f"Dataset metadata saved to {metadata_file}")
+
+    def load_dataset_metadata(self, metadata_file: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Load dataset metadata from a YAML file.
+
+        Parameters
+        ----------
+        metadata_file : Optional[str], optional
+            Path to the metadata file.
+            If None, loads from {dataset_dir}/dataset_info.yaml
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing dataset metadata
+
+        Raises
+        ------
+        FileNotFoundError
+            If the metadata file does not exist
+        """
+        if metadata_file is None:
+            metadata_file = os.path.join(self._dataset_dir, "dataset_info.yaml")
+
+        if not os.path.exists(metadata_file):
+            raise FileNotFoundError(f"Metadata file not found: {metadata_file}")
+
+        with open(metadata_file, "r") as f:
+            self._dataset_metadata = yaml.safe_load(f)
+
+        LOGGER.info(f"Dataset metadata loaded from {metadata_file}")
+        return self._dataset_metadata
 
     def evaluate_pair_samples(
         self,
@@ -640,3 +744,8 @@ class BaseRAGDatasetGenerator(ABC):
                 writer.writerow(row)
 
         LOGGER.info(f"Successfully saved triplets to {output_file}")
+
+        # Save dataset metadata alongside the CSV file
+        if self._dataset_metadata is not None:
+            metadata_file = output_file.replace(".csv", "_metadata.yaml")
+            self.save_dataset_metadata(metadata_file)

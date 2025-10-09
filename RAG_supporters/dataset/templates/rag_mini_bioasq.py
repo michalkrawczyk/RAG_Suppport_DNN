@@ -74,6 +74,16 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         )
         self.loading_batch_size = kwargs.get("loading_batch_size", 100)  #
 
+        # Initialize dataset metadata
+        additional_info = {"loading_batch_size": self.loading_batch_size}
+        self._init_dataset_metadata(
+            dataset_names=["BioASQ mini"],
+            dataset_sources=["enelpol/rag-mini-bioasq"],
+            embed_function=embed_function,
+            embedding_name=kwargs.get("model") if embed_function is None else None,
+            additional_info=additional_info
+        )
+
         self.load_dataset()
         self._passage_id_to_db_id = {}
 
@@ -103,6 +113,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         if len(self._text_corpus_db.get()["ids"]) == 0:
             self._init_text_corpus_db(batch_size=self.loading_batch_size)
             self._save_passage_json()  # Save the mapping of passage IDs to Chroma IDs for future use
+            # Save dataset metadata when initializing for the first time
+            self.save_dataset_metadata()
         else:
             # Text corpus is already initialized - load mapping from passage_id to chroma_id
             if not os.path.exists(os.path.join(self._passage_id_cast_json)):
@@ -113,11 +125,19 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 with open(self._passage_id_cast_json, "r") as f:
                     self._passage_id_to_db_id = json.load(f)
 
+            # Try to load existing dataset metadata
+            try:
+                self.load_dataset_metadata()
+            except FileNotFoundError:
+                LOGGER.warning("Dataset metadata file not found. Metadata will be created on next save.")
+
             self.validate_dataset()
 
         # Check if question database is empty and load dataset if necessary
         if len(self._question_db.get()["ids"]) == 0:
             self._init_questions_db(batch_size=self.loading_batch_size)
+            # Save metadata after questions are loaded
+            self.save_dataset_metadata()
 
     def validate_dataset(self):
         """
