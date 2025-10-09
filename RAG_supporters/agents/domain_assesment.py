@@ -9,6 +9,7 @@ LOGGER = logging.getLogger(__name__)
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
+LOGGER = logging.getLogger(__name__)
 
 try:
     import pandas as pd
@@ -55,6 +56,9 @@ try:
         def validate_total_matches_length(self):
             """Ensure total_suggestions matches the length of suggestions list"""
             if self.total_suggestions != len(self.suggestions):
+                LOGGER.warning(
+                    f"total_suggestions mismatch: {self.total_suggestions} vs {len(self.suggestions)}, correcting"
+                )
                 self.total_suggestions = len(self.suggestions)
             return self
 
@@ -69,6 +73,9 @@ try:
         def validate_total_matches_length(self):
             """Ensure total_suggestions matches the length of suggestions list"""
             if self.total_suggestions != len(self.suggestions):
+                LOGGER.warning(
+                    f"total_suggestions mismatch: {self.total_suggestions} vs {len(self.suggestions)}, correcting"
+                )
                 self.total_suggestions = len(self.suggestions)
             return self
 
@@ -92,6 +99,9 @@ try:
         def validate_total_matches_length(self):
             """Ensure total_selected matches the length of selected_terms list"""
             if self.total_selected != len(self.selected_terms):
+                LOGGER.warning(
+                    f"total_selected mismatch: {self.total_selected} vs {len(self.selected_terms)}, correcting"
+                )
                 self.total_selected = len(self.selected_terms)
             return self
 

@@ -117,7 +117,7 @@ class BaseRAGDatasetGenerator(ABC):
         if embed_function is not None:
             embedding_name = getattr(embed_function, "model", type(embed_function).__name__)
         else:
-            embedding_name = kwargs.get("embedding_name", None)
+            embedding_name = None
         
         # Template structure
         self._dataset_metadata = {
