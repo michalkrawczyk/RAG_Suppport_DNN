@@ -2,6 +2,7 @@ import csv
 import json
 import logging
 import os
+import yaml
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -308,7 +309,7 @@ class BaseRAGDatasetGenerator(ABC):
 
     def save_dataset_metadata(self, metadata_file: Optional[str] = None) -> None:
         """
-        Save dataset metadata to a JSON file.
+        Save dataset metadata to a YAML file.
 
         This method saves information about the dataset including source,
         embedding method, and other relevant metadata for later features
@@ -318,7 +319,7 @@ class BaseRAGDatasetGenerator(ABC):
         ----------
         metadata_file : Optional[str], optional
             Path where the metadata file will be saved.
-            If None, saves to {dataset_dir}/dataset_info.json
+            If None, saves to {dataset_dir}/dataset_info.yaml
 
         Returns
         -------
@@ -329,25 +330,25 @@ class BaseRAGDatasetGenerator(ABC):
             return
 
         if metadata_file is None:
-            metadata_file = os.path.join(self._dataset_dir, "dataset_info.json")
+            metadata_file = os.path.join(self._dataset_dir, "dataset_info.yaml")
 
         # Create directory if it doesn't exist
         Path(os.path.dirname(metadata_file)).mkdir(parents=True, exist_ok=True)
 
         with open(metadata_file, "w") as f:
-            json.dump(self._dataset_metadata, f, indent=2)
+            yaml.dump(self._dataset_metadata, f, default_flow_style=False, sort_keys=False)
 
         LOGGER.info(f"Dataset metadata saved to {metadata_file}")
 
     def load_dataset_metadata(self, metadata_file: Optional[str] = None) -> Dict[str, Any]:
         """
-        Load dataset metadata from a JSON file.
+        Load dataset metadata from a YAML file.
 
         Parameters
         ----------
         metadata_file : Optional[str], optional
             Path to the metadata file.
-            If None, loads from {dataset_dir}/dataset_info.json
+            If None, loads from {dataset_dir}/dataset_info.yaml
 
         Returns
         -------
@@ -360,13 +361,13 @@ class BaseRAGDatasetGenerator(ABC):
             If the metadata file does not exist
         """
         if metadata_file is None:
-            metadata_file = os.path.join(self._dataset_dir, "dataset_info.json")
+            metadata_file = os.path.join(self._dataset_dir, "dataset_info.yaml")
 
         if not os.path.exists(metadata_file):
             raise FileNotFoundError(f"Metadata file not found: {metadata_file}")
 
         with open(metadata_file, "r") as f:
-            self._dataset_metadata = json.load(f)
+            self._dataset_metadata = yaml.safe_load(f)
 
         LOGGER.info(f"Dataset metadata loaded from {metadata_file}")
         return self._dataset_metadata
@@ -712,5 +713,5 @@ class BaseRAGDatasetGenerator(ABC):
 
         # Save dataset metadata alongside the CSV file
         if self._dataset_metadata is not None:
-            metadata_file = output_file.replace(".csv", "_metadata.json")
+            metadata_file = output_file.replace(".csv", "_metadata.yaml")
             self.save_dataset_metadata(metadata_file)

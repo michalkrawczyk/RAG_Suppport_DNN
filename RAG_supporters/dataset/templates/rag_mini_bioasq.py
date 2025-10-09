@@ -92,25 +92,31 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             Additional parameters passed to __init__
         """
         # Get embedding model information
-        embedding_info = {}
+        embedding_name = ""
+        embedding_method = ""
+        
         if embed_function is None:
             # Using OpenAI embeddings
-            embedding_info = {
-                "type": "OpenAIEmbeddings",
-                "model": kwargs.get("model", "text-embedding-3-small"),
-            }
+            embedding_name = kwargs.get("model", "text-embedding-3-small")
+            embedding_method = "OpenAI Embeddings API"
         else:
             # Custom embedding function
-            embedding_info = {
-                "type": type(embed_function).__name__,
-                "model": getattr(embed_function, "model", "unknown"),
-            }
+            embedding_name = getattr(embed_function, "model", type(embed_function).__name__)
+            embedding_method = f"Custom embedding function: {type(embed_function).__name__}"
 
+        # Template structure as requested
         self._dataset_metadata = {
-            "dataset_source": "enelpol/rag-mini-bioasq",
-            "dataset_type": "BioASQ mini",
-            "embedding_function": embedding_info,
-            "loading_batch_size": self.loading_batch_size,
+            "dataset_info": {
+                "names": ["BioASQ mini"],
+                "sources": ["enelpol/rag-mini-bioasq"]
+            },
+            "embedding_info": {
+                "name": embedding_name,
+                "method": embedding_method
+            },
+            "additional_info": {
+                "loading_batch_size": self.loading_batch_size
+            }
         }
 
     def load_dataset(self):
