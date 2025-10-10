@@ -25,27 +25,33 @@ try:
         SRC_DOMAIN_EXTRACTION_PROMPT)
     from utils.text_utils import is_empty_text
 
-
     class OperationMode(str, Enum):
         """Operation modes for domain analysis"""
+
         EXTRACT = "extract"  # Extract domains from source text
         GUESS = "guess"  # Guess domains needed for question
         ASSESS = "assess"  # Assess question against available terms
 
-
     # Pydantic Models
     class DomainSuggestion(BaseModel):
         """Model for a single domain/subdomain/keyword suggestion"""
+
         term: str = Field(..., description="The domain, subdomain, or keyword term")
         type: str = Field(..., description="Type: domain, subdomain, or keyword")
-        confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score 0-1")
+        confidence: float = Field(
+            ..., ge=0.0, le=1.0, description="Confidence score 0-1"
+        )
         reason: str = Field(..., description="Explanation for this suggestion")
-
 
     class DomainExtractionResult(BaseModel):
         """Result for source domain extraction"""
-        suggestions: List[DomainSuggestion] = Field(..., description="List of domain suggestions")
-        total_suggestions: int = Field(..., ge=0, le=10, description="Total number of suggestions")
+
+        suggestions: List[DomainSuggestion] = Field(
+            ..., description="List of domain suggestions"
+        )
+        total_suggestions: int = Field(
+            ..., ge=0, le=10, description="Total number of suggestions"
+        )
         primary_theme: str = Field(..., description="Main identified theme")
 
         @model_validator(mode="after")
@@ -58,12 +64,18 @@ try:
                 self.total_suggestions = len(self.suggestions)
             return self
 
-
     class DomainGuessResult(BaseModel):
         """Result for question domain guessing"""
-        suggestions: List[DomainSuggestion] = Field(..., description="List of domain suggestions")
-        total_suggestions: int = Field(..., ge=0, le=10, description="Total number of suggestions")
-        question_category: str = Field(..., description="Identified question type/category")
+
+        suggestions: List[DomainSuggestion] = Field(
+            ..., description="List of domain suggestions"
+        )
+        total_suggestions: int = Field(
+            ..., ge=0, le=10, description="Total number of suggestions"
+        )
+        question_category: str = Field(
+            ..., description="Identified question type/category"
+        )
 
         @model_validator(mode="after")
         def validate_total_matches_length(self):
@@ -75,20 +87,28 @@ try:
                 self.total_suggestions = len(self.suggestions)
             return self
 
-
     class SelectedTerm(BaseModel):
         """Model for a selected term with relevance score"""
+
         term: str = Field(..., description="The selected term")
         type: str = Field(..., description="Type: domain, subdomain, or keyword")
-        relevance_score: float = Field(..., ge=0.0, le=1.0, description="Relevance score 0-1")
+        relevance_score: float = Field(
+            ..., ge=0.0, le=1.0, description="Relevance score 0-1"
+        )
         reason: str = Field(..., description="Explanation of relevance")
-
 
     class DomainAssessmentResult(BaseModel):
         """Result for domain assessment against available terms"""
-        selected_terms: List[SelectedTerm] = Field(..., description="List of selected terms")
-        total_selected: int = Field(..., ge=0, le=10, description="Total number of selected terms")
-        question_intent: str = Field(..., description="Brief description of question intent")
+
+        selected_terms: List[SelectedTerm] = Field(
+            ..., description="List of selected terms"
+        )
+        total_selected: int = Field(
+            ..., ge=0, le=10, description="Total number of selected terms"
+        )
+        question_intent: str = Field(
+            ..., description="Brief description of question intent"
+        )
         primary_topics: List[str] = Field(..., description="Primary topics identified")
 
         @model_validator(mode="after")
@@ -101,18 +121,19 @@ try:
                 self.total_selected = len(self.selected_terms)
             return self
 
-
     class AgentState(BaseModel):
         """State for the LangGraph domain analysis agent"""
+
         mode: OperationMode
         text_source: Optional[str] = None
         question: Optional[str] = None
         available_terms: Optional[str] = None  # JSON string of available terms
-        result: Optional[Union[DomainExtractionResult, DomainGuessResult, DomainAssessmentResult]] = None
+        result: Optional[
+            Union[DomainExtractionResult, DomainGuessResult, DomainAssessmentResult]
+        ] = None
         error: Optional[str] = None
         retry_count: int = 0
         max_retries: int = 3
-
 
     class DomainAnalysisAgent:
         """
@@ -123,10 +144,10 @@ try:
         """
 
         def __init__(
-                self,
-                llm: BaseChatModel,
-                max_retries: int = 3,
-                batch_size: int = 10,
+            self,
+            llm: BaseChatModel,
+            max_retries: int = 3,
+            batch_size: int = 10,
         ):
             """
             Initialize the domain analysis agent.
@@ -145,9 +166,13 @@ try:
             self.batch_size = batch_size
 
             # Set up parsers for each mode
-            self.extraction_parser = PydanticOutputParser(pydantic_object=DomainExtractionResult)
+            self.extraction_parser = PydanticOutputParser(
+                pydantic_object=DomainExtractionResult
+            )
             self.guess_parser = PydanticOutputParser(pydantic_object=DomainGuessResult)
-            self.assessment_parser = PydanticOutputParser(pydantic_object=DomainAssessmentResult)
+            self.assessment_parser = PydanticOutputParser(
+                pydantic_object=DomainAssessmentResult
+            )
 
             # Set up fixing parsers
             self.extraction_fixing_parser = OutputFixingParser.from_llm(
@@ -162,19 +187,15 @@ try:
 
             # Create prompt templates
             self.extraction_template = self._create_prompt_template(
-                SRC_DOMAIN_EXTRACTION_PROMPT,
-                ["text_source"],
-                self.extraction_parser
+                SRC_DOMAIN_EXTRACTION_PROMPT, ["text_source"], self.extraction_parser
             )
             self.guess_template = self._create_prompt_template(
-                QUESTION_DOMAIN_GUESS_PROMPT,
-                ["question"],
-                self.guess_parser
+                QUESTION_DOMAIN_GUESS_PROMPT, ["question"], self.guess_parser
             )
             self.assessment_template = self._create_prompt_template(
                 QUESTION_DOMAIN_ASSESS_PROMPT,
                 ["question", "available_terms"],
-                self.assessment_parser
+                self.assessment_parser,
             )
 
             # Build the workflow graph
@@ -187,25 +208,27 @@ try:
             """Check if the LLM is from OpenAI for batch processing"""
             try:
                 from langchain_openai import AzureChatOpenAI, ChatOpenAI
+
                 return isinstance(self.llm, (ChatOpenAI, AzureChatOpenAI))
             except ImportError:
-                LOGGER.debug("langchain_openai not installed, batch processing unavailable")
+                LOGGER.debug(
+                    "langchain_openai not installed, batch processing unavailable"
+                )
                 return False
             except Exception as e:
                 LOGGER.debug(f"Could not determine if LLM is OpenAI: {e}")
                 return False
 
         def _create_prompt_template(
-                self,
-                template: str,
-                input_vars: List[str],
-                parser: PydanticOutputParser
+            self, template: str, input_vars: List[str], parser: PydanticOutputParser
         ) -> PromptTemplate:
             """Create a prompt template with format instructions"""
             return PromptTemplate(
                 template=template,
                 input_variables=input_vars,
-                partial_variables={"format_instructions": parser.get_format_instructions()},
+                partial_variables={
+                    "format_instructions": parser.get_format_instructions()
+                },
             )
 
         def _get_parser_for_mode(self, mode: OperationMode) -> tuple:
@@ -245,9 +268,7 @@ try:
 
             # Conditional edges from validate
             workflow.add_conditional_edges(
-                "validate",
-                self._should_retry,
-                {"retry": "retry", "end": END}
+                "validate", self._should_retry, {"retry": "retry", "end": END}
             )
 
             # From retry back to analyze
@@ -269,8 +290,7 @@ try:
                     prompt = template.format(question=state.question)
                 elif state.mode == OperationMode.ASSESS:
                     prompt = template.format(
-                        question=state.question,
-                        available_terms=state.available_terms
+                        question=state.question, available_terms=state.available_terms
                     )
 
                 LOGGER.debug(f"Sending prompt to LLM for mode: {state.mode}")
@@ -289,31 +309,28 @@ try:
                 try:
                     # Try fixing parser first
                     result = fixing_parser.parse(content)
-                    LOGGER.info(f"Successfully parsed with fixing parser for mode: {state.mode}")
+                    LOGGER.info(
+                        f"Successfully parsed with fixing parser for mode: {state.mode}"
+                    )
 
                 except Exception as parse_error:
-                    LOGGER.warning(f"Fixing parser failed, trying regular parser: {parse_error}")
+                    LOGGER.warning(
+                        f"Fixing parser failed, trying regular parser: {parse_error}"
+                    )
                     try:
                         result = parser.parse(content)
-                        LOGGER.info(f"Successfully parsed with regular parser for mode: {state.mode}")
+                        LOGGER.info(
+                            f"Successfully parsed with regular parser for mode: {state.mode}"
+                        )
                     except Exception as e:
                         LOGGER.error(f"All parsing attempts failed: {e}")
-                        return {
-                            "result": None,
-                            "error": f"Parsing error: {str(e)}"
-                        }
+                        return {"result": None, "error": f"Parsing error: {str(e)}"}
 
-                return {
-                    "result": result,
-                    "error": None
-                }
+                return {"result": result, "error": None}
 
             except Exception as e:
                 LOGGER.error(f"Analysis error: {e}")
-                return {
-                    "result": None,
-                    "error": str(e)
-                }
+                return {"result": None, "error": str(e)}
 
         def _validate_response(self, state: AgentState) -> Dict[str, Any]:
             """Validate the response"""
@@ -331,27 +348,20 @@ try:
 
                 if isinstance(state.result, expected_type):
                     LOGGER.info(f"Validation successful for mode: {state.mode}")
-                    return {
-                        "result": state.result,
-                        "error": None
-                    }
+                    return {"result": state.result, "error": None}
                 elif isinstance(state.result, dict):
                     # Try to convert dict to appropriate model
                     result = expected_type(**state.result)
-                    LOGGER.info(f"Validation successful - converted dict for mode: {state.mode}")
-                    return {
-                        "result": result,
-                        "error": None
-                    }
+                    LOGGER.info(
+                        f"Validation successful - converted dict for mode: {state.mode}"
+                    )
+                    return {"result": result, "error": None}
                 else:
                     raise ValueError(f"Unexpected result type: {type(state.result)}")
 
             except Exception as e:
                 LOGGER.error(f"Validation error: {e}")
-                return {
-                    "result": None,
-                    "error": f"Validation error: {str(e)}"
-                }
+                return {"result": None, "error": f"Validation error: {str(e)}"}
 
         def _should_retry(self, state: AgentState) -> str:
             """Determine if we should retry or end"""
@@ -369,11 +379,7 @@ try:
             LOGGER.info(f"Retrying... Attempt {new_retry_count}/{state.max_retries}")
             LOGGER.info(f"Previous error: {state.error}")
 
-            return {
-                "retry_count": new_retry_count,
-                "result": None,
-                "error": None
-            }
+            return {"retry_count": new_retry_count, "result": None, "error": None}
 
         def _extract_result_dict(self, result: Any) -> Optional[Dict[str, Any]]:
             """Helper method to safely extract result as dictionary"""
@@ -381,7 +387,7 @@ try:
                 return None
             if isinstance(result, dict):
                 return result
-            if hasattr(result, 'model_dump'):
+            if hasattr(result, "model_dump"):
                 return result.model_dump()
             LOGGER.warning(f"Unexpected result type: {type(result)}")
             return None
@@ -461,9 +467,7 @@ try:
             return None
 
         def assess_domains(
-                self,
-                question: str,
-                available_terms: Union[List[str], List[Dict], str]
+            self, question: str, available_terms: Union[List[str], List[Dict], str]
         ) -> Optional[Dict[str, Any]]:
             """
             Assess which available terms are most relevant to a question.
@@ -517,8 +521,7 @@ try:
             return None
 
         def extract_domains_batch(
-                self,
-                text_sources: List[str]
+            self, text_sources: List[str]
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Extract domains from multiple text sources in batch.
@@ -534,17 +537,15 @@ try:
                 List of extraction results
             """
             if not self._is_openai_llm:
-                LOGGER.info("Batch processing not available, using sequential processing")
+                LOGGER.info(
+                    "Batch processing not available, using sequential processing"
+                )
                 return [self.extract_domains(text) for text in text_sources]
 
-            return self._batch_process(
-                OperationMode.EXTRACT,
-                text_sources=text_sources
-            )
+            return self._batch_process(OperationMode.EXTRACT, text_sources=text_sources)
 
         def guess_domains_batch(
-                self,
-                questions: List[str]
+            self, questions: List[str]
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Guess domains for multiple questions in batch.
@@ -560,18 +561,17 @@ try:
                 List of guess results
             """
             if not self._is_openai_llm:
-                LOGGER.info("Batch processing not available, using sequential processing")
+                LOGGER.info(
+                    "Batch processing not available, using sequential processing"
+                )
                 return [self.guess_domains(q) for q in questions]
 
-            return self._batch_process(
-                OperationMode.GUESS,
-                questions=questions
-            )
+            return self._batch_process(OperationMode.GUESS, questions=questions)
 
         def assess_domains_batch(
-                self,
-                questions: List[str],
-                available_terms: Union[List[str], List[Dict], str]
+            self,
+            questions: List[str],
+            available_terms: Union[List[str], List[Dict], str],
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Assess domains for multiple questions against the same available terms.
@@ -589,7 +589,9 @@ try:
                 List of assessment results
             """
             if not self._is_openai_llm:
-                LOGGER.info("Batch processing not available, using sequential processing")
+                LOGGER.info(
+                    "Batch processing not available, using sequential processing"
+                )
                 return [self.assess_domains(q, available_terms) for q in questions]
 
             # Convert and validate available_terms once
@@ -606,15 +608,15 @@ try:
             return self._batch_process(
                 OperationMode.ASSESS,
                 questions=questions,
-                available_terms=[terms_str] * len(questions)
+                available_terms=[terms_str] * len(questions),
             )
 
         def _batch_process(
-                self,
-                mode: OperationMode,
-                text_sources: Optional[List[str]] = None,
-                questions: Optional[List[str]] = None,
-                available_terms: Optional[List[str]] = None,
+            self,
+            mode: OperationMode,
+            text_sources: Optional[List[str]] = None,
+            questions: Optional[List[str]] = None,
+            available_terms: Optional[List[str]] = None,
         ) -> List[Optional[Dict[str, Any]]]:
             """Internal method for batch processing"""
             template = self._get_template_for_mode(mode)
@@ -630,7 +632,9 @@ try:
                     prompts.append(template.format(question=question))
             elif mode == OperationMode.ASSESS:
                 for question, terms in zip(questions, available_terms):
-                    prompts.append(template.format(question=question, available_terms=terms))
+                    prompts.append(
+                        template.format(question=question, available_terms=terms)
+                    )
 
             LOGGER.info(f"Processing batch of {len(prompts)} items for mode: {mode}")
 
@@ -672,21 +676,24 @@ try:
                 elif mode == OperationMode.GUESS:
                     return [self.guess_domains(q) for q in questions]
                 elif mode == OperationMode.ASSESS:
-                    return [self.assess_domains(q, t) for q, t in zip(questions, available_terms)]
+                    return [
+                        self.assess_domains(q, t)
+                        for q, t in zip(questions, available_terms)
+                    ]
 
         def process_dataframe(
-                self,
-                df: pd.DataFrame,
-                mode: OperationMode,
-                text_source_col: Optional[str] = None,
-                question_col: Optional[str] = None,
-                available_terms: Optional[Union[List[str], List[Dict], str]] = None,
-                progress_bar: bool = True,
-                save_path: Optional[str] = None,
-                skip_existing: bool = True,
-                checkpoint_batch_size: Optional[int] = None,
-                use_batch_processing: bool = True,
-                batch_size: Optional[int] = None,
+            self,
+            df: pd.DataFrame,
+            mode: OperationMode,
+            text_source_col: Optional[str] = None,
+            question_col: Optional[str] = None,
+            available_terms: Optional[Union[List[str], List[Dict], str]] = None,
+            progress_bar: bool = True,
+            save_path: Optional[str] = None,
+            skip_existing: bool = True,
+            checkpoint_batch_size: Optional[int] = None,
+            use_batch_processing: bool = True,
+            batch_size: Optional[int] = None,
         ) -> pd.DataFrame:
             """
             Process a DataFrame based on the specified operation mode.
@@ -738,7 +745,11 @@ try:
                 result_columns = [
                     "suggestions",
                     "total_suggestions",
-                    "primary_theme" if mode == OperationMode.EXTRACT else "question_category",
+                    (
+                        "primary_theme"
+                        if mode == OperationMode.EXTRACT
+                        else "question_category"
+                    ),
                     "domain_analysis_error",
                 ]
             else:  # ASSESS
@@ -760,17 +771,26 @@ try:
 
             for idx, row in result_df.iterrows():
                 # Skip if has existing results
-                if skip_existing and (pd.notna(row.get("total_suggestions")) or pd.notna(row.get("total_selected"))):
+                if skip_existing and (
+                    pd.notna(row.get("total_suggestions"))
+                    or pd.notna(row.get("total_selected"))
+                ):
                     continue
 
                 # Check for empty inputs
                 if mode == OperationMode.EXTRACT:
-                    if pd.isna(row[text_source_col]) or is_empty_text(row[text_source_col]):
-                        result_df.at[idx, "domain_analysis_error"] = "Missing or empty text source"
+                    if pd.isna(row[text_source_col]) or is_empty_text(
+                        row[text_source_col]
+                    ):
+                        result_df.at[idx, "domain_analysis_error"] = (
+                            "Missing or empty text source"
+                        )
                         continue
                 else:
                     if pd.isna(row[question_col]) or is_empty_text(row[question_col]):
-                        result_df.at[idx, "domain_analysis_error"] = "Missing or empty question"
+                        result_df.at[idx, "domain_analysis_error"] = (
+                            "Missing or empty question"
+                        )
                         continue
 
                 rows_to_process.append(row)
@@ -785,15 +805,30 @@ try:
             # Process based on batch mode
             if should_batch:
                 result_df = self._process_dataframe_batch(
-                    rows_to_process, indices_to_process, result_df, mode,
-                    text_source_col, question_col, available_terms,
-                    batch_size, progress_bar, save_path, checkpoint_batch_size
+                    rows_to_process,
+                    indices_to_process,
+                    result_df,
+                    mode,
+                    text_source_col,
+                    question_col,
+                    available_terms,
+                    batch_size,
+                    progress_bar,
+                    save_path,
+                    checkpoint_batch_size,
                 )
             else:
                 result_df = self._process_dataframe_sequential(
-                    rows_to_process, indices_to_process, result_df, mode,
-                    text_source_col, question_col, available_terms,
-                    progress_bar, save_path, checkpoint_batch_size
+                    rows_to_process,
+                    indices_to_process,
+                    result_df,
+                    mode,
+                    text_source_col,
+                    question_col,
+                    available_terms,
+                    progress_bar,
+                    save_path,
+                    checkpoint_batch_size,
                 )
 
             if save_path:
@@ -803,12 +838,30 @@ try:
             return result_df
 
         def _process_dataframe_batch(
-                self, rows, indices, result_df, mode, text_col, question_col,
-                available_terms, batch_size, progress_bar, save_path, checkpoint_size
+            self,
+            rows,
+            indices,
+            result_df,
+            mode,
+            text_col,
+            question_col,
+            available_terms,
+            batch_size,
+            progress_bar,
+            save_path,
+            checkpoint_size,
         ):
             """Process DataFrame using batch API"""
             total_batches = (len(rows) + batch_size - 1) // batch_size
-            iterator = tqdm(range(0, len(rows), batch_size), total=total_batches, desc="Processing batches") if progress_bar else range(0, len(rows), batch_size)
+            iterator = (
+                tqdm(
+                    range(0, len(rows), batch_size),
+                    total=total_batches,
+                    desc="Processing batches",
+                )
+                if progress_bar
+                else range(0, len(rows), batch_size)
+            )
 
             processed = 0
             errors = 0
@@ -828,49 +881,90 @@ try:
                         batch_results = self.guess_domains_batch(questions)
                     else:  # ASSESS
                         questions = [row[question_col] for row in batch_rows]
-                        batch_results = self.assess_domains_batch(questions, available_terms)
+                        batch_results = self.assess_domains_batch(
+                            questions, available_terms
+                        )
 
                     # Update DataFrame
                     for idx, result in zip(batch_indices, batch_results):
                         if result is not None:
                             if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
-                                result_df.at[idx, "suggestions"] = str(result["suggestions"])
-                                result_df.at[idx, "total_suggestions"] = result["total_suggestions"]
-                                key = "primary_theme" if mode == OperationMode.EXTRACT else "question_category"
+                                result_df.at[idx, "suggestions"] = str(
+                                    result["suggestions"]
+                                )
+                                result_df.at[idx, "total_suggestions"] = result[
+                                    "total_suggestions"
+                                ]
+                                key = (
+                                    "primary_theme"
+                                    if mode == OperationMode.EXTRACT
+                                    else "question_category"
+                                )
                                 result_df.at[idx, key] = result.get(key)
                             else:  # ASSESS
-                                result_df.at[idx, "selected_terms"] = str(result["selected_terms"])
-                                result_df.at[idx, "total_selected"] = result["total_selected"]
-                                result_df.at[idx, "question_intent"] = result["question_intent"]
-                                result_df.at[idx, "primary_topics"] = str(result["primary_topics"])
+                                result_df.at[idx, "selected_terms"] = str(
+                                    result["selected_terms"]
+                                )
+                                result_df.at[idx, "total_selected"] = result[
+                                    "total_selected"
+                                ]
+                                result_df.at[idx, "question_intent"] = result[
+                                    "question_intent"
+                                ]
+                                result_df.at[idx, "primary_topics"] = str(
+                                    result["primary_topics"]
+                                )
                             processed += 1
                         else:
-                            result_df.at[idx, "domain_analysis_error"] = "Analysis failed"
+                            result_df.at[idx, "domain_analysis_error"] = (
+                                "Analysis failed"
+                            )
                             errors += 1
 
                     # Checkpoint
-                    if save_path and checkpoint_size and processed % checkpoint_size == 0:
+                    if (
+                        save_path
+                        and checkpoint_size
+                        and processed % checkpoint_size == 0
+                    ):
                         result_df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
                 except Exception as e:
                     LOGGER.error(f"Batch error: {e}")
                     for idx in batch_indices:
-                        result_df.at[idx, "domain_analysis_error"] = f"Batch error: {str(e)}"
+                        result_df.at[idx, "domain_analysis_error"] = (
+                            f"Batch error: {str(e)}"
+                        )
                     errors += len(batch_indices)
 
-                if progress_bar and hasattr(iterator, 'set_postfix'):
+                if progress_bar and hasattr(iterator, "set_postfix"):
                     iterator.set_postfix({"Processed": processed, "Errors": errors})
 
-            LOGGER.info(f"Batch processing complete: {processed} successful, {errors} errors")
+            LOGGER.info(
+                f"Batch processing complete: {processed} successful, {errors} errors"
+            )
             return result_df
 
         def _process_dataframe_sequential(
-                self, rows, indices, result_df, mode, text_col, question_col,
-                available_terms, progress_bar, save_path, checkpoint_size
+            self,
+            rows,
+            indices,
+            result_df,
+            mode,
+            text_col,
+            question_col,
+            available_terms,
+            progress_bar,
+            save_path,
+            checkpoint_size,
         ):
             """Process DataFrame sequentially"""
-            iterator = tqdm(zip(indices, rows), total=len(rows), desc="Processing rows") if progress_bar else zip(indices, rows)
+            iterator = (
+                tqdm(zip(indices, rows), total=len(rows), desc="Processing rows")
+                if progress_bar
+                else zip(indices, rows)
+            )
 
             processed = 0
             errors = 0
@@ -887,22 +981,42 @@ try:
 
                     if result is not None:
                         if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
-                            result_df.at[idx, "suggestions"] = str(result["suggestions"])
-                            result_df.at[idx, "total_suggestions"] = result["total_suggestions"]
-                            key = "primary_theme" if mode == OperationMode.EXTRACT else "question_category"
+                            result_df.at[idx, "suggestions"] = str(
+                                result["suggestions"]
+                            )
+                            result_df.at[idx, "total_suggestions"] = result[
+                                "total_suggestions"
+                            ]
+                            key = (
+                                "primary_theme"
+                                if mode == OperationMode.EXTRACT
+                                else "question_category"
+                            )
                             result_df.at[idx, key] = result.get(key)
                         else:  # ASSESS
-                            result_df.at[idx, "selected_terms"] = str(result["selected_terms"])
-                            result_df.at[idx, "total_selected"] = result["total_selected"]
-                            result_df.at[idx, "question_intent"] = result["question_intent"]
-                            result_df.at[idx, "primary_topics"] = str(result["primary_topics"])
+                            result_df.at[idx, "selected_terms"] = str(
+                                result["selected_terms"]
+                            )
+                            result_df.at[idx, "total_selected"] = result[
+                                "total_selected"
+                            ]
+                            result_df.at[idx, "question_intent"] = result[
+                                "question_intent"
+                            ]
+                            result_df.at[idx, "primary_topics"] = str(
+                                result["primary_topics"]
+                            )
                         processed += 1
                     else:
                         result_df.at[idx, "domain_analysis_error"] = "Analysis failed"
                         errors += 1
 
                     # Checkpoint
-                    if save_path and checkpoint_size and processed % checkpoint_size == 0:
+                    if (
+                        save_path
+                        and checkpoint_size
+                        and processed % checkpoint_size == 0
+                    ):
                         result_df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
@@ -917,12 +1031,13 @@ try:
                     result_df.at[idx, "domain_analysis_error"] = str(e)
                     errors += 1
 
-                if progress_bar and hasattr(iterator, 'set_postfix'):
+                if progress_bar and hasattr(iterator, "set_postfix"):
                     iterator.set_postfix({"Processed": processed, "Errors": errors})
 
-            LOGGER.info(f"Sequential processing complete: {processed} successful, {errors} errors")
+            LOGGER.info(
+                f"Sequential processing complete: {processed} successful, {errors} errors"
+            )
             return result_df
-
 
 except ImportError as e:
     _DEPENDENCIES_AVAILABLE = False
@@ -933,14 +1048,13 @@ except ImportError as e:
         "Install with: pip install langchain langgraph pydantic pandas tqdm"
     )
 
-
     # Minimal stubs for type checking
     class OperationMode(str, Enum):
         """Operation modes for domain analysis"""
+
         EXTRACT = "extract"
         GUESS = "guess"
         ASSESS = "assess"
-
 
     class DomainAnalysisAgent:
         """

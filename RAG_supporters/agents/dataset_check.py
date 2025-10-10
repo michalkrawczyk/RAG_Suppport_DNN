@@ -345,6 +345,7 @@ except ImportError as e:
     # Minimal stubs for type checking
     class CheckAgentState(TypedDict):
         """State object for the agent."""
+
         messages: list
         question: str
         source1: str
