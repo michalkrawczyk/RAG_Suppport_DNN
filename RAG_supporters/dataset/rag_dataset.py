@@ -13,8 +13,6 @@ import pandas as pd
 from langchain_chroma import Chroma
 from langchain_core.language_models import BaseChatModel
 from tqdm import tqdm
-
-from agents.dataset_check import DatasetCheckAgent
 from prompts_templates.rag_verifiers import (
     SRC_COMPARE_PROMPT_WITH_SCORES,
     SINGLE_SRC_SCORE_PROMPT,
@@ -551,7 +549,14 @@ class BaseRAGDatasetGenerator(ABC):
             List of validated triplet samples with labels
         """
         # Create verification chain using the provided LLM and prompts
-        verifier_agent = DatasetCheckAgent(llm, compare_prompt=analysis_prompt)
+        try:
+            from agents.dataset_check import DatasetCheckAgent
+
+            verifier_agent = DatasetCheckAgent(llm, compare_prompt=analysis_prompt)
+        except ImportError:
+            raise ImportError(
+                "DatasetCheckAgent not available. Please ensure all dependencies are installed."
+            )
         samples_verified = []
 
         for sample in tqdm(samples, desc="Validating samples"):
