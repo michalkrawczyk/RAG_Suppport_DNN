@@ -925,14 +925,39 @@ try:
 
 
 except ImportError as e:
+    _DEPENDENCIES_AVAILABLE = False
+    _IMPORT_ERROR = str(e)
+
     LOGGER.warning(
-        f"ImportError: {str(e)}. Please ensure all dependencies are installed."
+        f"DomainAnalysisAgent dependencies not available: {e}. "
+        "Install with: pip install langchain langgraph pydantic pandas tqdm"
     )
 
+
+    # Minimal stubs for type checking
+    class OperationMode(str, Enum):
+        """Operation modes for domain analysis"""
+        EXTRACT = "extract"
+        GUESS = "guess"
+        ASSESS = "assess"
+
+
     class DomainAnalysisAgent:
-        """Placeholder for DomainAnalysisAgent when dependencies are missing"""
+        """
+        Placeholder for DomainAnalysisAgent when dependencies are missing.
+
+        To use this agent, install required dependencies:
+            pip install -r requirements_agents.txt
+        """
 
         def __init__(self, *args, **kwargs):
             raise ImportError(
-                "DomainAnalysisAgent requires langgraph, langchain and pydantic to be installed."
+                f"DomainAnalysisAgent requires langgraph, langchain, and pydantic to be installed.\n"
+                f"Original import error: {_IMPORT_ERROR}\n"
+                f"Install with: pip install -r requirements_agents.txt"
+            )
+
+        def __getattr__(self, name):
+            raise ImportError(
+                f"DomainAnalysisAgent not available due to missing dependencies: {_IMPORT_ERROR}"
             )
