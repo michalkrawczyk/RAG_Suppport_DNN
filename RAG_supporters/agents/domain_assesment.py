@@ -755,13 +755,13 @@ try:
 
             # Process based on batch mode
             if should_batch:
-                results = self._process_dataframe_batch(
+                result_df = self._process_dataframe_batch(
                     rows_to_process, indices_to_process, result_df, mode,
                     text_source_col, question_col, available_terms,
                     batch_size, progress_bar, save_path, checkpoint_batch_size
                 )
             else:
-                results = self._process_dataframe_sequential(
+                result_df = self._process_dataframe_sequential(
                     rows_to_process, indices_to_process, result_df, mode,
                     text_source_col, question_col, available_terms,
                     progress_bar, save_path, checkpoint_batch_size
