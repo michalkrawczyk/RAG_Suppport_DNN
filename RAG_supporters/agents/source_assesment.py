@@ -9,17 +9,18 @@ try:
     from enum import Enum
     from typing import Any, Dict, List, Optional, Union
 
-    from langchain.output_parsers import OutputFixingParser, PydanticOutputParser
+    import pandas as pd
+    from langchain.output_parsers import (OutputFixingParser,
+                                          PydanticOutputParser)
     from langchain_core.language_models import BaseChatModel
     from langchain_core.prompts import PromptTemplate
     from langgraph.graph import END, StateGraph
     from langgraph.prebuilt import ToolNode
-    import pandas as pd
     from pydantic import BaseModel, Field, field_validator, model_validator
     from tqdm import tqdm
 
-    from utils.text_utils import is_empty_text
     from prompts_templates.rag_verifiers import SINGLE_SRC_SCORE_PROMPT
+    from utils.text_utils import is_empty_text
 
     # Pydantic Models for validation (v2.10.3 compatible)
     class ScoreRange(BaseModel):
@@ -149,7 +150,7 @@ try:
                 True if LLM is from OpenAI, False otherwise
             """
             try:
-                from langchain_openai import ChatOpenAI, AzureChatOpenAI
+                from langchain_openai import AzureChatOpenAI, ChatOpenAI
 
                 return isinstance(self.llm, (ChatOpenAI, AzureChatOpenAI))
             except ImportError:

@@ -12,19 +12,18 @@ LOGGER = logging.getLogger(__name__)
 
 try:
     import pandas as pd
-    from langchain.output_parsers import OutputFixingParser, PydanticOutputParser
+    from langchain.output_parsers import (OutputFixingParser,
+                                          PydanticOutputParser)
     from langchain_core.language_models import BaseChatModel
     from langchain_core.prompts import PromptTemplate
     from langgraph.graph import END, StateGraph
     from pydantic import BaseModel, Field, field_validator, model_validator
     from tqdm import tqdm
 
-    from utils.text_utils import is_empty_text
     from prompts_templates.domain_extraction import (
-        SRC_DOMAIN_EXTRACTION_PROMPT,
-        QUESTION_DOMAIN_GUESS_PROMPT,
-        QUESTION_DOMAIN_ASSESS_PROMPT,
-    )
+        QUESTION_DOMAIN_ASSESS_PROMPT, QUESTION_DOMAIN_GUESS_PROMPT,
+        SRC_DOMAIN_EXTRACTION_PROMPT)
+    from utils.text_utils import is_empty_text
 
 
     class OperationMode(str, Enum):
@@ -187,7 +186,7 @@ try:
         def _check_openai_llm(self) -> bool:
             """Check if the LLM is from OpenAI for batch processing"""
             try:
-                from langchain_openai import ChatOpenAI, AzureChatOpenAI
+                from langchain_openai import AzureChatOpenAI, ChatOpenAI
                 return isinstance(self.llm, (ChatOpenAI, AzureChatOpenAI))
             except ImportError:
                 LOGGER.debug("langchain_openai not installed, batch processing unavailable")
