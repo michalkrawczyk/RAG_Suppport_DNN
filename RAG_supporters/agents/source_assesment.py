@@ -1000,14 +1000,31 @@ try:
             return result_df
 
 except ImportError as e:
+    _DEPENDENCIES_AVAILABLE = False
+    _IMPORT_ERROR = str(e)
+
     LOGGER.warning(
-        f"ImportError: {str(e)}. Please ensure all dependencies are installed."
+        f"SourceEvaluationAgent dependencies not available: {e}. "
+        "Install with: pip install langchain langgraph pydantic pandas tqdm"
     )
 
+
     class SourceEvaluationAgent:
-        """Placeholder for SourceEvaluationAgent when dependencies are missing"""
+        """
+        Placeholder for SourceEvaluationAgent when dependencies are missing.
+
+        To use this agent, install required dependencies:
+            pip install -r requirements_agents.txt
+        """
 
         def __init__(self, *args, **kwargs):
             raise ImportError(
-                "SourceEvaluationAgent requires langgraph, langchain and pydantic to be installed."
+                f"SourceEvaluationAgent requires langgraph, langchain, and pydantic to be installed.\n"
+                f"Original import error: {_IMPORT_ERROR}\n"
+                f"Install with: pip install -r requirements_agents.txt"
+            )
+
+        def __getattr__(self, name):
+            raise ImportError(
+                f"SourceEvaluationAgent not available due to missing dependencies: {_IMPORT_ERROR}"
             )
