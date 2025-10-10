@@ -3,9 +3,8 @@ domain_analysis_agent.py
 Agent for domain extraction, guessing, and assessment tasks.
 """
 
+import json
 import logging
-LOGGER = logging.getLogger(__name__)
-
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
@@ -26,8 +25,6 @@ try:
         QUESTION_DOMAIN_GUESS_PROMPT,
         QUESTION_DOMAIN_ASSESS_PROMPT,
     )
-
-
 
 
     class OperationMode(str, Enum):
@@ -293,34 +290,37 @@ try:
                 try:
                     # Try fixing parser first
                     result = fixing_parser.parse(content)
-                    state.result = result
-                    state.error = None
                     LOGGER.info(f"Successfully parsed with fixing parser for mode: {state.mode}")
 
                 except Exception as parse_error:
                     LOGGER.warning(f"Fixing parser failed, trying regular parser: {parse_error}")
                     try:
                         result = parser.parse(content)
-                        state.result = result
-                        state.error = None
                         LOGGER.info(f"Successfully parsed with regular parser for mode: {state.mode}")
                     except Exception as e:
                         LOGGER.error(f"All parsing attempts failed: {e}")
-                        state.error = f"Parsing error: {str(e)}"
-                        state.result = None
+                        return {
+                            "result": None,
+                            "error": f"Parsing error: {str(e)}"
+                        }
+
+                return {
+                    "result": result,
+                    "error": None
+                }
 
             except Exception as e:
                 LOGGER.error(f"Analysis error: {e}")
-                state.error = str(e)
-                state.result = None
-
-            return {"result": state.result, "error": state.error}
+                return {
+                    "result": None,
+                    "error": str(e)
+                }
 
         def _validate_response(self, state: AgentState) -> Dict[str, Any]:
             """Validate the response"""
             if state.result is None:
-                state.error = state.error or "No result generated"
-                return {"error": state.error}
+                error = state.error or "No result generated"
+                return {"error": error}
 
             try:
                 # Check if result is the correct type based on mode
@@ -331,22 +331,28 @@ try:
                 }[state.mode]
 
                 if isinstance(state.result, expected_type):
-                    state.error = None
                     LOGGER.info(f"Validation successful for mode: {state.mode}")
+                    return {
+                        "result": state.result,
+                        "error": None
+                    }
                 elif isinstance(state.result, dict):
                     # Try to convert dict to appropriate model
-                    state.result = expected_type(**state.result)
-                    state.error = None
+                    result = expected_type(**state.result)
                     LOGGER.info(f"Validation successful - converted dict for mode: {state.mode}")
+                    return {
+                        "result": result,
+                        "error": None
+                    }
                 else:
                     raise ValueError(f"Unexpected result type: {type(state.result)}")
 
             except Exception as e:
                 LOGGER.error(f"Validation error: {e}")
-                state.error = f"Validation error: {str(e)}"
-                state.result = None
-
-            return {"result": state.result, "error": state.error}
+                return {
+                    "result": None,
+                    "error": f"Validation error: {str(e)}"
+                }
 
         def _should_retry(self, state: AgentState) -> str:
             """Determine if we should retry or end"""
@@ -360,15 +366,26 @@ try:
 
         def _handle_retry(self, state: AgentState) -> Dict[str, Any]:
             """Handle retry logic"""
-            state.retry_count += 1
-            LOGGER.info(f"Retrying... Attempt {state.retry_count}/{state.max_retries}")
+            new_retry_count = state.retry_count + 1
+            LOGGER.info(f"Retrying... Attempt {new_retry_count}/{state.max_retries}")
             LOGGER.info(f"Previous error: {state.error}")
 
-            # Clear previous result
-            state.result = None
-            state.error = None
+            return {
+                "retry_count": new_retry_count,
+                "result": None,
+                "error": None
+            }
 
-            return {"retry_count": state.retry_count}
+        def _extract_result_dict(self, result: Any) -> Optional[Dict[str, Any]]:
+            """Helper method to safely extract result as dictionary"""
+            if result is None:
+                return None
+            if isinstance(result, dict):
+                return result
+            if hasattr(result, 'model_dump'):
+                return result.model_dump()
+            LOGGER.warning(f"Unexpected result type: {type(result)}")
+            return None
 
         # Public API methods
 
@@ -385,6 +402,12 @@ try:
             -------
             Optional[Dict[str, Any]]
                 Dictionary with suggestions, total_suggestions, and primary_theme
+
+            Examples
+            --------
+            >>> result = agent.extract_domains("Machine learning is a subset of AI...")
+            >>> print(result['primary_theme'])
+            'Artificial Intelligence'
             """
             initial_state = AgentState(
                 mode=OperationMode.EXTRACT,
@@ -392,17 +415,14 @@ try:
                 max_retries=self.max_retries,
             )
 
-            result = self.graph.invoke(initial_state.model_dump())
+            final_state = self.graph.invoke(initial_state.model_dump())
 
-            if result.get("result"):
-                result_obj = result["result"]
-                if isinstance(result_obj, DomainExtractionResult):
-                    return result_obj.model_dump()
-                elif isinstance(result_obj, dict):
-                    return result_obj
+            result = self._extract_result_dict(final_state.get("result"))
+            if result is not None:
+                return result
 
             LOGGER.error(f"Failed to extract domains after {self.max_retries} retries")
-            LOGGER.error(f"Final error: {result.get('error')}")
+            LOGGER.error(f"Final error: {final_state.get('error')}")
             return None
 
         def guess_domains(self, question: str) -> Optional[Dict[str, Any]]:
@@ -418,6 +438,12 @@ try:
             -------
             Optional[Dict[str, Any]]
                 Dictionary with suggestions, total_suggestions, and question_category
+
+            Examples
+            --------
+            >>> result = agent.guess_domains("What is the capital of France?")
+            >>> print(result['question_category'])
+            'Geography'
             """
             initial_state = AgentState(
                 mode=OperationMode.GUESS,
@@ -425,17 +451,14 @@ try:
                 max_retries=self.max_retries,
             )
 
-            result = self.graph.invoke(initial_state.model_dump())
+            final_state = self.graph.invoke(initial_state.model_dump())
 
-            if result.get("result"):
-                result_obj = result["result"]
-                if isinstance(result_obj, DomainGuessResult):
-                    return result_obj.model_dump()
-                elif isinstance(result_obj, dict):
-                    return result_obj
+            result = self._extract_result_dict(final_state.get("result"))
+            if result is not None:
+                return result
 
             LOGGER.error(f"Failed to guess domains after {self.max_retries} retries")
-            LOGGER.error(f"Final error: {result.get('error')}")
+            LOGGER.error(f"Final error: {final_state.get('error')}")
             return None
 
         def assess_domains(
@@ -457,12 +480,24 @@ try:
             -------
             Optional[Dict[str, Any]]
                 Dictionary with selected_terms, total_selected, question_intent, and primary_topics
+
+            Examples
+            --------
+            >>> terms = ["physics", "chemistry", "biology"]
+            >>> result = agent.assess_domains("What is photosynthesis?", terms)
+            >>> print(result['primary_topics'])
+            ['biology']
             """
             # Convert available_terms to JSON string if needed
             if isinstance(available_terms, str):
-                terms_str = available_terms
+                # Validate JSON string
+                try:
+                    json.loads(available_terms)
+                    terms_str = available_terms
+                except json.JSONDecodeError as e:
+                    LOGGER.error(f"Invalid JSON in available_terms: {e}")
+                    raise ValueError(f"Invalid JSON in available_terms: {e}")
             else:
-                import json
                 terms_str = json.dumps(available_terms, indent=2)
 
             initial_state = AgentState(
@@ -472,17 +507,14 @@ try:
                 max_retries=self.max_retries,
             )
 
-            result = self.graph.invoke(initial_state.model_dump())
+            final_state = self.graph.invoke(initial_state.model_dump())
 
-            if result.get("result"):
-                result_obj = result["result"]
-                if isinstance(result_obj, DomainAssessmentResult):
-                    return result_obj.model_dump()
-                elif isinstance(result_obj, dict):
-                    return result_obj
+            result = self._extract_result_dict(final_state.get("result"))
+            if result is not None:
+                return result
 
             LOGGER.error(f"Failed to assess domains after {self.max_retries} retries")
-            LOGGER.error(f"Final error: {result.get('error')}")
+            LOGGER.error(f"Final error: {final_state.get('error')}")
             return None
 
         def extract_domains_batch(
@@ -561,11 +593,15 @@ try:
                 LOGGER.info("Batch processing not available, using sequential processing")
                 return [self.assess_domains(q, available_terms) for q in questions]
 
-            # Convert available_terms once
+            # Convert and validate available_terms once
             if isinstance(available_terms, str):
-                terms_str = available_terms
+                try:
+                    json.loads(available_terms)
+                    terms_str = available_terms
+                except json.JSONDecodeError as e:
+                    LOGGER.error(f"Invalid JSON in available_terms: {e}")
+                    raise ValueError(f"Invalid JSON in available_terms: {e}")
             else:
-                import json
                 terms_str = json.dumps(available_terms, indent=2)
 
             return self._batch_process(
@@ -615,17 +651,11 @@ try:
                         # Try fixing parser
                         try:
                             result = fixing_parser.parse(content)
-                            if hasattr(result, 'model_dump'):
-                                results.append(result.model_dump())
-                            else:
-                                results.append(result)
+                            results.append(self._extract_result_dict(result))
                         except Exception:
                             # Fallback to regular parser
                             result = parser.parse(content)
-                            if hasattr(result, 'model_dump'):
-                                results.append(result.model_dump())
-                            else:
-                                results.append(result)
+                            results.append(self._extract_result_dict(result))
 
                     except Exception as e:
                         LOGGER.error(f"Error processing batch item {i}: {e}")
@@ -731,7 +761,7 @@ try:
 
             for idx, row in result_df.iterrows():
                 # Skip if has existing results
-                if skip_existing and pd.notna(row.get("total_suggestions")) or pd.notna(row.get("total_selected")):
+                if skip_existing and (pd.notna(row.get("total_suggestions")) or pd.notna(row.get("total_selected"))):
                     continue
 
                 # Check for empty inputs
@@ -779,8 +809,7 @@ try:
         ):
             """Process DataFrame using batch API"""
             total_batches = (len(rows) + batch_size - 1) // batch_size
-            iterator = tqdm(range(0, len(rows), batch_size), total=total_batches) if progress_bar else range(0, len(rows),
-                                                                                                             batch_size)
+            iterator = tqdm(range(0, len(rows), batch_size), total=total_batches, desc="Processing batches") if progress_bar else range(0, len(rows), batch_size)
 
             processed = 0
             errors = 0
@@ -804,13 +833,12 @@ try:
 
                     # Update DataFrame
                     for idx, result in zip(batch_indices, batch_results):
-                        if result:
+                        if result is not None:
                             if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
                                 result_df.at[idx, "suggestions"] = str(result["suggestions"])
                                 result_df.at[idx, "total_suggestions"] = result["total_suggestions"]
-                                result_df.at[
-                                    idx, "primary_theme" if mode == OperationMode.EXTRACT else "question_category"] = result.get(
-                                    "primary_theme") or result.get("question_category")
+                                key = "primary_theme" if mode == OperationMode.EXTRACT else "question_category"
+                                result_df.at[idx, key] = result.get(key)
                             else:  # ASSESS
                                 result_df.at[idx, "selected_terms"] = str(result["selected_terms"])
                                 result_df.at[idx, "total_selected"] = result["total_selected"]
@@ -832,7 +860,7 @@ try:
                         result_df.at[idx, "domain_analysis_error"] = f"Batch error: {str(e)}"
                     errors += len(batch_indices)
 
-                if progress_bar:
+                if progress_bar and hasattr(iterator, 'set_postfix'):
                     iterator.set_postfix({"Processed": processed, "Errors": errors})
 
             LOGGER.info(f"Batch processing complete: {processed} successful, {errors} errors")
@@ -843,7 +871,7 @@ try:
                 available_terms, progress_bar, save_path, checkpoint_size
         ):
             """Process DataFrame sequentially"""
-            iterator = tqdm(zip(indices, rows), total=len(rows)) if progress_bar else zip(indices, rows)
+            iterator = tqdm(zip(indices, rows), total=len(rows), desc="Processing rows") if progress_bar else zip(indices, rows)
 
             processed = 0
             errors = 0
@@ -858,13 +886,12 @@ try:
                     else:  # ASSESS
                         result = self.assess_domains(row[question_col], available_terms)
 
-                    if result:
+                    if result is not None:
                         if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
                             result_df.at[idx, "suggestions"] = str(result["suggestions"])
                             result_df.at[idx, "total_suggestions"] = result["total_suggestions"]
-                            result_df.at[
-                                idx, "primary_theme" if mode == OperationMode.EXTRACT else "question_category"] = result.get(
-                                "primary_theme") or result.get("question_category")
+                            key = "primary_theme" if mode == OperationMode.EXTRACT else "question_category"
+                            result_df.at[idx, key] = result.get(key)
                         else:  # ASSESS
                             result_df.at[idx, "selected_terms"] = str(result["selected_terms"])
                             result_df.at[idx, "total_selected"] = result["total_selected"]
@@ -881,18 +908,22 @@ try:
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
                 except KeyboardInterrupt:
-                    LOGGER.warning("Processing interrupted")
+                    LOGGER.warning("Processing interrupted by user")
+                    if save_path:
+                        result_df.to_csv(save_path, index=False)
+                        LOGGER.info(f"Progress saved to {save_path}")
                     break
                 except Exception as e:
                     LOGGER.error(f"Error processing row {idx}: {e}")
                     result_df.at[idx, "domain_analysis_error"] = str(e)
                     errors += 1
 
-                if progress_bar:
+                if progress_bar and hasattr(iterator, 'set_postfix'):
                     iterator.set_postfix({"Processed": processed, "Errors": errors})
 
             LOGGER.info(f"Sequential processing complete: {processed} successful, {errors} errors")
             return result_df
+
 
 except ImportError as e:
     LOGGER.warning(
