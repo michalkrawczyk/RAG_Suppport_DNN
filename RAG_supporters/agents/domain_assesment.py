@@ -765,6 +765,44 @@ try:
                 if col not in result_df.columns:
                     result_df[col] = None
 
+            # For mode="extract", handle duplicate sources by copying existing results
+            if mode == OperationMode.EXTRACT and skip_existing and text_source_col:
+                # Build a mapping of source_text -> first row with results
+                source_results_map = {}
+                
+                # First pass: collect all rows that have results
+                for idx, row in result_df.iterrows():
+                    if pd.notna(row.get("total_suggestions")):
+                        # This row has results
+                        source_text = row.get(text_source_col)
+                        if pd.notna(source_text) and not is_empty_text(source_text):
+                            if source_text not in source_results_map:
+                                source_results_map[source_text] = {
+                                    "suggestions": row.get("suggestions"),
+                                    "total_suggestions": row.get("total_suggestions"),
+                                    "primary_theme": row.get("primary_theme"),
+                                }
+                
+                # Second pass: copy results to rows with matching source_text
+                copied_count = 0
+                for idx, row in result_df.iterrows():
+                    # Skip if already has results
+                    if pd.notna(row.get("total_suggestions")):
+                        continue
+                    
+                    # Check if we can copy results from a matching source
+                    source_text = row.get(text_source_col)
+                    if pd.notna(source_text) and not is_empty_text(source_text):
+                        if source_text in source_results_map:
+                            # Copy the results
+                            result_df.at[idx, "suggestions"] = source_results_map[source_text]["suggestions"]
+                            result_df.at[idx, "total_suggestions"] = source_results_map[source_text]["total_suggestions"]
+                            result_df.at[idx, "primary_theme"] = source_results_map[source_text]["primary_theme"]
+                            copied_count += 1
+                
+                if copied_count > 0:
+                    LOGGER.info(f"Copied results for {copied_count} duplicate sources")
+
             # Collect rows to process
             rows_to_process = []
             indices_to_process = []
@@ -930,6 +968,12 @@ try:
                         result_df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
+                except KeyboardInterrupt:
+                    LOGGER.warning("Processing interrupted by user")
+                    if save_path:
+                        result_df.to_csv(save_path, index=False)
+                        LOGGER.info(f"Progress saved to {save_path}")
+                    break
                 except Exception as e:
                     LOGGER.error(f"Batch error: {e}")
                     for idx in batch_indices:
