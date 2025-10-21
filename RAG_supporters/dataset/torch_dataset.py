@@ -1,4 +1,5 @@
 from typing import Optional, List, Dict, Any, Union
+import json
 import logging
 import os
 # from random import
@@ -42,6 +43,22 @@ class DomainAssignDataset(Dataset):
 
     def __len__(self):
         return len(self.df)
+
+    def get_unique_suggestions(self) -> List[str]:
+        """
+        Extract all unique suggestion terms from the entire dataset,
+        respecting the confidence and type filters set during initialization.
+
+        Returns:
+            List of unique suggestion terms (sorted alphabetically)
+        """
+        unique_terms = set()
+
+        for idx in range(len(self.df)):
+            suggestions = self._parse_suggestions(self.df.iloc[idx][self.suggestions_col])
+            unique_terms.update(suggestions)
+
+        return sorted(list(unique_terms))
 
     def _parse_suggestions(self, suggestions_data: Union[str, list]) -> List[str]:
         """
