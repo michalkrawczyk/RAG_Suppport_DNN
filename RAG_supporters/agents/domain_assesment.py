@@ -694,6 +694,7 @@ try:
             checkpoint_batch_size: Optional[int] = None,
             use_batch_processing: bool = True,
             batch_size: Optional[int] = None,
+            id_col: Optional[str] = None,
         ) -> pd.DataFrame:
             """
             Process a DataFrame based on the specified operation mode.
@@ -722,6 +723,10 @@ try:
                 Use batch processing if available. Default is True.
             batch_size : int, optional
                 Batch size for processing
+            id_col : str, optional
+                Column name for ID (e.g., source_id for EXTRACT mode). When provided
+                for EXTRACT mode, deduplicates processing by only analyzing unique IDs
+                and reusing results for duplicate IDs. Default is None.
 
             Returns
             -------
@@ -768,6 +773,10 @@ try:
             # Collect rows to process
             rows_to_process = []
             indices_to_process = []
+            
+            # For EXTRACT mode with id_col, track unique IDs to avoid duplicate processing
+            id_to_indices = {}  # Maps ID -> list of row indices with that ID
+            unique_ids_to_process = set()
 
             for idx, row in result_df.iterrows():
                 # Skip if has existing results
@@ -786,6 +795,15 @@ try:
                             "Missing or empty text source"
                         )
                         continue
+                    
+                    # Track duplicates by ID if id_col is provided for EXTRACT mode
+                    if id_col and id_col in result_df.columns:
+                        row_id = row[id_col]
+                        if pd.notna(row_id):
+                            if row_id not in id_to_indices:
+                                id_to_indices[row_id] = []
+                                unique_ids_to_process.add(row_id)
+                            id_to_indices[row_id].append(idx)
                 else:
                     if pd.isna(row[question_col]) or is_empty_text(row[question_col]):
                         result_df.at[idx, "domain_analysis_error"] = (
@@ -799,6 +817,31 @@ try:
             if not rows_to_process:
                 LOGGER.info("No rows to process")
                 return result_df
+
+            # For EXTRACT mode with id_col, filter to only process unique IDs
+            if mode == OperationMode.EXTRACT and id_col and id_col in result_df.columns and id_to_indices:
+                original_count = len(rows_to_process)
+                # Keep only the first occurrence of each unique ID
+                filtered_rows = []
+                filtered_indices = []
+                seen_ids = set()
+                
+                for row, idx in zip(rows_to_process, indices_to_process):
+                    row_id = row[id_col]
+                    if pd.notna(row_id) and row_id not in seen_ids:
+                        seen_ids.add(row_id)
+                        filtered_rows.append(row)
+                        filtered_indices.append(idx)
+                
+                rows_to_process = filtered_rows
+                indices_to_process = filtered_indices
+                
+                duplicates_skipped = original_count - len(rows_to_process)
+                if duplicates_skipped > 0:
+                    LOGGER.info(
+                        f"Deduplication: Processing {len(rows_to_process)} unique sources, "
+                        f"skipping {duplicates_skipped} duplicates. Results will be copied to duplicate rows."
+                    )
 
             LOGGER.info(f"Processing {len(rows_to_process)} rows with mode: {mode}")
 
@@ -830,6 +873,25 @@ try:
                     save_path,
                     checkpoint_batch_size,
                 )
+
+            # Copy results to duplicate rows for EXTRACT mode
+            if mode == OperationMode.EXTRACT and id_col and id_col in result_df.columns and id_to_indices:
+                LOGGER.info("Copying results to duplicate rows...")
+                copied_count = 0
+                
+                for row_id, idx_list in id_to_indices.items():
+                    if len(idx_list) > 1:  # Only process if there are duplicates
+                        # Get the first index (which was processed)
+                        first_idx = idx_list[0]
+                        
+                        # Copy result columns from first occurrence to all duplicates
+                        for target_idx in idx_list[1:]:
+                            for col in result_columns:
+                                result_df.at[target_idx, col] = result_df.at[first_idx, col]
+                            copied_count += 1
+                
+                if copied_count > 0:
+                    LOGGER.info(f"Copied results to {copied_count} duplicate rows")
 
             if save_path:
                 result_df.to_csv(save_path, index=False)
@@ -866,80 +928,88 @@ try:
             processed = 0
             errors = 0
 
-            for batch_start in iterator:
-                batch_end = min(batch_start + batch_size, len(rows))
-                batch_rows = rows[batch_start:batch_end]
-                batch_indices = indices[batch_start:batch_end]
+            try:
+                for batch_start in iterator:
+                    batch_end = min(batch_start + batch_size, len(rows))
+                    batch_rows = rows[batch_start:batch_end]
+                    batch_indices = indices[batch_start:batch_end]
 
-                try:
-                    # Prepare batch inputs
-                    if mode == OperationMode.EXTRACT:
-                        texts = [row[text_col] for row in batch_rows]
-                        batch_results = self.extract_domains_batch(texts)
-                    elif mode == OperationMode.GUESS:
-                        questions = [row[question_col] for row in batch_rows]
-                        batch_results = self.guess_domains_batch(questions)
-                    else:  # ASSESS
-                        questions = [row[question_col] for row in batch_rows]
-                        batch_results = self.assess_domains_batch(
-                            questions, available_terms
-                        )
-
-                    # Update DataFrame
-                    for idx, result in zip(batch_indices, batch_results):
-                        if result is not None:
-                            if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
-                                result_df.at[idx, "suggestions"] = str(
-                                    result["suggestions"]
-                                )
-                                result_df.at[idx, "total_suggestions"] = result[
-                                    "total_suggestions"
-                                ]
-                                key = (
-                                    "primary_theme"
-                                    if mode == OperationMode.EXTRACT
-                                    else "question_category"
-                                )
-                                result_df.at[idx, key] = result.get(key)
-                            else:  # ASSESS
-                                result_df.at[idx, "selected_terms"] = str(
-                                    result["selected_terms"]
-                                )
-                                result_df.at[idx, "total_selected"] = result[
-                                    "total_selected"
-                                ]
-                                result_df.at[idx, "question_intent"] = result[
-                                    "question_intent"
-                                ]
-                                result_df.at[idx, "primary_topics"] = str(
-                                    result["primary_topics"]
-                                )
-                            processed += 1
-                        else:
-                            result_df.at[idx, "domain_analysis_error"] = (
-                                "Analysis failed"
+                    try:
+                        # Prepare batch inputs
+                        if mode == OperationMode.EXTRACT:
+                            texts = [row[text_col] for row in batch_rows]
+                            batch_results = self.extract_domains_batch(texts)
+                        elif mode == OperationMode.GUESS:
+                            questions = [row[question_col] for row in batch_rows]
+                            batch_results = self.guess_domains_batch(questions)
+                        else:  # ASSESS
+                            questions = [row[question_col] for row in batch_rows]
+                            batch_results = self.assess_domains_batch(
+                                questions, available_terms
                             )
-                            errors += 1
 
-                    # Checkpoint
-                    if (
-                        save_path
-                        and checkpoint_size
-                        and processed % checkpoint_size == 0
-                    ):
-                        result_df.to_csv(save_path, index=False)
-                        LOGGER.info(f"Checkpoint saved at {processed} rows")
+                        # Update DataFrame
+                        for idx, result in zip(batch_indices, batch_results):
+                            if result is not None:
+                                if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
+                                    result_df.at[idx, "suggestions"] = str(
+                                        result["suggestions"]
+                                    )
+                                    result_df.at[idx, "total_suggestions"] = result[
+                                        "total_suggestions"
+                                    ]
+                                    key = (
+                                        "primary_theme"
+                                        if mode == OperationMode.EXTRACT
+                                        else "question_category"
+                                    )
+                                    result_df.at[idx, key] = result.get(key)
+                                else:  # ASSESS
+                                    result_df.at[idx, "selected_terms"] = str(
+                                        result["selected_terms"]
+                                    )
+                                    result_df.at[idx, "total_selected"] = result[
+                                        "total_selected"
+                                    ]
+                                    result_df.at[idx, "question_intent"] = result[
+                                        "question_intent"
+                                    ]
+                                    result_df.at[idx, "primary_topics"] = str(
+                                        result["primary_topics"]
+                                    )
+                                processed += 1
+                            else:
+                                result_df.at[idx, "domain_analysis_error"] = (
+                                    "Analysis failed"
+                                )
+                                errors += 1
 
-                except Exception as e:
-                    LOGGER.error(f"Batch error: {e}")
-                    for idx in batch_indices:
-                        result_df.at[idx, "domain_analysis_error"] = (
-                            f"Batch error: {str(e)}"
-                        )
-                    errors += len(batch_indices)
+                        # Checkpoint
+                        if (
+                            save_path
+                            and checkpoint_size
+                            and processed % checkpoint_size == 0
+                        ):
+                            result_df.to_csv(save_path, index=False)
+                            LOGGER.info(f"Checkpoint saved at {processed} rows")
 
-                if progress_bar and hasattr(iterator, "set_postfix"):
-                    iterator.set_postfix({"Processed": processed, "Errors": errors})
+                    except Exception as e:
+                        LOGGER.error(f"Batch error: {e}")
+                        for idx in batch_indices:
+                            result_df.at[idx, "domain_analysis_error"] = (
+                                f"Batch error: {str(e)}"
+                            )
+                        errors += len(batch_indices)
+
+                    if progress_bar and hasattr(iterator, "set_postfix"):
+                        iterator.set_postfix({"Processed": processed, "Errors": errors})
+
+            except KeyboardInterrupt:
+                LOGGER.warning("Batch processing interrupted by user")
+                if save_path:
+                    result_df.to_csv(save_path, index=False)
+                    LOGGER.info(f"Progress saved to {save_path}")
+                raise
 
             LOGGER.info(
                 f"Batch processing complete: {processed} successful, {errors} errors"

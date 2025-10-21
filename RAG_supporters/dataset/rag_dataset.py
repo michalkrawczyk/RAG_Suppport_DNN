@@ -913,6 +913,7 @@ class BaseRAGDatasetGenerator(ABC):
             "checkpoint_batch_size": checkpoint_batch_size,
             "use_batch_processing": use_batch_processing,
             "batch_size": batch_size,
+            "id_col": id_col,  # Pass id_col for deduplication
         }
 
         # Add mode-specific parameters
