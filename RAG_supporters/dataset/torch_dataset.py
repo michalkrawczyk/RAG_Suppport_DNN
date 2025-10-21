@@ -10,6 +10,107 @@ from langchain_core.embeddings.embeddings import Embeddings
 
 from .rag_dataset import BaseRAGDatasetGenerator
 
+class DomainAssignDataset(Dataset):
+    """
+    PyTorch Dataset for Matching Source Texts and Questions with Suggested Terms (for later clustering).
+
+    Args:
+        df: pandas DataFrame
+        source_col: Column name for source text
+        question_col: Column name for questions
+        suggestions_col: Column name for suggestions (JSON)
+        min_confidence: Minimum confidence threshold for filtering suggestions (default: 0.0)
+        suggestion_types: List of suggestion types to include (e.g., ['domain', 'keyword']).
+                         If None, includes all types.
+    """
+
+    def __init__(
+            self,
+            df: pd.DataFrame,
+            source_col: str = 'source',
+            question_col: str = 'question',
+            suggestions_col: str = 'suggestions',
+            min_confidence: float = 0.0,
+            suggestion_types: Optional[List[str]] = None
+    ):
+        self.df = df.reset_index(drop=True)
+        self.source_col = source_col
+        self.question_col = question_col
+        self.suggestions_col = suggestions_col
+        self.min_confidence = min_confidence
+        self.suggestion_types = suggestion_types
+
+    def __len__(self):
+        return len(self.df)
+
+    def _parse_suggestions(self, suggestions_data: Union[str, list]) -> List[str]:
+        """
+        Parse and filter suggestions based on confidence and type.
+
+        Returns:
+            List of term texts that meet the filtering criteria
+        """
+        # Parse JSON if it's a string
+        if isinstance(suggestions_data, str):
+            try:
+                suggestions = json.loads(suggestions_data.replace("'", '"'))
+            except json.JSONDecodeError:
+                # Try eval as fallback for Python dict strings
+                try:
+                    suggestions = eval(suggestions_data)
+                except:
+                    return []
+        else:
+            suggestions = suggestions_data
+
+        if not isinstance(suggestions, list):
+            return []
+
+        # Filter and extract terms
+        filtered_terms = []
+        for suggestion in suggestions:
+            if not isinstance(suggestion, dict):
+                continue
+
+            # Check confidence threshold
+            confidence = suggestion.get('confidence', 0.0)
+            if confidence < self.min_confidence:
+                continue
+
+            # Check type filter
+            if self.suggestion_types is not None:
+                suggestion_type = suggestion.get('type', '')
+                if suggestion_type not in self.suggestion_types:
+                    continue
+
+            # Extract term
+            term = suggestion.get('term', '')
+            if term:
+                filtered_terms.append(term)
+
+        return filtered_terms
+
+    def __getitem__(self, idx):
+        """
+        Returns:
+            dict with keys:
+                - 'source': source text
+                - 'question': question text
+                - 'suggestions': list of filtered suggestion terms
+        """
+        row = self.df.iloc[idx]
+
+        source = str(row[self.source_col])
+        question = str(row[self.question_col])
+        suggestions = self._parse_suggestions(row[self.suggestions_col])
+
+        return {
+            'source': source,
+            'question': question,
+            'suggestions': suggestions
+        }
+
+
 
 class RAGSimpleClassificationDataset(Dataset):
     _data_df: Optional[pd.DataFrame] = None
