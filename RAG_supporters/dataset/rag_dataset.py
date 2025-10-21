@@ -818,7 +818,7 @@ class BaseRAGDatasetGenerator(ABC):
 
         # Initialize the DomainAnalysisAgent
         try:
-            from agents.domain_analysis_agent import DomainAnalysisAgent, OperationMode
+            from agents import DomainAnalysisAgent, OperationMode
 
             analyzer = DomainAnalysisAgent(
                 llm=llm,
