@@ -302,6 +302,25 @@ class BaseRAGDatasetGenerator(ABC):
         """
         return self._question_db.get(include=list(include))
 
+    def get_text_corpus_db_data(
+        self, include: Iterable[str] = ("documents", "metadatas", "embeddings")
+    ):
+        """
+        Retrieve data from the text corpus database.
+
+        Parameters
+        ----------
+        include : Iterable[str], optional
+            Data fields to include in the response.
+            Default is ("documents", "metadatas", "embeddings").
+
+        Returns
+        -------
+        Dict
+            Dictionary containing the requested data fields
+        """
+        return self._text_corpus_db.get(include=list(include))
+
     def evaluate_pair_samples(
         self,
         llm: BaseChatModel,
@@ -495,6 +514,84 @@ class BaseRAGDatasetGenerator(ABC):
                 LOGGER.info(f"Error validating sample: {e}")
 
         return samples_verified
+
+    def search_text_corpus(
+        self,
+        query: Union[List[float], str],
+        k: int = 4,
+        where: Optional[Dict[str, str]] = None,
+        where_document: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Optional[List[Any]]]:
+        """
+        Search the text corpus database using a query text or embedding vector.
+
+        This method allows searching through the text corpus (passages) using
+        semantic similarity. It can search using either a text query (which will
+        be embedded automatically) or a pre-computed embedding vector.
+
+        Parameters
+        ----------
+        query : Union[List[float], str]
+            Query to search with. Can be either:
+            - A text string that will be embedded using the configured embedding function
+            - A pre-computed embedding vector (list of floats)
+        k : int, optional
+            Number of most similar results to return. Default is 4.
+        where : Optional[Dict[str, str]], optional
+            Dictionary to filter results by metadata fields.
+            Example: {"id": "123", "category": "medical"}
+        where_document : Optional[Dict[str, str]], optional
+            Dictionary to filter by document content using ChromaDB operators.
+            Example: {"$contains": "protein"}
+        **kwargs : Any
+            Additional keyword arguments to pass to ChromaDB collection query.
+            Common options include:
+            - include: List of fields to include in results (e.g., ["documents", "metadatas", "distances"])
+
+        Returns
+        -------
+        Dict[str, Optional[List[Any]]]
+            Dictionary containing query results from ChromaDB with keys:
+            - ids: List of document IDs
+            - documents: List of document texts (if included)
+            - metadatas: List of metadata dicts (if included)
+            - distances: List of distance scores (if included)
+            - embeddings: List of embedding vectors (if included)
+
+        Examples
+        --------
+        Search using text query:
+        >>> results = dataset.search_text_corpus("What is machine learning?", k=5)
+        >>> for doc_id, doc_text in zip(results["ids"][0], results["documents"][0]):
+        ...     print(f"{doc_id}: {doc_text[:100]}")
+
+        Search using embedding vector:
+        >>> embedding = dataset._embed_function.embed_query("machine learning")
+        >>> results = dataset.search_text_corpus(embedding, k=3)
+
+        Search with metadata filter:
+        >>> results = dataset.search_text_corpus(
+        ...     "protein synthesis",
+        ...     k=5,
+        ...     where={"category": "biology"}
+        ... )
+
+        Search with document content filter:
+        >>> results = dataset.search_text_corpus(
+        ...     "genetics",
+        ...     k=5,
+        ...     where_document={"$contains": "DNA"}
+        ... )
+        """
+        return self._raw_similarity_search(
+            embedding_or_text=query,
+            search_db="text",
+            k=k,
+            where=where,
+            where_document=where_document,
+            **kwargs,
+        )
 
     def _raw_similarity_search(
         self,
