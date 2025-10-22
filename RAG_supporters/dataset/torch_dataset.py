@@ -156,7 +156,7 @@ class RAGSimpleClassificationDataset(Dataset):
         # TODO:
 
     def __len__(self):
-        return len(self.df)
+        return len(self._data_df)
 
     def _validate_dataset(self):
         pass #TODO
