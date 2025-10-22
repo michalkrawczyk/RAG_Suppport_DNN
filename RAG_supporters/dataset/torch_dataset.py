@@ -101,6 +101,42 @@ class DomainAssignDataset(Dataset):
         if precompute_embeddings and self.return_embeddings and not self.lazy_load:
             self._precompute_embeddings()
 
+    def _get_cached_or_count_rows(self) -> int:
+        """
+        Get dataset length from cache or count rows in CSV file.
+        Uses chunked counting for memory efficiency.
+
+        Returns:
+            Number of data rows in the CSV
+        """
+        length_cache_path = self.cache_dir / 'dataset_length.txt' if self.cache_dir else None
+
+        # Try to load from cache
+        if length_cache_path and length_cache_path.exists():
+            try:
+                with open(length_cache_path, 'r') as f:
+                    cached_length = int(f.read().strip())
+                logging.info(f"Loaded dataset length from cache: {cached_length} rows")
+                return cached_length
+            except (ValueError, IOError) as e:
+                logging.warning(f"Failed to load cached length: {e}. Recounting...")
+
+        # Count rows using chunked method
+        logging.info(f"Counting rows in {self.csv_path} (this may take a moment)...")
+        length = count_csv_rows_chunked(self.csv_path, chunksize=self.chunksize)
+        logging.info(f"Found {length} rows in dataset")
+
+        # Cache the length
+        if length_cache_path:
+            try:
+                with open(length_cache_path, 'w') as f:
+                    f.write(str(length))
+                logging.info(f"Cached dataset length to {length_cache_path}")
+            except IOError as e:
+                logging.warning(f"Failed to cache dataset length: {e}")
+
+        return length
+
     def _load_caches(self):
         """Load cached data from disk"""
         cache_files = {
