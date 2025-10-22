@@ -515,7 +515,7 @@ class BaseRAGDatasetGenerator(ABC):
             LOGGER.error(f"Error during pair validation: {e}")
             raise
 
-    def validate_triplet_samples(
+    def label_triplet_samples_with_llm(
         self,
         llm,
         samples: List[SampleTripletRAGChroma],
