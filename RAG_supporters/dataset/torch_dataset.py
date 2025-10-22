@@ -11,6 +11,10 @@ from langchain_core.embeddings.embeddings import Embeddings
 
 from .rag_dataset import BaseRAGDatasetGenerator
 
+# TODO: Simplify RAGSimpleClassificationDataset( all extras should be done later)
+# TODO: DomainAssignDataset should handle RagDataset?
+# TODO: DomainAssignDataset should also have option to return embeddings
+
 class DomainAssignDataset(Dataset):
     """
     PyTorch Dataset for Matching Source Texts and Questions with Suggested Terms (for later clustering).
@@ -130,7 +134,6 @@ class DomainAssignDataset(Dataset):
 
 
 class RAGSimpleClassificationDataset(Dataset):
-    _data_df: Optional[pd.DataFrame] = None
     logger = logging.getLogger(__name__)
 
     def __init__(
@@ -144,12 +147,16 @@ class RAGSimpleClassificationDataset(Dataset):
             # use_positive_samples: bool = True,
             # use_similar_samples: bool = False, # Or that as settings (dict, dataclass, kwargs)?
     ):
+        self._data_df: Optional[pd.DataFrame] = None
         self._dataset = dataset
         self._embedding_model = embedding_model
         self._sample_limit = sample_limit
 
         self._validate_dataset()
         # TODO:
+
+    def __len__(self):
+        return len(self.df)
 
     def _validate_dataset(self):
         pass #TODO
@@ -255,6 +262,3 @@ class RAGSimpleClassificationDataset(Dataset):
     def _is_large_csv(self, path, size_threshold_mb=100):
         """Check if CSV file is large enough to warrant chunked processing"""
         return os.path.getsize(path) > (size_threshold_mb * 1024 * 1024)
-
-    def cache_records(self, df: pd.DataFrame):
-        pass # TODO: Make cache file for faster reuse
