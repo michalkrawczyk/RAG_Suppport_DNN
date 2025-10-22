@@ -1,6 +1,8 @@
 import csv
+import json
 import logging
 import os
+import yaml
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,8 +13,6 @@ import pandas as pd
 from langchain_chroma import Chroma
 from langchain_core.language_models import BaseChatModel
 from tqdm import tqdm
-
-from agents.dataset_check import DatasetCheckAgent
 from prompts_templates.rag_verifiers import (
     SRC_COMPARE_PROMPT_WITH_SCORES,
     SINGLE_SRC_SCORE_PROMPT,
@@ -85,12 +85,51 @@ class BaseRAGDatasetGenerator(ABC):
         Directory path for storing dataset files
     _embed_function : callable, optional
         Function used for embedding text
+    _dataset_metadata : dict, optional
+        Dictionary containing dataset metadata (source, embedding method, etc.)
     """
 
     _question_db: Chroma
     _text_corpus_db: Chroma
     _dataset_dir: str
     _embed_function = None
+    _dataset_metadata: Dict[str, Any] = None
+
+    def _init_dataset_metadata(
+        self,
+        dataset_names: List[str],
+        dataset_sources: List[str],
+        embed_function,
+        **kwargs,
+    ) -> None:
+        """
+        Initialize dataset metadata with information about source and embedding method.
+
+        Parameters
+        ----------
+        dataset_names : List[str]
+            List of dataset names
+        dataset_sources : List[str]
+            List of dataset sources (e.g., HuggingFace repo names)
+        embed_function : callable
+            The embedding function used
+        **kwargs : dict
+            Additional parameters for metadata
+        """
+        # Get embedding name from the function
+        if embed_function is not None:
+            embedding_name = getattr(
+                embed_function, "model", type(embed_function).__name__
+            )
+        else:
+            embedding_name = None
+
+        # Template structure
+        self._dataset_metadata = {
+            "dataset_info": {"names": dataset_names, "sources": dataset_sources},
+            "embedding_info": {"name": embedding_name},
+            "additional_info": kwargs.get("additional_info", {}),
+        }
 
     @abstractmethod
     def load_dataset(self):
@@ -321,6 +360,75 @@ class BaseRAGDatasetGenerator(ABC):
         """
         return self._text_corpus_db.get(include=list(include))
 
+    def save_dataset_metadata(self, metadata_file: Optional[str] = None) -> None:
+        """
+        Save dataset metadata to a YAML file.
+
+        This method saves information about the dataset including source,
+        embedding method, and other relevant metadata for later features
+        like concatenation.
+
+        Parameters
+        ----------
+        metadata_file : Optional[str], optional
+            Path where the metadata file will be saved.
+            If None, saves to {dataset_dir}/dataset_info.yaml
+
+        Returns
+        -------
+        None
+        """
+        if self._dataset_metadata is None:
+            LOGGER.warning("No dataset metadata available to save")
+            return
+
+        if metadata_file is None:
+            metadata_file = os.path.join(self._dataset_dir, "dataset_info.yaml")
+
+        # Create directory if it doesn't exist
+        Path(os.path.dirname(metadata_file)).mkdir(parents=True, exist_ok=True)
+
+        with open(metadata_file, "w") as f:
+            yaml.dump(
+                self._dataset_metadata, f, default_flow_style=False, sort_keys=False
+            )
+
+        LOGGER.info(f"Dataset metadata saved to {metadata_file}")
+
+    def load_dataset_metadata(
+        self, metadata_file: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Load dataset metadata from a YAML file.
+
+        Parameters
+        ----------
+        metadata_file : Optional[str], optional
+            Path to the metadata file.
+            If None, loads from {dataset_dir}/dataset_info.yaml
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing dataset metadata
+
+        Raises
+        ------
+        FileNotFoundError
+            If the metadata file does not exist
+        """
+        if metadata_file is None:
+            metadata_file = os.path.join(self._dataset_dir, "dataset_info.yaml")
+
+        if not os.path.exists(metadata_file):
+            raise FileNotFoundError(f"Metadata file not found: {metadata_file}")
+
+        with open(metadata_file, "r") as f:
+            self._dataset_metadata = yaml.safe_load(f)
+
+        LOGGER.info(f"Dataset metadata loaded from {metadata_file}")
+        return self._dataset_metadata
+
     def evaluate_pair_samples(
         self,
         llm: BaseChatModel,
@@ -432,7 +540,7 @@ class BaseRAGDatasetGenerator(ABC):
             LOGGER.error(f"Error during pair validation: {e}")
             raise
 
-    def validate_triplet_samples(
+    def label_triplet_samples_with_llm(
         self,
         llm,
         samples: List[SampleTripletRAGChroma],
@@ -466,7 +574,14 @@ class BaseRAGDatasetGenerator(ABC):
             List of validated triplet samples with labels
         """
         # Create verification chain using the provided LLM and prompts
-        verifier_agent = DatasetCheckAgent(llm, compare_prompt=analysis_prompt)
+        try:
+            from agents.dataset_check import DatasetCheckAgent
+
+            verifier_agent = DatasetCheckAgent(llm, compare_prompt=analysis_prompt)
+        except ImportError:
+            raise ImportError(
+                "DatasetCheckAgent not available. Please ensure all dependencies are installed."
+            )
         samples_verified = []
 
         for sample in tqdm(samples, desc="Validating samples"):
@@ -649,6 +764,344 @@ class BaseRAGDatasetGenerator(ABC):
 
         return results
 
+    def analyze_domains(
+        self,
+        llm: BaseChatModel,
+        mode: str,
+        df: pd.DataFrame,
+        available_terms: Optional[Union[List[str], List[Dict], str]] = None,
+        skip_existing: bool = True,
+        save_path: Optional[str] = None,
+        max_retries: int = 3,
+        checkpoint_batch_size: Optional[int] = None,
+        use_batch_processing: bool = True,
+        batch_size: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """
+        Analyze domains for questions or sources using the DomainAnalysisAgent.
+
+        This method can extract domains from source texts, guess domains needed
+        for questions, or assess questions against available domain terms.
+
+        Parameters
+        ----------
+        llm : BaseChatModel
+            Language model to use for domain analysis
+        mode : str
+            Operation mode: "extract" (from sources), "guess" (for questions),
+            or "assess" (questions against available terms)
+        df : pd.DataFrame
+            DataFrame to process. Must contain appropriate ID column for mode:
+            - extract: requires "source_id", optionally "source_text"
+            - guess: requires "question_id", optionally "question_text"
+            - assess: requires "question_id", optionally "question_text"
+
+            If text columns are missing, they will be fetched from ChromaDB.
+            Any other columns present in the DataFrame are preserved but not used
+            in the analysis (e.g., "source_id" in guess/assess modes).
+        available_terms : Optional[Union[List[str], List[Dict], str]], optional
+            Available domain terms for "assess" mode. Required when mode is "assess".
+            Can be:
+            - List of strings: ["physics", "chemistry", "biology"]
+            - List of dicts: [{"term": "physics", "type": "domain"}, ...]
+            - JSON string: '["physics", "chemistry"]'
+        skip_existing : bool, optional
+            If True, skip items that already have domain analysis results. Default is True.
+        save_path : Optional[str], optional
+            Path to save the results as CSV. If provided, saves after processing completes.
+            Default is None.
+        max_retries : int, optional
+            Maximum retries for LLM analysis when parsing fails. Default is 3.
+        checkpoint_batch_size : Optional[int], optional
+            If provided, saves intermediate results every N processed items. Default is None.
+        use_batch_processing : bool, optional
+            Use batch processing if LLM supports it (e.g., OpenAI models). Default is True.
+        batch_size : Optional[int], optional
+            Batch size for processing. If None, uses agent default (10). Default is None.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with domain analysis results. Added columns depend on mode:
+
+            For "extract" and "guess" modes:
+            - suggestions: List of domain/subdomain/keyword suggestions
+            - total_suggestions: Number of suggestions made
+            - primary_theme (extract) or question_category (guess): Main identified theme
+            - domain_analysis_error: Error message if analysis failed
+
+            For "assess" mode:
+            - selected_terms: List of selected relevant terms
+            - total_selected: Number of terms selected
+            - question_intent: Brief description of question intent
+            - primary_topics: List of primary topics identified
+            - domain_analysis_error: Error message if analysis failed
+
+        Raises
+        ------
+        ValueError
+            If mode is invalid, required parameters are missing, or DataFrame is invalid
+        ImportError
+            If DomainAnalysisAgent is not available
+
+        Examples
+        --------
+        # Extract domains from sources - create DataFrame with source IDs
+        >>> sources_df = pd.DataFrame({"source_id": ["src_1", "src_2", "src_3"]})
+        >>> result_df = generator.analyze_domains(
+        ...     llm=llm,
+        ...     mode="extract",
+        ...     df=sources_df,
+        ...     save_path="output/source_domains.csv"
+        ... )
+        >>> print(result_df[["source_id", "primary_theme", "total_suggestions"]].head())
+
+        # Guess domains for questions in existing pairs DataFrame
+        >>> # pairs_df has: question_id, source_id, question_text, source_text
+        >>> result_df = generator.analyze_domains(
+        ...     llm=llm,
+        ...     mode="guess",
+        ...     df=pairs_df,  # Uses only question_id and question_text
+        ...     save_path="output/question_domains.csv",
+        ...     checkpoint_batch_size=50
+        ... )
+        >>> print(result_df[["question_id", "question_category", "total_suggestions"]].head())
+
+        # Assess questions against available terms - use unique questions
+        >>> unique_questions = pairs_df[["question_id", "question_text"]].drop_duplicates()
+        >>> result_df = generator.analyze_domains(
+        ...     llm=llm,
+        ...     mode="assess",
+        ...     df=unique_questions,
+        ...     available_terms=["physics", "chemistry", "biology", "mathematics"],
+        ...     save_path="output/domain_assessment.csv",
+        ...     use_batch_processing=True,
+        ...     batch_size=20
+        ... )
+        >>> print(result_df[["question_id", "total_selected", "primary_topics"]].head())
+
+        # Extract with text already in DataFrame (no ChromaDB fetch needed)
+        >>> sources_with_text = pd.DataFrame({
+        ...     "source_id": ["s1", "s2"],
+        ...     "source_text": ["Machine learning is...", "Neural networks are..."]
+        ... })
+        >>> result_df = generator.analyze_domains(
+        ...     llm=llm,
+        ...     mode="extract",
+        ...     df=sources_with_text
+        ... )
+
+        Notes
+        -----
+        - The method only uses columns relevant to the specified mode. Other columns
+          in the DataFrame are preserved in the output but not used for analysis.
+        - If text columns are missing, they are fetched from ChromaDB using the ID columns.
+        - Progress bars are automatically displayed during processing.
+        - Failed analyses are logged with error messages in the 'domain_analysis_error' column.
+        """
+        # Validate mode
+        valid_modes = ["extract", "guess", "assess"]
+        if mode not in valid_modes:
+            raise ValueError(f"Invalid mode '{mode}'. Must be one of {valid_modes}")
+
+        # Validate DataFrame is provided and not empty
+        if df is None:
+            raise ValueError("DataFrame 'df' is required")
+
+        if df.empty:
+            raise ValueError("DataFrame is empty, no data to analyze")
+
+        # Validate mode-specific requirements
+        if mode == "assess" and available_terms is None:
+            raise ValueError(
+                "'available_terms' parameter is required for 'assess' mode"
+            )
+
+        LOGGER.info(f"Starting domain analysis in '{mode}' mode")
+
+        # Initialize the DomainAnalysisAgent
+        try:
+            from agents import DomainAnalysisAgent, OperationMode
+
+            analyzer = DomainAnalysisAgent(
+                llm=llm,
+                max_retries=max_retries,
+                batch_size=batch_size or 10,
+            )
+        except ImportError:
+            raise ImportError(
+                "DomainAnalysisAgent not available. Please ensure all dependencies are installed."
+            )
+
+        # Define required columns for each mode
+        required_columns_map = {
+            "extract": {"id_col": "source_id", "text_col": "source_text"},
+            "guess": {"id_col": "question_id", "text_col": "question_text"},
+            "assess": {"id_col": "question_id", "text_col": "question_text"},
+        }
+
+        # Get required columns for this mode
+        required_cols = required_columns_map[mode]
+        id_col = required_cols["id_col"]
+        text_col = required_cols["text_col"]
+
+        # Validate that DataFrame has required ID column
+        if id_col not in df.columns:
+            raise ValueError(
+                f"DataFrame must contain '{id_col}' column for '{mode}' mode. "
+                f"Found columns: {list(df.columns)}"
+            )
+
+        LOGGER.info(f"Processing {len(df)} items for domain analysis")
+
+        # Check for duplicate IDs
+        duplicate_ids = df[id_col].duplicated().sum()
+        if duplicate_ids > 0:
+            LOGGER.warning(
+                f"Found {duplicate_ids} duplicate entries in '{id_col}' column. "
+                f"All duplicates will be processed."
+            )
+
+        # Fetch text content from ChromaDB if text column is missing
+        if text_col not in df.columns:
+            LOGGER.info(f"Column '{text_col}' not found, retrieving from ChromaDB...")
+
+            try:
+                if mode == "extract":
+                    # Fetch source texts
+                    df[text_col] = df[id_col].apply(
+                        lambda sid: self._text_corpus_db.get(ids=[sid])["documents"][0]
+                    )
+                else:  # guess or assess
+                    # Fetch question texts
+                    df[text_col] = df[id_col].apply(
+                        lambda qid: self._question_db.get(ids=[qid])["documents"][0]
+                    )
+
+                LOGGER.info(
+                    f"Successfully retrieved {len(df)} text entries from ChromaDB"
+                )
+
+            except Exception as e:
+                LOGGER.error(f"Failed to retrieve texts from ChromaDB: {e}")
+                raise ValueError(
+                    f"Could not retrieve '{text_col}' from ChromaDB. "
+                    f"Ensure IDs in '{id_col}' column exist in the database."
+                ) from e
+        else:
+            LOGGER.info(f"Using existing '{text_col}' column from DataFrame")
+
+        # Final validation: ensure text column has no missing values
+        missing_texts = df[text_col].isna().sum()
+        if missing_texts > 0:
+            LOGGER.warning(
+                f"Found {missing_texts} rows with missing text in '{text_col}' "
+                f"({missing_texts / len(df) * 100:.1f}%). "
+                f"These will be skipped during analysis."
+            )
+
+        # Convert mode string to OperationMode enum
+        mode_map = {
+            "extract": OperationMode.EXTRACT,
+            "guess": OperationMode.GUESS,
+            "assess": OperationMode.ASSESS,
+        }
+        operation_mode = mode_map[mode]
+
+        # Set up parameters for process_dataframe
+        process_params = {
+            "df": df,
+            "mode": operation_mode,
+            "progress_bar": True,
+            "save_path": save_path,
+            "skip_existing": skip_existing,
+            "checkpoint_batch_size": checkpoint_batch_size,
+            "use_batch_processing": use_batch_processing,
+            "batch_size": batch_size,
+        }
+
+        # Add mode-specific parameters
+        if mode == "extract":
+            process_params["text_source_col"] = text_col
+        else:  # guess or assess
+            process_params["question_col"] = text_col
+            if mode == "assess":
+                process_params["available_terms"] = available_terms
+
+        # Process the DataFrame with the analyzer
+        try:
+            analyzed_df = analyzer.process_dataframe(**process_params)
+
+            LOGGER.info(f"Successfully analyzed {len(analyzed_df)} items")
+
+            # Log error rate
+            error_count = analyzed_df["domain_analysis_error"].notna().sum()
+            if error_count > 0:
+                LOGGER.warning(
+                    f"Failed to analyze {error_count} items "
+                    f"({error_count / len(analyzed_df) * 100:.1f}%)"
+                )
+
+            # Log summary statistics based on mode
+            if mode in ["extract", "guess"]:
+                if "total_suggestions" in analyzed_df.columns:
+                    valid_suggestions = analyzed_df["total_suggestions"].dropna()
+                    if len(valid_suggestions) > 0:
+                        avg_suggestions = valid_suggestions.mean()
+                        max_suggestions = valid_suggestions.max()
+                        min_suggestions = valid_suggestions.min()
+                        LOGGER.info(
+                            f"Suggestions stats - Avg: {avg_suggestions:.2f}, "
+                            f"Min: {min_suggestions}, Max: {max_suggestions}"
+                        )
+                    else:
+                        LOGGER.warning("No valid suggestions found in results")
+
+                    # Log primary theme/category distribution if available
+                    if mode == "extract" and "primary_theme" in analyzed_df.columns:
+                        theme_counts = (
+                            analyzed_df["primary_theme"].value_counts().head(5)
+                        )
+                        if not theme_counts.empty:
+                            LOGGER.info(f"Top 5 primary themes:\n{theme_counts}")
+
+                    elif mode == "guess" and "question_category" in analyzed_df.columns:
+                        category_counts = (
+                            analyzed_df["question_category"].value_counts().head(5)
+                        )
+                        if not category_counts.empty:
+                            LOGGER.info(
+                                f"Top 5 question categories:\n{category_counts}"
+                            )
+
+            else:  # assess mode
+                if "total_selected" in analyzed_df.columns:
+                    valid_selected = analyzed_df["total_selected"].dropna()
+                    if len(valid_selected) > 0:
+                        avg_selected = valid_selected.mean()
+                        max_selected = valid_selected.max()
+                        min_selected = valid_selected.min()
+                        LOGGER.info(
+                            f"Selected terms stats - Avg: {avg_selected:.2f}, "
+                            f"Min: {min_selected}, Max: {max_selected}"
+                        )
+
+                        # Count questions with no selected terms
+                        no_selection = (valid_selected == 0).sum()
+                        if no_selection > 0:
+                            LOGGER.warning(
+                                f"{no_selection} questions had no relevant terms selected "
+                                f"({no_selection / len(valid_selected) * 100:.1f}%)"
+                            )
+                    else:
+                        LOGGER.warning("No valid term selections found in results")
+
+            return analyzed_df
+
+        except Exception as e:
+            LOGGER.error(f"Error during domain analysis: {e}")
+            raise
+
     def save_triplets_to_csv(
         self,
         triplets: List[SampleTripletRAGChroma],
@@ -737,3 +1190,8 @@ class BaseRAGDatasetGenerator(ABC):
                 writer.writerow(row)
 
         LOGGER.info(f"Successfully saved triplets to {output_file}")
+
+        # Save dataset metadata alongside the CSV file
+        if self._dataset_metadata is not None:
+            metadata_file = output_file.replace(".csv", "_metadata.yaml")
+            self.save_dataset_metadata(metadata_file)

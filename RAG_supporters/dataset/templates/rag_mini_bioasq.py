@@ -74,6 +74,16 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         )
         self.loading_batch_size = kwargs.get("loading_batch_size", 100)  #
 
+        # Initialize dataset metadata
+        additional_info = {"loading_batch_size": self.loading_batch_size}
+        self._init_dataset_metadata(
+            dataset_names=["BioASQ mini"],
+            dataset_sources=["enelpol/rag-mini-bioasq"],
+            embed_function=embed_function,
+            embedding_name=kwargs.get("model") if embed_function is None else None,
+            additional_info=additional_info
+        )
+
         self.load_dataset()
         self._passage_id_to_db_id = {}
 
@@ -103,6 +113,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         if len(self._text_corpus_db.get()["ids"]) == 0:
             self._init_text_corpus_db(batch_size=self.loading_batch_size)
             self._save_passage_json()  # Save the mapping of passage IDs to Chroma IDs for future use
+            # Save dataset metadata when initializing for the first time
+            self.save_dataset_metadata()
         else:
             # Text corpus is already initialized - load mapping from passage_id to chroma_id
             if not os.path.exists(os.path.join(self._passage_id_cast_json)):
@@ -113,11 +125,19 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                 with open(self._passage_id_cast_json, "r") as f:
                     self._passage_id_to_db_id = json.load(f)
 
+            # Try to load existing dataset metadata
+            try:
+                self.load_dataset_metadata()
+            except FileNotFoundError:
+                LOGGER.warning("Dataset metadata file not found. Metadata will be created on next save.")
+
             self.validate_dataset()
 
         # Check if question database is empty and load dataset if necessary
         if len(self._question_db.get()["ids"]) == 0:
             self._init_questions_db(batch_size=self.loading_batch_size)
+            # Save metadata after questions are loaded
+            self.save_dataset_metadata()
 
     def validate_dataset(self):
         """
@@ -590,6 +610,63 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         return sample_triplets
 
+    def _generate_all_existing_pairs(self, question_db_ids, **kwargs):
+        """Generator that yields all question-source pairs for ALL_EXISTING criterion.
+        
+        This generator processes the text corpus in batches to avoid RAM exhaustion.
+        
+        Parameters
+        ----------
+        question_db_ids : List[str]
+            List of question IDs to generate pairs for
+        **kwargs : dict
+            Additional parameters including optional 'batch_size'
+            
+        Yields
+        ------
+        dict
+            Dictionary containing question_id, question_text, source_id, source_text, and answer
+        """
+        # First, get all source IDs without loading documents (lightweight)
+        all_source_ids = self._text_corpus_db.get(include=[])["ids"]
+        batch_size = kwargs.get("batch_size", self.loading_batch_size)
+        
+        for question_db_id in tqdm(
+            question_db_ids, desc="Generating all-pairs from whole dataset"
+        ):
+            question_data = self._question_db.get(
+                ids=[question_db_id],
+                include=["metadatas", "documents"],  # For not overloading memory
+            )
+            question_text = question_data["documents"][0]
+            question_metadata = question_data["metadatas"][0]
+
+            # Process sources in batches to avoid loading all documents at once
+            for i in range(0, len(all_source_ids), batch_size):
+                batch_ids = all_source_ids[i:i + batch_size]
+                sources_batch = self._text_corpus_db.get(
+                    ids=batch_ids, include=["documents"]
+                )
+                
+                for source_id, source_text in zip(
+                    sources_batch["ids"], sources_batch["documents"]
+                ):
+                    if (
+                        source_text is None
+                        or source_text.strip() == ""
+                        or source_id == "nan"
+                    ):
+                        # Skip empty or invalid passages
+                        continue
+
+                    yield {
+                        "question_id": question_db_id,
+                        "question_text": question_text,
+                        "source_id": source_id,
+                        "source_text": source_text,
+                        "answer": question_metadata.get("answer", ""),
+                    }
+
     def _generate_pair_samples_df(
         self,
         question_db_ids: Optional[List[str]] = None,
@@ -640,37 +717,8 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                     )
 
         elif criterion == SamplePairingType.ALL_EXISTING:
-            # TODO: This method runs out RAM - Rewrite
-            sources = self._text_corpus_db.get(include=["documents"])
-
-            for question_db_id in tqdm(
-                question_db_ids, desc="Generating all-pairs from whole dataset"
-            ):
-                question_data = self._question_db.get(
-                    ids=[question_db_id],
-                    include=["metadatas", "documents"],  # For not overloading memory
-                )
-                question_text = question_data["documents"][0]
-                question_metadata = question_data["metadatas"][0]
-
-                for source_id, source_text in zip(sources["ids"], sources["documents"]):
-                    if (
-                        source_text is None
-                        or source_text.strip() == ""
-                        or source_id == "nan"
-                    ):
-                        # Skip empty or invalid passages
-                        continue
-
-                    result_rows.append(
-                        {
-                            "question_id": question_db_id,
-                            "question_text": question_text,
-                            "source_id": source_id,
-                            "source_text": source_text,
-                            "answer": question_metadata.get("answer", ""),
-                        }
-                    )
+            # Use generator to process text corpus in batches and create DataFrame
+            return pd.DataFrame(self._generate_all_existing_pairs(question_db_ids, **kwargs))
 
         elif criterion == SamplePairingType.RELEVANT:
             # Get questions with their relevant passages based on stored metadata

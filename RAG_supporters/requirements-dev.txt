@@ -1,0 +1,17 @@
+# Code formatting
+black>=24.10.0
+isort>=5.13.2
+
+# Linting and code quality
+pylint>=3.3.8
+flake8>=7.0.0
+pydocstyle>=6.3.0
+
+# Type checking
+mypy>=1.11.0
+
+# Testing
+pytest>=8.3.0
+
+# YAML validation
+yamllint>=1.35.0

@@ -3,9 +3,9 @@ torch>=2.3.0
 #einsum==0.3.0
 datasets>=2.19.2
 tqdm>=4.66.4
-black>=24.10.0
 numpy>=2.0.2
 pandas>=2.2.3
+pyyaml>=6.0
 
 # Move bellow to optional in setup
 langchain-core==0.3.52
