@@ -2,81 +2,210 @@ from typing import Optional, List, Dict, Any, Union
 import json
 import logging
 import os
-# from random import
+import pickle
+from pathlib import Path
 
 from torch.utils.data import Dataset
 import pandas as pd
+import numpy as np
 from tqdm import tqdm
 from langchain_core.embeddings.embeddings import Embeddings
+import torch
 
-from .rag_dataset import BaseRAGDatasetGenerator
-
-# TODO: Simplify RAGSimpleClassificationDataset( all extras should be done later)
+# from .rag_dataset import BaseRAGDatasetGenerator
 # TODO: DomainAssignDataset should handle RagDataset?
-# TODO: DomainAssignDataset should also have option to return embeddings
 
 class DomainAssignDataset(Dataset):
     """
-    PyTorch Dataset for Matching Source Texts and Questions with Suggested Terms (for later clustering).
+    PyTorch Dataset for Matching Source Texts and Questions with Suggested Terms.
+    Optimized for large CSVs and embedding generation.
 
     Args:
-        df: pandas DataFrame
+        df: pandas DataFrame (or path to CSV for lazy loading)
+        embedding_model: Embeddings model for generating embeddings
         source_col: Column name for source text
         question_col: Column name for questions
         suggestions_col: Column name for suggestions (JSON)
-        min_confidence: Minimum confidence threshold for filtering suggestions (default: 0.0)
-        suggestion_types: List of suggestion types to include (e.g., ['domain', 'keyword']).
-                         If None, includes all types.
+        min_confidence: Minimum confidence threshold
+        suggestion_types: List of suggestion types to include
+        cache_dir: Directory to cache embeddings and parsed data
+        precompute_embeddings: Whether to precompute all embeddings upfront
+        lazy_load: Whether to load data lazily from disk (for large CSVs)
+        return_embeddings: Return embeddings instead of raw text
     """
 
     def __init__(
             self,
-            df: pd.DataFrame,
+            df: Union[pd.DataFrame, str, Path],
+            embedding_model: Optional[Embeddings] = None,
             source_col: str = 'source',
             question_col: str = 'question',
             suggestions_col: str = 'suggestions',
             min_confidence: float = 0.0,
-            suggestion_types: Optional[List[str]] = None
+            suggestion_types: Optional[List[str]] = None,
+            cache_dir: Optional[Union[str, Path]] = None,
+            precompute_embeddings: bool = True,
+            lazy_load: bool = False,
+            return_embeddings: bool = True,
+            chunksize: int = 10000,
     ):
-        self.df = df.reset_index(drop=True)
         self.source_col = source_col
         self.question_col = question_col
         self.suggestions_col = suggestions_col
         self.min_confidence = min_confidence
         self.suggestion_types = suggestion_types
+        self.embedding_model = embedding_model
+        self.return_embeddings = return_embeddings and embedding_model is not None
+        self.chunksize = chunksize
+        self.lazy_load = lazy_load
 
-    def __len__(self):
-        return len(self.df)
+        # Setup cache directory
+        self.cache_dir = Path(cache_dir) if cache_dir else None
+        if self.cache_dir:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_unique_suggestions(self) -> List[str]:
-        """
-        Extract all unique suggestion terms from the entire dataset,
-        respecting the confidence and type filters set during initialization.
+        # Load data
+        if isinstance(df, (str, Path)):
+            self.csv_path = Path(df)
+            if lazy_load:
+                # Store only metadata, load on demand
+                self.df = None
+                self._length = sum(1 for _ in open(self.csv_path)) - 1  # minus header
+            else:
+                logging.info(f"Loading CSV from {self.csv_path}")
+                self.df = pd.read_csv(self.csv_path)
+                self._length = len(self.df)
+        else:
+            self.csv_path = None
+            self.df = df.reset_index(drop=True)
+            self._length = len(self.df)
 
-        Returns:
-            List of unique suggestion terms (sorted alphabetically)
-        """
-        unique_terms = set()
+        # Initialize caches
+        self._parsed_suggestions_cache = {}
+        self._text_embeddings_cache = {}
+        self._suggestion_embeddings_cache = {}
+        self._unique_suggestions = None
 
-        for idx in range(len(self.df)):
-            suggestions = self._parse_suggestions(self.df.iloc[idx][self.suggestions_col])
-            unique_terms.update(suggestions)
+        # Load or compute caches
+        if self.cache_dir:
+            self._load_caches()
 
-        return sorted(list(unique_terms))
+        if precompute_embeddings and self.return_embeddings and not self.lazy_load:
+            self._precompute_embeddings()
+
+    def _load_caches(self):
+        """Load cached data from disk"""
+        cache_files = {
+            'parsed_suggestions': self.cache_dir / 'parsed_suggestions.pkl',
+            'text_embeddings': self.cache_dir / 'text_embeddings.pkl',
+            'suggestion_embeddings': self.cache_dir / 'suggestion_embeddings.pkl',
+            'unique_suggestions': self.cache_dir / 'unique_suggestions.pkl',
+        }
+
+        for cache_name, cache_path in cache_files.items():
+            if cache_path.exists():
+                logging.info(f"Loading cache: {cache_name}")
+                with open(cache_path, 'rb') as f:
+                    setattr(self, f'_{cache_name}_cache' if 'cache' not in cache_name else f'_{cache_name}',
+                            pickle.load(f))
+
+    def _save_caches(self):
+        """Save caches to disk"""
+        if not self.cache_dir:
+            return
+
+        cache_data = {
+            'parsed_suggestions.pkl': self._parsed_suggestions_cache,
+            'text_embeddings.pkl': self._text_embeddings_cache,
+            'suggestion_embeddings.pkl': self._suggestion_embeddings_cache,
+            'unique_suggestions.pkl': self._unique_suggestions,
+        }
+
+        for filename, data in cache_data.items():
+            if data:
+                with open(self.cache_dir / filename, 'wb') as f:
+                    pickle.dump(data, f)
+
+    def _get_row(self, idx: int) -> pd.Series:
+        """Get row by index, with support for lazy loading"""
+        if self.lazy_load:
+            # Read only the specific row from CSV
+            return pd.read_csv(self.csv_path, skiprows=range(1, idx + 1), nrows=1).iloc[0]
+        else:
+            return self.df.iloc[idx]
+
+    def _precompute_embeddings(self):
+        """Precompute embeddings for all texts and suggestions"""
+        if not self.embedding_model:
+            return
+
+        logging.info("Precomputing embeddings...")
+
+        # Collect all texts
+        all_sources = []
+        all_questions = []
+        all_suggestions_set = set()
+
+        for idx in tqdm(range(len(self)), desc="Collecting texts"):
+            row = self._get_row(idx)
+            all_sources.append(str(row[self.source_col]))
+            all_questions.append(str(row[self.question_col]))
+
+            suggestions = self._get_parsed_suggestions(idx, row)
+            all_suggestions_set.update(suggestions)
+
+        # Batch embed sources and questions
+        logging.info("Embedding sources and questions...")
+        for idx in tqdm(range(0, len(all_sources), self.chunksize), desc="Embedding texts"):
+            end_idx = min(idx + self.chunksize, len(all_sources))
+
+            sources_batch = all_sources[idx:end_idx]
+            questions_batch = all_questions[idx:end_idx]
+
+            source_embeds = self.embedding_model.embed_documents(sources_batch)
+            question_embeds = self.embedding_model.embed_documents(questions_batch)
+
+            for i, (s_emb, q_emb) in enumerate(zip(source_embeds, question_embeds)):
+                self._text_embeddings_cache[idx + i] = {
+                    'source': np.array(s_emb, dtype=np.float32),
+                    'question': np.array(q_emb, dtype=np.float32)
+                }
+
+        # Batch embed unique suggestions
+        logging.info("Embedding suggestions...")
+        all_suggestions_list = sorted(list(all_suggestions_set))
+        self._unique_suggestions = all_suggestions_list
+
+        for idx in tqdm(range(0, len(all_suggestions_list), self.chunksize), desc="Embedding suggestions"):
+            end_idx = min(idx + self.chunksize, len(all_suggestions_list))
+            batch = all_suggestions_list[idx:end_idx]
+
+            embeds = self.embedding_model.embed_documents(batch)
+
+            for term, emb in zip(batch, embeds):
+                self._suggestion_embeddings_cache[term] = np.array(emb, dtype=np.float32)
+
+        # Save caches
+        self._save_caches()
+
+    def _get_parsed_suggestions(self, idx: int, row: Optional[pd.Series] = None) -> List[str]:
+        """Get parsed suggestions with caching"""
+        if idx in self._parsed_suggestions_cache:
+            return self._parsed_suggestions_cache[idx]
+
+        if row is None:
+            row = self._get_row(idx)
+
+        suggestions = self._parse_suggestions(row[self.suggestions_col])
+        self._parsed_suggestions_cache[idx] = suggestions
+        return suggestions
 
     def _parse_suggestions(self, suggestions_data: Union[str, list]) -> List[str]:
-        """
-        Parse and filter suggestions based on confidence and type.
-
-        Returns:
-            List of term texts that meet the filtering criteria
-        """
-        # Parse JSON if it's a string
+        """Parse and filter suggestions based on confidence and type."""
         if isinstance(suggestions_data, str):
             try:
                 suggestions = json.loads(suggestions_data.replace("'", '"'))
             except json.JSONDecodeError:
-                # Try eval as fallback for Python dict strings
                 try:
                     suggestions = eval(suggestions_data)
                 except:
@@ -87,49 +216,113 @@ class DomainAssignDataset(Dataset):
         if not isinstance(suggestions, list):
             return []
 
-        # Filter and extract terms
         filtered_terms = []
         for suggestion in suggestions:
             if not isinstance(suggestion, dict):
                 continue
 
-            # Check confidence threshold
             confidence = suggestion.get('confidence', 0.0)
             if confidence < self.min_confidence:
                 continue
 
-            # Check type filter
             if self.suggestion_types is not None:
                 suggestion_type = suggestion.get('type', '')
                 if suggestion_type not in self.suggestion_types:
                     continue
 
-            # Extract term
             term = suggestion.get('term', '')
             if term:
                 filtered_terms.append(term)
 
         return filtered_terms
 
+    def get_unique_suggestions(self) -> List[str]:
+        """Extract all unique suggestion terms (cached)"""
+        if self._unique_suggestions is not None:
+            return self._unique_suggestions
+
+        unique_terms = set()
+        for idx in tqdm(range(len(self)), desc="Extracting unique suggestions"):
+            suggestions = self._get_parsed_suggestions(idx)
+            unique_terms.update(suggestions)
+
+        self._unique_suggestions = sorted(list(unique_terms))
+
+        if self.cache_dir:
+            with open(self.cache_dir / 'unique_suggestions.pkl', 'wb') as f:
+                pickle.dump(self._unique_suggestions, f)
+
+        return self._unique_suggestions
+
+    def get_suggestion_embeddings(self) -> Dict[str, np.ndarray]:
+        """Get all suggestion embeddings as a dictionary"""
+        if not self._suggestion_embeddings_cache and self.embedding_model:
+            unique_suggestions = self.get_unique_suggestions()
+            logging.info("Computing suggestion embeddings...")
+
+            for idx in tqdm(range(0, len(unique_suggestions), self.chunksize)):
+                end_idx = min(idx + self.chunksize, len(unique_suggestions))
+                batch = unique_suggestions[idx:end_idx]
+                embeds = self.embedding_model.embed_documents(batch)
+
+                for term, emb in zip(batch, embeds):
+                    self._suggestion_embeddings_cache[term] = np.array(emb, dtype=np.float32)
+
+        return self._suggestion_embeddings_cache
+
+    def __len__(self):
+        return self._length
+
     def __getitem__(self, idx):
         """
         Returns:
             dict with keys:
-                - 'source': source text
-                - 'question': question text
-                - 'suggestions': list of filtered suggestion terms
+                - 'source': source text or embedding
+                - 'question': question text or embedding
+                - 'suggestions': list of suggestion terms or embeddings
+                - 'suggestion_texts': list of suggestion terms (always included)
         """
-        row = self.df.iloc[idx]
+        row = self._get_row(idx)
+        suggestions = self._get_parsed_suggestions(idx, row)
 
-        source = str(row[self.source_col])
-        question = str(row[self.question_col])
-        suggestions = self._parse_suggestions(row[self.suggestions_col])
+        if self.return_embeddings:
+            # Return embeddings
+            if idx not in self._text_embeddings_cache:
+                # Compute on-the-fly if not cached
+                source_text = str(row[self.source_col])
+                question_text = str(row[self.question_col])
 
-        return {
-            'source': source,
-            'question': question,
-            'suggestions': suggestions
-        }
+                source_emb = np.array(self.embedding_model.embed_query(source_text), dtype=np.float32)
+                question_emb = np.array(self.embedding_model.embed_query(question_text), dtype=np.float32)
+            else:
+                source_emb = self._text_embeddings_cache[idx]['source']
+                question_emb = self._text_embeddings_cache[idx]['question']
+
+            # Get suggestion embeddings
+            suggestion_embeds = []
+            for term in suggestions:
+                if term not in self._suggestion_embeddings_cache:
+                    emb = np.array(self.embedding_model.embed_query(term), dtype=np.float32)
+                    self._suggestion_embeddings_cache[term] = emb
+                else:
+                    emb = self._suggestion_embeddings_cache[term]
+                suggestion_embeds.append(emb)
+
+            return {
+                'source': torch.from_numpy(source_emb),
+                'question': torch.from_numpy(question_emb),
+                'suggestions': [torch.from_numpy(emb) for emb in suggestion_embeds],
+                'suggestion_texts': suggestions,
+                'idx': idx
+            }
+        else:
+            # Return raw text
+            return {
+                'source': str(row[self.source_col]),
+                'question': str(row[self.question_col]),
+                'suggestions': suggestions,
+                'idx': idx
+            }
 
 
 
