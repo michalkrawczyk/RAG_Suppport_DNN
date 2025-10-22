@@ -15,6 +15,14 @@ import torch
 # from .rag_dataset import BaseRAGDatasetGenerator
 # TODO: DomainAssignDataset should handle RagDataset?
 
+def count_csv_rows_chunked(csv_path: Path, chunksize: int = 10000) -> int:
+    """Count rows by processing in chunks"""
+    total = 0
+    for chunk in pd.read_csv(csv_path, chunksize=chunksize):
+        total += len(chunk)
+    return total
+
+
 class DomainAssignDataset(Dataset):
     """
     PyTorch Dataset for Matching Source Texts and Questions with Suggested Terms.
