@@ -1,128 +1,83 @@
+import hashlib
+import json
 import logging
-from typing import Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
-from torch.utils.data import DataLoader, Dataset
-
-from excluded_drafts.rag_dataset import BaseDatasetRAG
 
 LOGGER = logging.getLogger(__name__)
 
 
-def load_csv_dataset_pd(
-    csv_path: str, sample_limit: Optional[int] = None
-) -> pd.DataFrame:
-    """
-    Load CSV dataset wit triplet samples into a pandas DataFrame.
-
-    Parameters
-    ----------
-    csv_path : str
-        Path to the CSV file containing triplet samples.
-    sample_limit : int, optional
-        Maximum number of samples to load. If None, load all samples.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing the triplet samples with columns:
-        'question_id', 'answer_id_1', 'answer_id_2', 'label'
-    """
-    df = pd.read_csv(csv_path)
-
-    if sample_limit is not None:
-        df = df.head(sample_limit)
-
-    print(f"Loaded {len(df)} triplet samples from {csv_path}")
-    return df
+def count_csv_rows_chunked(csv_path: Union[str, Path], chunksize: int = 10000) -> int:
+    """Count rows by processing in chunks"""
+    total = 0
+    for chunk in pd.read_csv(csv_path, chunksize=chunksize):
+        total += len(chunk)
+    return total
 
 
-class TorchDatasetRAG(Dataset):
-    # TODO
-    def __init__(
-        self,
-        base_dataset: BaseDatasetRAG,
-        transform=None,
-        use_contrastive_samples: bool = True,
-        use_positive_samples: bool = True,
-        use_similar_samples: bool = False,
-    ):
-        self.base_dataset = base_dataset
-        self.transform = transform
-        self.question_data = self.base_dataset.get_question_db_data()
-        # self.text_corpus_df = self.base_dataset.text_corpus_db
-        # self.question_ids = self.question_data['metadatas']['id'] # Assumption: question_ids are unique
+def parse_suggestions_safe(suggestions_data: Union[str, list]) -> List[Dict[str, Any]]:
+    """Safely parse suggestions JSON without using eval()"""
+    if isinstance(suggestions_data, list):
+        return suggestions_data
 
-        self.sample_holders = []
+    if not isinstance(suggestions_data, str):
+        return []
 
-        # Load samples - skip those without labels
-        if use_contrastive_samples:
-            self.sample_holders.extend(
-                [
-                    s
-                    for s in self.base_dataset.load_samples_pairs("contrastive")
-                    if s.get("label")
-                ]
-            )
-        if use_positive_samples:
-            self.sample_holders.extend(
-                [
-                    s
-                    for s in self.base_dataset.load_samples_pairs("positive")
-                    if s.get("label")
-                ]
-            )
-        if use_similar_samples:
-            self.sample_holders.extend(
-                [
-                    s
-                    for s in self.base_dataset.load_samples_pairs("similar")
-                    if s.get("label")
-                ]
-            )
-
-    def __getitem__(self, idx):
-        sample_holder = self.sample_holders[idx]
-
-        # Get question embedding by id
-
-        # Get answer_1 embedding by id
-
-        # Get answer_2 embedding by id
-
-        # Get label
-
-        sample = {
-            "question": question_embedding,
-            "answer_1": answer_1_embedding,
-            "answer_2": answer_2_embedding,
-            "label": label,
-        }  # TODO: consider storing embeddings as numpy array (3, embedding_size) instead of separate tensors
-
-        return sample
-
-    # def save_csv(self, path):
-    #     self.dataset._text_corpus_db.to_csv(path)
+    try:
+        # Try standard JSON first
+        return json.loads(suggestions_data)
+    except json.JSONDecodeError:
+        try:
+            # Handle single quotes by replacing with double quotes
+            return json.loads(suggestions_data.replace("'", '"'))
+        except json.JSONDecodeError:
+            logging.warning(f"Failed to parse suggestions: {suggestions_data[:100]}...")
+            return []
 
 
-class TorchDataLoaderRAG(DataLoader):
-    def __init__(
-        self, dataset: TorchDatasetRAG, batch_size: int, shuffle: bool, num_workers: int
-    ):
-        super(TorchDataLoaderRAG, self).__init__(
-            dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers
-        )
-        self.dataset = dataset
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-        self.num_workers = num_workers
-        self.sample_holders = self.dataset.sample_holders
+def filter_suggestions(
+    suggestions: List[Dict[str, Any]],
+    min_confidence: float = 0.0,
+    suggestion_types: Optional[List[str]] = None,
+) -> List[str]:
+    """Filter suggestions based on confidence and type, return terms"""
+    filtered_terms = []
 
-    def __len__(self):
-        return len(self.sample_holders)
+    for suggestion in suggestions:
+        if not isinstance(suggestion, dict):
+            continue
 
-    def __iter__(self):
-        return iter(self.sample_holders)
+        # Check confidence
+        confidence = suggestion.get("confidence", 0.0)
+        if confidence < min_confidence:
+            continue
 
-    def __len__(self):
-        return len(self.sample_holders)
+        # Check type if filter specified
+        if suggestion_types is not None:
+            suggestion_type = suggestion.get("type", "")
+            if suggestion_type not in suggestion_types:
+                continue
+
+        # Extract term
+        term = suggestion.get("term", "")
+        if term:
+            filtered_terms.append(term)
+
+    return filtered_terms
+
+
+def compute_cache_version(
+    min_confidence: float,
+    suggestion_types: Optional[List[str]],
+    embedding_model_name: Optional[str] = None,
+) -> str:
+    """Compute a version hash for cache validation"""
+    config = {
+        "min_confidence": min_confidence,
+        "suggestion_types": sorted(suggestion_types) if suggestion_types else None,
+        "embedding_model": embedding_model_name or "none",
+    }
+    config_str = json.dumps(config, sort_keys=True)
+    return hashlib.md5(config_str.encode()).hexdigest()[:8]

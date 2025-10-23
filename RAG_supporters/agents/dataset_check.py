@@ -1,17 +1,16 @@
 import logging
+from typing import List, TypedDict
 
 LOGGER = logging.getLogger(__name__)
 
 try:
-    from typing import List, TypedDict
-
+    from langchain_core.language_models import BaseChatModel
     from langchain_core.messages import (
         AIMessage,
         BaseMessage,
         HumanMessage,
         SystemMessage,
     )
-    from langchain_core.language_models import BaseChatModel
     from langgraph.graph import END, START, StateGraph
     from tqdm import tqdm
 
@@ -341,18 +340,41 @@ try:
             )
 
 except ImportError as e:
+    _DEPENDENCIES_AVAILABLE = False
+    _IMPORT_ERROR = str(e)
+
     LOGGER.warning(
-        f"ImportError: {str(e)}. Please ensure all dependencies are installed."
+        f"DatasetCheckAgent dependencies not available: {e}. "
+        "Install with: pip install langchain langgraph tqdm pandas"
     )
 
+    # Minimal stubs for type checking
+    class CheckAgentState(TypedDict):
+        """State object for the agent."""
+
+        messages: list
+        question: str
+        source1: str
+        source2: str
+        analysis: str
+        final_choice: int
+
     class DatasetCheckAgent:
-        """Fallback class when dependencies are not available."""
+        """
+        Placeholder for DatasetCheckAgent when dependencies are missing.
+
+        To use this agent, install required dependencies:
+            pip install langchain langgraph tqdm pandas
+        """
 
         def __init__(self, *args, **kwargs):
             raise ImportError(
-                "DatasetCheckAgent requires langgraph and langchain_core. Please install them."
+                f"DatasetCheckAgent requires langgraph, langchain_core, and related dependencies to be installed.\n"
+                f"Original import error: {_IMPORT_ERROR}\n"
+                f"Install with: pip install langchain langgraph tqdm pandas"
             )
 
-except Exception as e:
-    LOGGER.error(f"Unexpected error: {str(e)}")
-    raise e
+        def __getattr__(self, name):
+            raise ImportError(
+                f"DatasetCheckAgent not available due to missing dependencies: {_IMPORT_ERROR}"
+            )

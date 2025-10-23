@@ -4,30 +4,22 @@ LOGGER = logging.getLogger(__name__)
 # TODO: Consider if errors should be reprocessed when skip_existing is True?
 
 
-def _is_empty_text(text: str) -> bool:
-    """Check if the text is empty or only whitespace"""
-    if not text or text.strip() == "":
-        return True
-    if text.lower() == "nan":
-        return True
-    return False
-
-
 try:
     import json
     from enum import Enum
     from typing import Any, Dict, List, Optional, Union
 
+    import pandas as pd
     from langchain.output_parsers import OutputFixingParser, PydanticOutputParser
     from langchain_core.language_models import BaseChatModel
     from langchain_core.prompts import PromptTemplate
     from langgraph.graph import END, StateGraph
     from langgraph.prebuilt import ToolNode
-    import pandas as pd
     from pydantic import BaseModel, Field, field_validator, model_validator
     from tqdm import tqdm
 
     from prompts_templates.rag_verifiers import SINGLE_SRC_SCORE_PROMPT
+    from utils.text_utils import is_empty_text
 
     # Pydantic Models for validation (v2.10.3 compatible)
     class ScoreRange(BaseModel):
@@ -157,7 +149,7 @@ try:
                 True if LLM is from OpenAI, False otherwise
             """
             try:
-                from langchain_openai import ChatOpenAI, AzureChatOpenAI
+                from langchain_openai import AzureChatOpenAI, ChatOpenAI
 
                 return isinstance(self.llm, (ChatOpenAI, AzureChatOpenAI))
             except ImportError:
@@ -663,8 +655,8 @@ try:
                 if (
                     pd.isna(row[question_col])
                     or pd.isna(row[source_col])
-                    or _is_empty_text(row[question_col])
-                    or _is_empty_text(row[source_col])
+                    or is_empty_text(row[question_col])
+                    or is_empty_text(row[source_col])
                 ):
                     result_df.at[idx, "evaluation_error"] = (
                         "Missing or empty question or source content"
@@ -906,8 +898,8 @@ try:
                     if (
                         pd.isna(row[question_col])
                         or pd.isna(row[source_col])
-                        or _is_empty_text(row[question_col])
-                        or _is_empty_text(row[source_col])
+                        or is_empty_text(row[question_col])
+                        or is_empty_text(row[source_col])
                     ):
                         result_df.at[idx, "evaluation_error"] = (
                             "Missing or empty question or source content"
@@ -1007,14 +999,30 @@ try:
             return result_df
 
 except ImportError as e:
+    _DEPENDENCIES_AVAILABLE = False
+    _IMPORT_ERROR = str(e)
+
     LOGGER.warning(
-        f"ImportError: {str(e)}. Please ensure all dependencies are installed."
+        f"SourceEvaluationAgent dependencies not available: {e}. "
+        "Install with: pip install langchain langgraph pydantic pandas tqdm"
     )
 
     class SourceEvaluationAgent:
-        """Placeholder for SourceEvaluationAgent when dependencies are missing"""
+        """
+        Placeholder for SourceEvaluationAgent when dependencies are missing.
+
+        To use this agent, install required dependencies:
+            pip install -r requirements_agents.txt
+        """
 
         def __init__(self, *args, **kwargs):
             raise ImportError(
-                "SourceEvaluationAgent requires langgraph, langchain and pydantic to be installed."
+                f"SourceEvaluationAgent requires langgraph, langchain, and pydantic to be installed.\n"
+                f"Original import error: {_IMPORT_ERROR}\n"
+                f"Install with: pip install -r requirements_agents.txt"
+            )
+
+        def __getattr__(self, name):
+            raise ImportError(
+                f"SourceEvaluationAgent not available due to missing dependencies: {_IMPORT_ERROR}"
             )
