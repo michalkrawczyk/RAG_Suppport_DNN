@@ -443,6 +443,3 @@ For detailed API documentation, refer to:
 - `_generate_all_existing_pairs(...)` - Helper generator for all-existing pairs
 
 ---
-
-**Last Updated**: 2024
-**Maintainer**: RAG_Suppport_DNN Team
