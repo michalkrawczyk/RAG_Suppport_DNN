@@ -14,8 +14,10 @@ from langchain_chroma import Chroma
 from langchain_core.language_models import BaseChatModel
 from tqdm import tqdm
 
-from prompts_templates.rag_verifiers import (SINGLE_SRC_SCORE_PROMPT,
-                                             SRC_COMPARE_PROMPT_WITH_SCORES)
+from prompts_templates.rag_verifiers import (
+    SINGLE_SRC_SCORE_PROMPT,
+    SRC_COMPARE_PROMPT_WITH_SCORES,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -94,11 +96,16 @@ class BaseRAGDatasetGenerator(ABC):
     _embed_function = None
     _dataset_metadata: Dict[str, Any] = None
 
-    def _init_dataset_metadata(self, dataset_names: List[str], dataset_sources: List[str], 
-                                embed_function, **kwargs) -> None:
+    def _init_dataset_metadata(
+        self,
+        dataset_names: List[str],
+        dataset_sources: List[str],
+        embed_function,
+        **kwargs,
+    ) -> None:
         """
         Initialize dataset metadata with information about source and embedding method.
-        
+
         Parameters
         ----------
         dataset_names : List[str]
@@ -112,20 +119,17 @@ class BaseRAGDatasetGenerator(ABC):
         """
         # Get embedding name from the function
         if embed_function is not None:
-            embedding_name = getattr(embed_function, "model", type(embed_function).__name__)
+            embedding_name = getattr(
+                embed_function, "model", type(embed_function).__name__
+            )
         else:
             embedding_name = None
-        
+
         # Template structure
         self._dataset_metadata = {
-            "dataset_info": {
-                "names": dataset_names,
-                "sources": dataset_sources
-            },
-            "embedding_info": {
-                "name": embedding_name
-            },
-            "additional_info": kwargs.get("additional_info", {})
+            "dataset_info": {"names": dataset_names, "sources": dataset_sources},
+            "embedding_info": {"name": embedding_name},
+            "additional_info": kwargs.get("additional_info", {}),
         }
 
     @abstractmethod
@@ -339,7 +343,7 @@ class BaseRAGDatasetGenerator(ABC):
         return self._question_db.get(include=list(include))
 
     def get_text_corpus_db_data(
-            self, include: Iterable[str] = ("documents", "metadatas", "embeddings")
+        self, include: Iterable[str] = ("documents", "metadatas", "embeddings")
     ):
         """
         Retrieve data from the text corpus database.
@@ -384,11 +388,15 @@ class BaseRAGDatasetGenerator(ABC):
         Path(os.path.dirname(metadata_file)).mkdir(parents=True, exist_ok=True)
 
         with open(metadata_file, "w") as f:
-            yaml.dump(self._dataset_metadata, f, default_flow_style=False, sort_keys=False)
+            yaml.dump(
+                self._dataset_metadata, f, default_flow_style=False, sort_keys=False
+            )
 
         LOGGER.info(f"Dataset metadata saved to {metadata_file}")
 
-    def load_dataset_metadata(self, metadata_file: Optional[str] = None) -> Dict[str, Any]:
+    def load_dataset_metadata(
+        self, metadata_file: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Load dataset metadata from a YAML file.
 
@@ -678,17 +686,17 @@ class BaseRAGDatasetGenerator(ABC):
         return results
 
     def analyze_domains(
-            self,
-            llm: BaseChatModel,
-            mode: str,
-            df: pd.DataFrame,
-            available_terms: Optional[Union[List[str], List[Dict], str]] = None,
-            skip_existing: bool = True,
-            save_path: Optional[str] = None,
-            max_retries: int = 3,
-            checkpoint_batch_size: Optional[int] = None,
-            use_batch_processing: bool = True,
-            batch_size: Optional[int] = None,
+        self,
+        llm: BaseChatModel,
+        mode: str,
+        df: pd.DataFrame,
+        available_terms: Optional[Union[List[str], List[Dict], str]] = None,
+        skip_existing: bool = True,
+        save_path: Optional[str] = None,
+        max_retries: int = 3,
+        checkpoint_batch_size: Optional[int] = None,
+        use_batch_processing: bool = True,
+        batch_size: Optional[int] = None,
     ) -> pd.DataFrame:
         """
         Analyze domains for questions or sources using the DomainAnalysisAgent.
@@ -815,9 +823,7 @@ class BaseRAGDatasetGenerator(ABC):
         # Validate mode
         valid_modes = ["extract", "guess", "assess"]
         if mode not in valid_modes:
-            raise ValueError(
-                f"Invalid mode '{mode}'. Must be one of {valid_modes}"
-            )
+            raise ValueError(f"Invalid mode '{mode}'. Must be one of {valid_modes}")
 
         # Validate DataFrame is provided and not empty
         if df is None:
@@ -828,7 +834,9 @@ class BaseRAGDatasetGenerator(ABC):
 
         # Validate mode-specific requirements
         if mode == "assess" and available_terms is None:
-            raise ValueError("'available_terms' parameter is required for 'assess' mode")
+            raise ValueError(
+                "'available_terms' parameter is required for 'assess' mode"
+            )
 
         LOGGER.info(f"Starting domain analysis in '{mode}' mode")
 
@@ -891,7 +899,9 @@ class BaseRAGDatasetGenerator(ABC):
                         lambda qid: self._question_db.get(ids=[qid])["documents"][0]
                     )
 
-                LOGGER.info(f"Successfully retrieved {len(df)} text entries from ChromaDB")
+                LOGGER.info(
+                    f"Successfully retrieved {len(df)} text entries from ChromaDB"
+                )
 
             except Exception as e:
                 LOGGER.error(f"Failed to retrieve texts from ChromaDB: {e}")
@@ -970,14 +980,20 @@ class BaseRAGDatasetGenerator(ABC):
 
                     # Log primary theme/category distribution if available
                     if mode == "extract" and "primary_theme" in analyzed_df.columns:
-                        theme_counts = analyzed_df["primary_theme"].value_counts().head(5)
+                        theme_counts = (
+                            analyzed_df["primary_theme"].value_counts().head(5)
+                        )
                         if not theme_counts.empty:
                             LOGGER.info(f"Top 5 primary themes:\n{theme_counts}")
 
                     elif mode == "guess" and "question_category" in analyzed_df.columns:
-                        category_counts = analyzed_df["question_category"].value_counts().head(5)
+                        category_counts = (
+                            analyzed_df["question_category"].value_counts().head(5)
+                        )
                         if not category_counts.empty:
-                            LOGGER.info(f"Top 5 question categories:\n{category_counts}")
+                            LOGGER.info(
+                                f"Top 5 question categories:\n{category_counts}"
+                            )
 
             else:  # assess mode
                 if "total_selected" in analyzed_df.columns:
@@ -1006,7 +1022,6 @@ class BaseRAGDatasetGenerator(ABC):
         except Exception as e:
             LOGGER.error(f"Error during domain analysis: {e}")
             raise
-
 
     def save_triplets_to_csv(
         self,

@@ -9,7 +9,6 @@ import pandas as pd
 LOGGER = logging.getLogger(__name__)
 
 
-
 def count_csv_rows_chunked(csv_path: Union[str, Path], chunksize: int = 10000) -> int:
     """Count rows by processing in chunks"""
     total = 0
@@ -39,9 +38,9 @@ def parse_suggestions_safe(suggestions_data: Union[str, list]) -> List[Dict[str,
 
 
 def filter_suggestions(
-        suggestions: List[Dict[str, Any]],
-        min_confidence: float = 0.0,
-        suggestion_types: Optional[List[str]] = None
+    suggestions: List[Dict[str, Any]],
+    min_confidence: float = 0.0,
+    suggestion_types: Optional[List[str]] = None,
 ) -> List[str]:
     """Filter suggestions based on confidence and type, return terms"""
     filtered_terms = []
@@ -51,18 +50,18 @@ def filter_suggestions(
             continue
 
         # Check confidence
-        confidence = suggestion.get('confidence', 0.0)
+        confidence = suggestion.get("confidence", 0.0)
         if confidence < min_confidence:
             continue
 
         # Check type if filter specified
         if suggestion_types is not None:
-            suggestion_type = suggestion.get('type', '')
+            suggestion_type = suggestion.get("type", "")
             if suggestion_type not in suggestion_types:
                 continue
 
         # Extract term
-        term = suggestion.get('term', '')
+        term = suggestion.get("term", "")
         if term:
             filtered_terms.append(term)
 
@@ -70,17 +69,15 @@ def filter_suggestions(
 
 
 def compute_cache_version(
-        min_confidence: float,
-        suggestion_types: Optional[List[str]],
-        embedding_model_name: Optional[str] = None
+    min_confidence: float,
+    suggestion_types: Optional[List[str]],
+    embedding_model_name: Optional[str] = None,
 ) -> str:
     """Compute a version hash for cache validation"""
     config = {
-        'min_confidence': min_confidence,
-        'suggestion_types': sorted(suggestion_types) if suggestion_types else None,
-        'embedding_model': embedding_model_name or 'none'
+        "min_confidence": min_confidence,
+        "suggestion_types": sorted(suggestion_types) if suggestion_types else None,
+        "embedding_model": embedding_model_name or "none",
     }
     config_str = json.dumps(config, sort_keys=True)
     return hashlib.md5(config_str.encode()).hexdigest()[:8]
-
-

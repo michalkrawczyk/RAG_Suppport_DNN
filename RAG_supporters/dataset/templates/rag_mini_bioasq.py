@@ -11,8 +11,11 @@ from datasets import concatenate_datasets, load_dataset
 from langchain_chroma import Chroma
 from tqdm import tqdm
 
-from dataset.rag_dataset import (BaseRAGDatasetGenerator, SamplePairingType,
-                                 SampleTripletRAGChroma)
+from dataset.rag_dataset import (
+    BaseRAGDatasetGenerator,
+    SamplePairingType,
+    SampleTripletRAGChroma,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -78,7 +81,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             dataset_sources=["enelpol/rag-mini-bioasq"],
             embed_function=embed_function,
             embedding_name=kwargs.get("model") if embed_function is None else None,
-            additional_info=additional_info
+            additional_info=additional_info,
         )
 
         self.load_dataset()
@@ -126,7 +129,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
             try:
                 self.load_dataset_metadata()
             except FileNotFoundError:
-                LOGGER.warning("Dataset metadata file not found. Metadata will be created on next save.")
+                LOGGER.warning(
+                    "Dataset metadata file not found. Metadata will be created on next save."
+                )
 
             self.validate_dataset()
 
@@ -348,7 +353,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
                     relevant_ids = json.loads(relevant_ids_obj)
                     relevant_ids = [int(x) for x in relevant_ids]
                 except json.JSONDecodeError as e:
-                    LOGGER.warning(f"Failed to decode relevant_passage_ids for question {qid}: {e}")
+                    LOGGER.warning(
+                        f"Failed to decode relevant_passage_ids for question {qid}: {e}"
+                    )
                     relevant_ids = []
             else:
                 # Already as list of int
@@ -609,16 +616,16 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
     def _generate_all_existing_pairs(self, question_db_ids, **kwargs):
         """Generator that yields all question-source pairs for ALL_EXISTING criterion.
-        
+
         This generator processes the text corpus in batches to avoid RAM exhaustion.
-        
+
         Parameters
         ----------
         question_db_ids : List[str]
             List of question IDs to generate pairs for
         **kwargs : dict
             Additional parameters including optional 'batch_size'
-            
+
         Yields
         ------
         dict
@@ -627,7 +634,7 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
         # First, get all source IDs without loading documents (lightweight)
         all_source_ids = self._text_corpus_db.get(include=[])["ids"]
         batch_size = kwargs.get("batch_size", self.loading_batch_size)
-        
+
         for question_db_id in tqdm(
             question_db_ids, desc="Generating all-pairs from whole dataset"
         ):
@@ -640,11 +647,11 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
             # Process sources in batches to avoid loading all documents at once
             for i in range(0, len(all_source_ids), batch_size):
-                batch_ids = all_source_ids[i:i + batch_size]
+                batch_ids = all_source_ids[i : i + batch_size]
                 sources_batch = self._text_corpus_db.get(
                     ids=batch_ids, include=["documents"]
                 )
-                
+
                 for source_id, source_text in zip(
                     sources_batch["ids"], sources_batch["documents"]
                 ):
@@ -715,7 +722,9 @@ class RagMiniBioASQBase(BaseRAGDatasetGenerator):
 
         elif criterion == SamplePairingType.ALL_EXISTING:
             # Use generator to process text corpus in batches and create DataFrame
-            return pd.DataFrame(self._generate_all_existing_pairs(question_db_ids, **kwargs))
+            return pd.DataFrame(
+                self._generate_all_existing_pairs(question_db_ids, **kwargs)
+            )
 
         elif criterion == SamplePairingType.RELEVANT:
             # Get questions with their relevant passages based on stored metadata

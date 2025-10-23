@@ -11,8 +11,11 @@ from langchain_core.embeddings.embeddings import Embeddings
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from .utils.dataset_loader import (compute_cache_version, filter_suggestions,
-                                   parse_suggestions_safe)
+from .utils.dataset_loader import (
+    compute_cache_version,
+    filter_suggestions,
+    parse_suggestions_safe,
+)
 
 
 class BaseDomainAssignDataset(Dataset):
@@ -41,18 +44,18 @@ class BaseDomainAssignDataset(Dataset):
     """
 
     def __init__(
-            self,
-            df: Union[pd.DataFrame, str, Path],
-            embedding_model: Optional[Embeddings] = None,
-            cache_dir: Optional[Union[str, Path]] = None,
-            source_col: str = 'source',
-            question_col: str = 'question',
-            suggestions_col: str = 'suggestions',
-            min_confidence: float = 0.0,
-            suggestion_types: Optional[List[str]] = None,
-            return_embeddings: bool = True,
-            chunksize: int = 10000,
-            embedding_model_name: Optional[str] = None,
+        self,
+        df: Union[pd.DataFrame, str, Path],
+        embedding_model: Optional[Embeddings] = None,
+        cache_dir: Optional[Union[str, Path]] = None,
+        source_col: str = "source",
+        question_col: str = "question",
+        suggestions_col: str = "suggestions",
+        min_confidence: float = 0.0,
+        suggestion_types: Optional[List[str]] = None,
+        return_embeddings: bool = True,
+        chunksize: int = 10000,
+        embedding_model_name: Optional[str] = None,
     ):
         self.source_col = source_col
         self.question_col = question_col
@@ -66,7 +69,9 @@ class BaseDomainAssignDataset(Dataset):
 
         # Validate
         if self.return_embeddings and not embedding_model:
-            raise ValueError("embedding_model must be provided when return_embeddings=True")
+            raise ValueError(
+                "embedding_model must be provided when return_embeddings=True"
+            )
 
         # Setup cache directory (optional)
         self.cache_dir = Path(cache_dir) if cache_dir else None
@@ -85,9 +90,7 @@ class BaseDomainAssignDataset(Dataset):
 
         # Compute version for cache validation
         self.version = compute_cache_version(
-            min_confidence,
-            suggestion_types,
-            self.embedding_model_name
+            min_confidence, suggestion_types, self.embedding_model_name
         )
 
         # In-memory caches (built on-demand or via build())
@@ -123,9 +126,7 @@ class BaseDomainAssignDataset(Dataset):
             raw_suggestions = row[self.suggestions_col]
             suggestions_parsed = parse_suggestions_safe(raw_suggestions)
             suggestions = filter_suggestions(
-                suggestions_parsed,
-                self.min_confidence,
-                self.suggestion_types
+                suggestions_parsed, self.min_confidence, self.suggestion_types
             )
 
         if self.return_embeddings:
@@ -133,32 +134,32 @@ class BaseDomainAssignDataset(Dataset):
             if self._text_embeddings_cache is not None:
                 # Use cached embeddings
                 text_emb = self._text_embeddings_cache[idx]
-                source_emb = text_emb['source']
-                question_emb = text_emb['question']
+                source_emb = text_emb["source"]
+                question_emb = text_emb["question"]
             else:
                 # Compute on-the-fly
                 source_text = str(row[self.source_col])
                 question_text = str(row[self.question_col])
                 source_emb = np.array(
-                    self.embedding_model.embed_query(source_text),
-                    dtype=np.float32
+                    self.embedding_model.embed_query(source_text), dtype=np.float32
                 )
                 question_emb = np.array(
-                    self.embedding_model.embed_query(question_text),
-                    dtype=np.float32
+                    self.embedding_model.embed_query(question_text), dtype=np.float32
                 )
 
             # Get suggestion embeddings
             suggestion_embeds = []
             for term in suggestions:
-                if self._suggestion_embeddings_cache is not None and term in self._suggestion_embeddings_cache:
+                if (
+                    self._suggestion_embeddings_cache is not None
+                    and term in self._suggestion_embeddings_cache
+                ):
                     # Use cached
                     emb = self._suggestion_embeddings_cache[term]
                 else:
                     # Compute on-the-fly
                     emb = np.array(
-                        self.embedding_model.embed_query(term),
-                        dtype=np.float32
+                        self.embedding_model.embed_query(term), dtype=np.float32
                     )
                     # Optionally cache it
                     if self._suggestion_embeddings_cache is not None:
@@ -167,20 +168,20 @@ class BaseDomainAssignDataset(Dataset):
                 suggestion_embeds.append(emb)
 
             return {
-                'source': torch.from_numpy(source_emb),
-                'question': torch.from_numpy(question_emb),
-                'suggestions': [torch.from_numpy(emb) for emb in suggestion_embeds],
-                'suggestion_texts': suggestions,
-                'idx': idx
+                "source": torch.from_numpy(source_emb),
+                "question": torch.from_numpy(question_emb),
+                "suggestions": [torch.from_numpy(emb) for emb in suggestion_embeds],
+                "suggestion_texts": suggestions,
+                "idx": idx,
             }
         else:
             # Return raw text
             return {
-                'source': str(row[self.source_col]),
-                'question': str(row[self.question_col]),
-                'suggestions': suggestions,
-                'suggestion_texts': suggestions,
-                'idx': idx
+                "source": str(row[self.source_col]),
+                "question": str(row[self.question_col]),
+                "suggestions": suggestions,
+                "suggestion_texts": suggestions,
+                "idx": idx,
             }
 
     def build(self, save_to_cache: bool = True):
@@ -240,9 +241,7 @@ class BaseDomainAssignDataset(Dataset):
             raw_suggestions = self.df.iloc[idx][self.suggestions_col]
             suggestions = parse_suggestions_safe(raw_suggestions)
             filtered = filter_suggestions(
-                suggestions,
-                self.min_confidence,
-                self.suggestion_types
+                suggestions, self.min_confidence, self.suggestion_types
             )
             all_parsed.append(filtered)
 
@@ -266,7 +265,9 @@ class BaseDomainAssignDataset(Dataset):
         all_embeddings = []
 
         total_rows = len(self)
-        for start_idx in tqdm(range(0, total_rows, self.chunksize), desc="Embedding texts"):
+        for start_idx in tqdm(
+            range(0, total_rows, self.chunksize), desc="Embedding texts"
+        ):
             end_idx = min(start_idx + self.chunksize, total_rows)
 
             # Get batch
@@ -280,10 +281,12 @@ class BaseDomainAssignDataset(Dataset):
 
             # Store
             for s_emb, q_emb in zip(source_embeds, question_embeds):
-                all_embeddings.append({
-                    'source': np.array(s_emb, dtype=np.float32),
-                    'question': np.array(q_emb, dtype=np.float32)
-                })
+                all_embeddings.append(
+                    {
+                        "source": np.array(s_emb, dtype=np.float32),
+                        "question": np.array(q_emb, dtype=np.float32),
+                    }
+                )
 
         return all_embeddings
 
@@ -296,7 +299,9 @@ class BaseDomainAssignDataset(Dataset):
         unique_suggestions = self._unique_suggestions_cache
 
         total_suggestions = len(unique_suggestions)
-        for start_idx in tqdm(range(0, total_suggestions, self.chunksize), desc="Embedding suggestions"):
+        for start_idx in tqdm(
+            range(0, total_suggestions, self.chunksize), desc="Embedding suggestions"
+        ):
             end_idx = min(start_idx + self.chunksize, total_suggestions)
 
             # Get batch
@@ -318,40 +323,44 @@ class BaseDomainAssignDataset(Dataset):
 
         # Save metadata
         metadata = {
-            'version': self.version,
-            'length': len(self),
-            'source_col': self.source_col,
-            'question_col': self.question_col,
-            'suggestions_col': self.suggestions_col,
-            'min_confidence': self.min_confidence,
-            'suggestion_types': self.suggestion_types,
-            'embedding_model_name': self.embedding_model_name,
-            'num_unique_suggestions': len(self._unique_suggestions_cache) if self._unique_suggestions_cache else 0,
-            'has_embeddings': self._text_embeddings_cache is not None
+            "version": self.version,
+            "length": len(self),
+            "source_col": self.source_col,
+            "question_col": self.question_col,
+            "suggestions_col": self.suggestions_col,
+            "min_confidence": self.min_confidence,
+            "suggestion_types": self.suggestion_types,
+            "embedding_model_name": self.embedding_model_name,
+            "num_unique_suggestions": (
+                len(self._unique_suggestions_cache)
+                if self._unique_suggestions_cache
+                else 0
+            ),
+            "has_embeddings": self._text_embeddings_cache is not None,
         }
 
         # Files to save
         cache_files = {
-            'metadata.json': metadata,
-            'parsed_suggestions.pkl': self._parsed_suggestions_cache,
-            'unique_suggestions.pkl': self._unique_suggestions_cache,
+            "metadata.json": metadata,
+            "parsed_suggestions.pkl": self._parsed_suggestions_cache,
+            "unique_suggestions.pkl": self._unique_suggestions_cache,
         }
 
         if self._text_embeddings_cache is not None:
-            cache_files['text_embeddings.pkl'] = self._text_embeddings_cache
+            cache_files["text_embeddings.pkl"] = self._text_embeddings_cache
 
         if self._suggestion_embeddings_cache is not None:
-            cache_files['suggestion_embeddings.pkl'] = self._suggestion_embeddings_cache
+            cache_files["suggestion_embeddings.pkl"] = self._suggestion_embeddings_cache
 
         # Save files
         for filename, data in cache_files.items():
             filepath = self.cache_dir / filename
 
-            if filename.endswith('.json'):
-                with open(filepath, 'w') as f:
+            if filename.endswith(".json"):
+                with open(filepath, "w") as f:
                     json.dump(data, f, indent=2)
             else:
-                with open(filepath, 'wb') as f:
+                with open(filepath, "wb") as f:
                     pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
 
             logging.info(f"  ✓ Saved {filename}")
@@ -375,6 +384,7 @@ class BaseDomainAssignDataset(Dataset):
 # DATASET CLASS - Load from Cache Only
 # ============================================================================
 
+
 class CachedDomainAssignDataset(Dataset):
     """
     PyTorch Dataset that loads pre-computed embeddings from cache.
@@ -397,9 +407,9 @@ class CachedDomainAssignDataset(Dataset):
     """
 
     def __init__(
-            self,
-            cache_dir: Union[str, Path],
-            return_embeddings: bool = True,
+        self,
+        cache_dir: Union[str, Path],
+        return_embeddings: bool = True,
     ):
         self.cache_dir = Path(cache_dir)
         self.return_embeddings = return_embeddings
@@ -410,18 +420,18 @@ class CachedDomainAssignDataset(Dataset):
         # Load metadata
         logging.info(f"Loading dataset from cache: {self.cache_dir}")
         self.metadata = self._load_metadata()
-        self._length = self.metadata['length']
+        self._length = self.metadata["length"]
 
         logging.info(f"  Version: {self.metadata['version']}")
         logging.info(f"  Samples: {self._length}")
         logging.info(f"  Unique suggestions: {self.metadata['num_unique_suggestions']}")
 
         # Load all cached data
-        self.parsed_suggestions = self._load_pickle('parsed_suggestions.pkl')
-        self.unique_suggestions = self._load_pickle('unique_suggestions.pkl')
+        self.parsed_suggestions = self._load_pickle("parsed_suggestions.pkl")
+        self.unique_suggestions = self._load_pickle("unique_suggestions.pkl")
 
         # Check if embeddings are available
-        has_embeddings = self.metadata.get('has_embeddings', True)
+        has_embeddings = self.metadata.get("has_embeddings", True)
 
         if return_embeddings:
             if not has_embeddings:
@@ -429,8 +439,8 @@ class CachedDomainAssignDataset(Dataset):
                     "Cache was built without embeddings. "
                     "Set return_embeddings=False or rebuild cache with embeddings."
                 )
-            self.text_embeddings = self._load_pickle('text_embeddings.pkl')
-            self.suggestion_embeddings = self._load_pickle('suggestion_embeddings.pkl')
+            self.text_embeddings = self._load_pickle("text_embeddings.pkl")
+            self.suggestion_embeddings = self._load_pickle("suggestion_embeddings.pkl")
         else:
             self.text_embeddings = None
             self.suggestion_embeddings = None
@@ -439,12 +449,12 @@ class CachedDomainAssignDataset(Dataset):
 
     def _load_metadata(self) -> Dict[str, Any]:
         """Load and validate metadata"""
-        metadata_path = self.cache_dir / 'metadata.json'
+        metadata_path = self.cache_dir / "metadata.json"
 
         if not metadata_path.exists():
             raise ValueError(f"Metadata file not found: {metadata_path}")
 
-        with open(metadata_path, 'r') as f:
+        with open(metadata_path, "r") as f:
             return json.load(f)
 
     def _load_pickle(self, filename: str) -> Any:
@@ -454,7 +464,7 @@ class CachedDomainAssignDataset(Dataset):
         if not filepath.exists():
             raise ValueError(f"Cache file not found: {filepath}")
 
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             return pickle.load(f)
 
     def get_unique_suggestions(self) -> List[str]:
@@ -502,30 +512,28 @@ class CachedDomainAssignDataset(Dataset):
             ]
 
             return {
-                'source': torch.from_numpy(text_emb['source']),
-                'question': torch.from_numpy(text_emb['question']),
-                'suggestions': [torch.from_numpy(emb) for emb in suggestion_embeds],
-                'suggestion_texts': suggestions,
-                'idx': idx
+                "source": torch.from_numpy(text_emb["source"]),
+                "question": torch.from_numpy(text_emb["question"]),
+                "suggestions": [torch.from_numpy(emb) for emb in suggestion_embeds],
+                "suggestion_texts": suggestions,
+                "idx": idx,
             }
         else:
             # Return just the suggestion terms
-            return {
-                'suggestion_texts': suggestions,
-                'idx': idx
-            }
+            return {"suggestion_texts": suggestions, "idx": idx}
 
 
 # ============================================================================
 # CONVENIENCE FUNCTION
 # ============================================================================
 
+
 def build_and_load_dataset(
-        df: Union[pd.DataFrame, str, Path],
-        embedding_model: Embeddings,
-        cache_dir: Union[str, Path],
-        force_rebuild: bool = False,
-        **builder_kwargs
+    df: Union[pd.DataFrame, str, Path],
+    embedding_model: Embeddings,
+    cache_dir: Union[str, Path],
+    force_rebuild: bool = False,
+    **builder_kwargs,
 ) -> CachedDomainAssignDataset:
     """
     Convenience function to build cache if needed and load dataset.
@@ -541,11 +549,10 @@ def build_and_load_dataset(
         DomainAssignDataset instance
     """
     cache_dir = Path(cache_dir)
-    metadata_path = cache_dir / 'metadata.json'
+    metadata_path = cache_dir / "metadata.json"
 
     # Check if cache exists and is valid
     should_build = force_rebuild or not metadata_path.exists()
-
 
     if not should_build:
         logging.info("Cache found, loading existing dataset...")
@@ -556,15 +563,11 @@ def build_and_load_dataset(
 
     logging.info("Building dataset cache...")
     dataset = BaseDomainAssignDataset(
-            df=df,
-            embedding_model=embedding_model,
-            cache_dir=cache_dir,
-            **builder_kwargs
+        df=df, embedding_model=embedding_model, cache_dir=cache_dir, **builder_kwargs
     ).build()
 
     # Load the newly created cache
     return dataset
-
 
 
 # TODO: Dataset for second stage
