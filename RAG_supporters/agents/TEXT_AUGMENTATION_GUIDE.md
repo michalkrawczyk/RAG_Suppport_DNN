@@ -30,7 +30,7 @@ pip install langchain-openai
 
 ```python
 from langchain_openai import ChatOpenAI
-from agents.text_augmentation import TextAugmentationAgent
+from RAG_supporters.agents.text_augmentation import TextAugmentationAgent
 
 # Initialize with an LLM
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)
@@ -218,8 +218,8 @@ q2,"What is the mechanism of DNA replication?","Enzymes are used in DNA replicat
 The agent can be used with existing RAG dataset workflows:
 
 ```python
-from dataset.templates.rag_mini_bioasq import RagMiniBioASQBase
-from agents.text_augmentation import TextAugmentationAgent
+from RAG_supporters.dataset.templates.rag_mini_bioasq import RagMiniBioASQBase
+from RAG_supporters.agents.text_augmentation import TextAugmentationAgent
 
 # Generate pairs from RAG dataset
 dataset = RagMiniBioASQBase(
