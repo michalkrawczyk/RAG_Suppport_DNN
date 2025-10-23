@@ -6,16 +6,13 @@ import warnings
 from itertools import combinations, product
 from typing import List, Optional
 
-from datasets import load_dataset, concatenate_datasets
+import pandas as pd
+from datasets import concatenate_datasets, load_dataset
 from langchain_chroma import Chroma
 from tqdm import tqdm
 
-from dataset.rag_dataset import (
-    BaseRAGDatasetGenerator,
-    SampleTripletRAGChroma,
-    SamplePairingType,
-)
-import pandas as pd
+from dataset.rag_dataset import (BaseRAGDatasetGenerator, SamplePairingType,
+                                 SampleTripletRAGChroma)
 
 LOGGER = logging.getLogger(__name__)
 

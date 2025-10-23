@@ -1,19 +1,18 @@
-from typing import Optional, List, Dict, Any, Union
 import json
 import logging
 import pickle
-
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
-from torch.utils.data import Dataset
-import pandas as pd
 import numpy as np
-from tqdm import tqdm
-from langchain_core.embeddings.embeddings import Embeddings
+import pandas as pd
 import torch
+from langchain_core.embeddings.embeddings import Embeddings
+from torch.utils.data import Dataset
+from tqdm import tqdm
 
-
-from .utils.dataset_loader import compute_cache_version, parse_suggestions_safe, filter_suggestions
+from .utils.dataset_loader import (compute_cache_version, filter_suggestions,
+                                   parse_suggestions_safe)
 
 
 class BaseDomainAssignDataset(Dataset):

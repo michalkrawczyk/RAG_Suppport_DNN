@@ -2,21 +2,20 @@ import csv
 import json
 import logging
 import os
-import yaml
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Literal, Optional, Union
-from enum import Enum
 
 import pandas as pd
+import yaml
 from langchain_chroma import Chroma
 from langchain_core.language_models import BaseChatModel
 from tqdm import tqdm
-from prompts_templates.rag_verifiers import (
-    SRC_COMPARE_PROMPT_WITH_SCORES,
-    SINGLE_SRC_SCORE_PROMPT,
-)
+
+from prompts_templates.rag_verifiers import (SINGLE_SRC_SCORE_PROMPT,
+                                             SRC_COMPARE_PROMPT_WITH_SCORES)
 
 LOGGER = logging.getLogger(__name__)
 
