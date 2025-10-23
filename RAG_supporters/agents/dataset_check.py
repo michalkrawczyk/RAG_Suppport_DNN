@@ -5,13 +5,19 @@ LOGGER = logging.getLogger(__name__)
 
 try:
     from langchain_core.language_models import BaseChatModel
-    from langchain_core.messages import (AIMessage, BaseMessage, HumanMessage,
-                                         SystemMessage)
+    from langchain_core.messages import (
+        AIMessage,
+        BaseMessage,
+        HumanMessage,
+        SystemMessage,
+    )
     from langgraph.graph import END, START, StateGraph
     from tqdm import tqdm
 
     from prompts_templates.rag_verifiers import (
-        FINAL_VERDICT_PROMPT, SRC_COMPARE_PROMPT_WITH_SCORES)
+        FINAL_VERDICT_PROMPT,
+        SRC_COMPARE_PROMPT_WITH_SCORES,
+    )
 
     class CheckAgentState(TypedDict):
         """State object for the agent.
