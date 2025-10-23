@@ -339,6 +339,23 @@ class BaseRAGDatasetGenerator(ABC):
         """
         return self._question_db.get(include=list(include))
 
+    def get_text_corpus_db_data(
+            self, include: Iterable[str] = ("documents", "metadatas", "embeddings")
+    ):
+        """
+        Retrieve data from the text corpus database.
+        Parameters
+        ----------
+        include : Iterable[str], optional
+            Data fields to include in the response.
+            Default is ("documents", "metadatas", "embeddings").
+        Returns
+        -------
+        Dict
+            Dictionary containing the requested data fields
+        """
+        return self._text_corpus_db.get(include=list(include))
+
     def save_dataset_metadata(self, metadata_file: Optional[str] = None) -> None:
         """
         Save dataset metadata to a YAML file.
