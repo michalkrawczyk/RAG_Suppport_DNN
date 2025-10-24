@@ -7,7 +7,6 @@ preserving their original meaning, useful for data augmentation in RAG datasets.
 
 import logging
 import random
-import re
 from typing import List, Optional
 
 LOGGER = logging.getLogger(__name__)
@@ -23,6 +22,7 @@ try:
         SENTENCE_REPHRASE_PROMPT,
         VERIFY_MEANING_PRESERVATION_PROMPT,
     )
+    from utils.text_splitters import split_into_sentences
 
     class TextAugmentationAgent:
         """
@@ -72,26 +72,6 @@ try:
             self._llm = llm
             self._verify_meaning = verify_meaning
             self._max_retries = max_retries
-
-        def _split_into_sentences(self, text: str) -> List[str]:
-            """
-            Split text into sentences using basic heuristics.
-
-            Parameters
-            ----------
-            text : str
-                Text to split into sentences.
-
-            Returns
-            -------
-            List[str]
-                List of sentences extracted from the text.
-            """
-            # Simple sentence splitting - handles common cases
-            # Splits on . ! ? followed by space and capital letter or end of string
-            sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text.strip())
-            # Filter out empty sentences
-            return [s.strip() for s in sentences if s.strip()]
 
         def _invoke_llm_with_retry(self, prompt: str) -> Optional[str]:
             """
@@ -226,7 +206,7 @@ try:
                 LOGGER.warning("Empty text provided for sentence rephrasing")
                 return None
 
-            sentences = self._split_into_sentences(text)
+            sentences = split_into_sentences(text)
             if len(sentences) == 0:
                 LOGGER.warning("No sentences found in text")
                 return None
