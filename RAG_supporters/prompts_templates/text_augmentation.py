@@ -16,7 +16,7 @@ Instructions:
 2. **Maintain Intent:** Keep the same intent, tone, and purpose of the original text.
 3. **Natural Language:** Use natural, fluent language that sounds human-written.
 4. **Vary Expression:** Use different words, sentence structures, and phrasing while maintaining the same meaning.
-5. **Keep Length Similar:** The rephrased text should be roughly the same length as the original (within 20%).
+5. **Keep Length Similar:** The rephrased text should be roughly the same length as the original, but may be one or two sentences longer if needed for clarity.
 6. **Preserve Technical Terms:** Keep domain-specific terminology, proper nouns, and technical terms unchanged or use appropriate synonyms only when they are truly equivalent.
 
 Output only the rephrased text without any additional explanation or commentary.
