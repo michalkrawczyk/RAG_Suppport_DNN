@@ -31,7 +31,7 @@ Implemented a comprehensive `TextAugmentationAgent` that provides LLM-based text
    - `SENTENCE_REPHRASE_PROMPT`: For rephrasing specific sentences
    - `VERIFY_MEANING_PRESERVATION_PROMPT`: For verifying semantic equivalence
 
-3. **Documentation** (`RAG_supporters/agents/TEXT_AUGMENTATION_GUIDE.md`)
+3. **Documentation** (`docs/TEXT_AUGMENTATION_GUIDE.md`)
    - 312 lines of comprehensive documentation
    - Complete API reference
    - Usage examples
@@ -127,9 +127,10 @@ Created comprehensive test suite validating:
 ### New Files
 1. `RAG_supporters/agents/text_augmentation.py` - Main agent (469 lines)
 2. `RAG_supporters/prompts_templates/text_augmentation.py` - Prompts (66 lines)
-3. `RAG_supporters/agents/TEXT_AUGMENTATION_GUIDE.md` - Guide (312 lines)
+3. `docs/TEXT_AUGMENTATION_GUIDE.md` - Guide (312 lines)
 4. `examples/text_augmentation_example.py` - Examples (184 lines)
-5. `examples/README.md` - Examples documentation (41 lines)
+5. `docs/EXAMPLES_README.md` - Examples documentation (41 lines)
+6. `docs/README.md` - Documentation index
 
 ### Modified Files
 1. `RAG_supporters/agents/__init__.py` - Added TextAugmentationAgent export
