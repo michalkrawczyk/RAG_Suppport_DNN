@@ -7,7 +7,8 @@ This agent provides functionality to:
 """
 
 import logging
-from typing import List, Optional, Union
+import re
+from typing import List, Optional
 
 LOGGER = logging.getLogger(__name__)
 
@@ -262,15 +263,15 @@ try:
 
                 # Remove numbering (e.g., "1.", "1)", "1 -", etc.)
                 # Handle various numbering formats
-                import re
-
                 cleaned_line = re.sub(r"^\d+[\.\)\-\:]\s*", "", line)
                 if cleaned_line:
                     questions.append(cleaned_line)
 
             if len(questions) != n:
                 LOGGER.warning(
-                    "Expected %d questions but parsed %d from response", n, len(questions)
+                    "Expected %d questions but parsed %d from response",
+                    n,
+                    len(questions),
                 )
 
             if not questions:
@@ -347,10 +348,14 @@ try:
                 )
 
             if rephrase_mode == "domain" and not domain:
-                raise ValueError("domain parameter is required when rephrase_mode is 'domain'")
+                raise ValueError(
+                    "domain parameter is required when rephrase_mode is 'domain'"
+                )
 
             LOGGER.info(
-                "Starting rephrasing of %d questions in mode '%s'", len(df), rephrase_mode
+                "Starting rephrasing of %d questions in mode '%s'",
+                len(df),
+                rephrase_mode,
             )
 
             rephrased_questions = []
