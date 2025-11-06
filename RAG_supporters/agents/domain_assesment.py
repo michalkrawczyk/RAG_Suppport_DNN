@@ -12,7 +12,8 @@ LOGGER = logging.getLogger(__name__)
 
 try:
     import pandas as pd
-    from langchain.output_parsers import OutputFixingParser, PydanticOutputParser
+    from langchain.output_parsers import (OutputFixingParser,
+                                          PydanticOutputParser)
     from langchain_core.language_models import BaseChatModel
     from langchain_core.prompts import PromptTemplate
     from langgraph.graph import END, StateGraph
@@ -20,10 +21,8 @@ try:
     from tqdm import tqdm
 
     from prompts_templates.domain_extraction import (
-        QUESTION_DOMAIN_ASSESS_PROMPT,
-        QUESTION_DOMAIN_GUESS_PROMPT,
-        SRC_DOMAIN_EXTRACTION_PROMPT,
-    )
+        QUESTION_DOMAIN_ASSESS_PROMPT, QUESTION_DOMAIN_GUESS_PROMPT,
+        SRC_DOMAIN_EXTRACTION_PROMPT)
     from utils.text_utils import is_empty_text
 
     class OperationMode(str, Enum):

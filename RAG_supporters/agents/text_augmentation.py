@@ -18,10 +18,8 @@ try:
     from tqdm import tqdm
 
     from prompts_templates.text_augmentation import (
-        FULL_TEXT_REPHRASE_PROMPT,
-        SENTENCE_REPHRASE_PROMPT,
-        VERIFY_MEANING_PRESERVATION_PROMPT,
-    )
+        FULL_TEXT_REPHRASE_PROMPT, SENTENCE_REPHRASE_PROMPT,
+        VERIFY_MEANING_PRESERVATION_PROMPT)
     from utils.text_splitters import split_into_sentences
 
     class TextAugmentationAgent:
@@ -323,7 +321,9 @@ try:
                 return [None] * len(texts)
 
             # Prepare prompts
-            prompts = [FULL_TEXT_REPHRASE_PROMPT.format(text=text) for text in valid_texts]
+            prompts = [
+                FULL_TEXT_REPHRASE_PROMPT.format(text=text) for text in valid_texts
+            ]
 
             LOGGER.info(f"Batch rephrasing {len(prompts)} texts")
 
@@ -366,7 +366,9 @@ try:
                 return results
 
             except Exception as e:
-                LOGGER.error(f"Batch rephrasing failed: {e}, falling back to sequential")
+                LOGGER.error(
+                    f"Batch rephrasing failed: {e}, falling back to sequential"
+                )
                 return [self.rephrase_full_text(text, verify) for text in texts]
 
         def rephrase_random_sentence(
@@ -508,7 +510,9 @@ try:
                 return results
 
             except Exception as e:
-                LOGGER.error(f"Batch sentence rephrasing failed: {e}, falling back to sequential")
+                LOGGER.error(
+                    f"Batch sentence rephrasing failed: {e}, falling back to sequential"
+                )
                 return [self.rephrase_random_sentence(text, verify) for text in texts]
 
         def augment_dataframe(
@@ -765,7 +769,9 @@ try:
                             sentence_results = self.rephrase_random_sentence_batch(
                                 sentence_questions
                             )
-                            for i, result in zip(sentence_mode_indices, sentence_results):
+                            for i, result in zip(
+                                sentence_mode_indices, sentence_results
+                            ):
                                 if result:
                                     question_rephrased[i] = result
 
@@ -802,7 +808,9 @@ try:
                             sentence_results = self.rephrase_random_sentence_batch(
                                 sentence_sources
                             )
-                            for i, result in zip(sentence_mode_indices, sentence_results):
+                            for i, result in zip(
+                                sentence_mode_indices, sentence_results
+                            ):
                                 if result:
                                     source_rephrased[i] = result
 

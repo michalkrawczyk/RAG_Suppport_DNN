@@ -19,10 +19,8 @@ try:
     from tqdm import tqdm
 
     from prompts_templates.text_augmentation import (
-        ALTERNATIVE_QUESTIONS_GENERATION_PROMPT,
-        CONTEXTUAL_QUESTION_PROMPT,
-        QUESTION_REPHRASE_WITH_SOURCE_PROMPT,
-    )
+        ALTERNATIVE_QUESTIONS_GENERATION_PROMPT, CONTEXTUAL_QUESTION_PROMPT,
+        QUESTION_REPHRASE_WITH_SOURCE_PROMPT)
 
     class QuestionAugmentationAgent:
         """
@@ -486,9 +484,7 @@ try:
                 )
                 prompts.append([HumanMessage(content=prompt)])
 
-            LOGGER.info(
-                f"Batch rephrasing {len(prompts)} questions with sources"
-            )
+            LOGGER.info(f"Batch rephrasing {len(prompts)} questions with sources")
 
             try:
                 # Use LangChain's batch method
@@ -858,7 +854,11 @@ try:
                             errors += 1
 
                     # Checkpoint
-                    if save_path and checkpoint_size and processed % checkpoint_size == 0:
+                    if (
+                        save_path
+                        and checkpoint_size
+                        and processed % checkpoint_size == 0
+                    ):
                         df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
@@ -885,7 +885,9 @@ try:
             processed = 0
             errors = 0
 
-            for idx, row in tqdm(df.iterrows(), total=len(df), desc="Rephrasing questions"):
+            for idx, row in tqdm(
+                df.iterrows(), total=len(df), desc="Rephrasing questions"
+            ):
                 question_text = row[col_map["question_text"]]
 
                 if pd.isna(question_text) or not str(question_text).strip():
@@ -902,7 +904,9 @@ try:
                             continue
 
                         rephrased = self.rephrase_question_with_source(
-                            str(question_text), str(source_text), allow_vague=allow_vague
+                            str(question_text),
+                            str(source_text),
+                            allow_vague=allow_vague,
                         )
                     else:  # domain mode
                         rephrased = self.rephrase_question_with_domain(
@@ -917,7 +921,11 @@ try:
                         errors += 1
 
                     # Checkpoint
-                    if save_path and checkpoint_size and processed % checkpoint_size == 0:
+                    if (
+                        save_path
+                        and checkpoint_size
+                        and processed % checkpoint_size == 0
+                    ):
                         df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
