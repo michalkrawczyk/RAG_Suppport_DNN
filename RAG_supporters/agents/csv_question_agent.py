@@ -1,13 +1,13 @@
 """
-CSV Question Agent for question rephrasing and alternative question generation.
+Question Augmentation Agent for question rephrasing and alternative question generation.
 
 This agent provides functionality to:
 1. Rephrase questions to align with source context and domain terminology
 2. Generate alternative questions based on source content
 """
 
+import json
 import logging
-import re
 from typing import List, Optional
 
 LOGGER = logging.getLogger(__name__)
@@ -18,13 +18,13 @@ try:
     from langchain_core.messages import HumanMessage
     from tqdm import tqdm
 
-    from prompts_templates.csv_questions import (
+    from prompts_templates.text_augmentation import (
         ALTERNATIVE_QUESTIONS_GENERATION_PROMPT,
         CONTEXTUAL_QUESTION_PROMPT,
         QUESTION_REPHRASE_WITH_SOURCE_PROMPT,
     )
 
-    class CSVQuestionAgent:
+    class QuestionAugmentationAgent:
         """
         Agent for question generation and rephrasing in CSV/DataFrame contexts.
 
@@ -53,7 +53,7 @@ try:
             max_retries: int = 3,
         ):
             """
-            Initialize the CSVQuestionAgent.
+            Initialize the QuestionAugmentationAgent.
 
             Parameters
             ----------
@@ -104,7 +104,7 @@ try:
             return None
 
         def rephrase_question_with_source(
-            self, question: str, source: str
+            self, question: str, source: str, allow_vague: bool = False
         ) -> Optional[str]:
             """
             Rephrase a question to align with the terminology and context of a source.
@@ -119,6 +119,9 @@ try:
                 The original question to rephrase.
             source : str
                 The source text providing context and domain terminology.
+            allow_vague : bool, optional
+                If True, allows the rephrased question to use less precise language.
+                If False (default), ensures the question is clear and specific.
 
             Returns
             -------
@@ -127,7 +130,7 @@ try:
 
             Examples
             --------
-            >>> agent = CSVQuestionAgent(llm=my_llm)
+            >>> agent = QuestionAugmentationAgent(llm=my_llm)
             >>> question = "What does it do?"
             >>> source = "Mitochondria are organelles that generate ATP..."
             >>> rephrased = agent.rephrase_question_with_source(question, source)
@@ -142,8 +145,16 @@ try:
                 LOGGER.warning("Empty source provided for question rephrasing")
                 return None
 
+            clarity_instruction = (
+                "The question can use less precise or vague language if it sounds more natural."
+                if allow_vague
+                else "Ensure the rephrased question is clear, specific, and answerable based on the source."
+            )
+
             prompt = QUESTION_REPHRASE_WITH_SOURCE_PROMPT.format(
-                question=question, source=source
+                question=question,
+                source=source,
+                clarity_instruction=clarity_instruction,
             )
             rephrased = self._invoke_llm_with_retry(prompt)
 
@@ -154,7 +165,7 @@ try:
             return rephrased
 
         def rephrase_question_with_domain(
-            self, question: str, domain: str
+            self, question: str, domain: str, allow_vague: bool = False
         ) -> Optional[str]:
             """
             Rephrase a question to align with a specific domain or context.
@@ -168,6 +179,9 @@ try:
                 The original question to rephrase.
             domain : str
                 The domain or context description (e.g., "biology", "machine learning").
+            allow_vague : bool, optional
+                If True, allows the rephrased question to use less precise language.
+                If False (default), ensures the question is clear and specific.
 
             Returns
             -------
@@ -176,7 +190,7 @@ try:
 
             Examples
             --------
-            >>> agent = CSVQuestionAgent(llm=my_llm)
+            >>> agent = QuestionAugmentationAgent(llm=my_llm)
             >>> question = "How do you make it learn?"
             >>> domain = "machine learning"
             >>> rephrased = agent.rephrase_question_with_domain(question, domain)
@@ -191,7 +205,17 @@ try:
                 LOGGER.warning("Empty domain provided for question rephrasing")
                 return None
 
-            prompt = CONTEXTUAL_QUESTION_PROMPT.format(question=question, domain=domain)
+            clarity_instruction = (
+                "The question can use less precise or vague language if it sounds more natural."
+                if allow_vague
+                else "Ensure the question remains clear and specific."
+            )
+
+            prompt = CONTEXTUAL_QUESTION_PROMPT.format(
+                question=question,
+                domain=domain,
+                clarity_instruction=clarity_instruction,
+            )
             rephrased = self._invoke_llm_with_retry(prompt)
 
             if rephrased is None:
@@ -201,7 +225,7 @@ try:
             return rephrased
 
         def generate_alternative_questions(
-            self, source: str, n: int = 5
+            self, source: str, n: int = 5, allow_vague: bool = False
         ) -> Optional[List[str]]:
             """
             Generate n alternative questions that can be answered by the source.
@@ -215,6 +239,9 @@ try:
                 The source text to generate questions from.
             n : int, optional
                 Number of questions to generate. Default is 5.
+            allow_vague : bool, optional
+                If True, allows generated questions to use less precise language.
+                If False (default), ensures questions are specific and focused.
 
             Returns
             -------
@@ -223,7 +250,7 @@ try:
 
             Examples
             --------
-            >>> agent = CSVQuestionAgent(llm=my_llm)
+            >>> agent = QuestionAugmentationAgent(llm=my_llm)
             >>> source = "Photosynthesis is the process by which plants..."
             >>> questions = agent.generate_alternative_questions(source, n=3)
             >>> for q in questions:
@@ -247,44 +274,63 @@ try:
                     "Large n value (%d) may result in lower quality questions", n
                 )
 
-            prompt = ALTERNATIVE_QUESTIONS_GENERATION_PROMPT.format(source=source, n=n)
+            clarity_instruction = (
+                "Questions can be less specific or use vague language if it sounds more natural."
+                if allow_vague
+                else "Questions should be specific and focused, not overly broad or vague."
+            )
+
+            prompt = ALTERNATIVE_QUESTIONS_GENERATION_PROMPT.format(
+                source=source, n=n, clarity_instruction=clarity_instruction
+            )
             response = self._invoke_llm_with_retry(prompt)
 
             if response is None:
                 LOGGER.error("Failed to generate alternative questions")
                 return None
 
-            # Parse the response to extract individual questions
-            questions = []
-            for line in response.split("\n"):
-                line = line.strip()
-                if not line:
-                    continue
+            # Parse JSON response
+            try:
+                # Try to extract JSON from the response
+                response_cleaned = response.strip()
+                # Handle potential markdown code blocks
+                if response_cleaned.startswith("```"):
+                    lines = response_cleaned.split("\n")
+                    response_cleaned = "\n".join(
+                        line for line in lines if not line.strip().startswith("```")
+                    )
 
-                # Remove numbering (e.g., "1.", "1)", "1 -", etc.)
-                # Handle various numbering formats
-                cleaned_line = re.sub(r"^\d+[\.\)\-\:]\s*", "", line)
-                if cleaned_line:
-                    questions.append(cleaned_line)
+                data = json.loads(response_cleaned)
+                questions = data.get("questions", [])
 
-            if len(questions) != n:
-                LOGGER.warning(
-                    "Expected %d questions but parsed %d from response",
-                    n,
-                    len(questions),
-                )
+                if not isinstance(questions, list):
+                    LOGGER.error("Response JSON 'questions' field is not a list")
+                    return None
 
-            if not questions:
-                LOGGER.error("No questions could be parsed from response")
+                if len(questions) != n:
+                    LOGGER.warning(
+                        "Expected %d questions but received %d from JSON response",
+                        n,
+                        len(questions),
+                    )
+
+                if not questions:
+                    LOGGER.error("No questions found in JSON response")
+                    return None
+
+                return questions
+
+            except json.JSONDecodeError as e:
+                LOGGER.error("Failed to parse JSON response: %s", str(e))
+                LOGGER.debug("Response was: %s", response)
                 return None
-
-            return questions
 
         def process_dataframe_rephrasing(
             self,
             df: pd.DataFrame,
             rephrase_mode: str = "source",
             domain: Optional[str] = None,
+            allow_vague: bool = False,
             columns_mapping: Optional[dict] = None,
         ) -> pd.DataFrame:
             """
@@ -299,6 +345,9 @@ try:
                 Default is 'source'.
             domain : Optional[str], optional
                 Domain context for rephrasing when mode is 'domain'.
+            allow_vague : bool, optional
+                If True, allows rephrased questions to use less precise language.
+                If False (default), ensures questions are clear and specific.
             columns_mapping : Optional[dict], optional
                 Mapping of expected column names. Should contain:
                 'question_text' (default: 'question_text'),
@@ -378,11 +427,11 @@ try:
                         continue
 
                     rephrased = self.rephrase_question_with_source(
-                        str(question_text), str(source_text)
+                        str(question_text), str(source_text), allow_vague=allow_vague
                     )
                 else:  # domain mode
                     rephrased = self.rephrase_question_with_domain(
-                        str(question_text), domain
+                        str(question_text), domain, allow_vague=allow_vague
                     )
 
                 if rephrased is None:
@@ -407,6 +456,7 @@ try:
             self,
             df: pd.DataFrame,
             n_questions: int = 5,
+            allow_vague: bool = False,
             columns_mapping: Optional[dict] = None,
         ) -> pd.DataFrame:
             """
@@ -421,6 +471,9 @@ try:
                 DataFrame containing source text column.
             n_questions : int, optional
                 Number of alternative questions to generate per source. Default is 5.
+            allow_vague : bool, optional
+                If True, allows generated questions to use less precise language.
+                If False (default), ensures questions are specific and focused.
             columns_mapping : Optional[dict], optional
                 Mapping of expected column names. Should contain:
                 'source_text' (default: 'source_text'),
@@ -472,7 +525,7 @@ try:
                     continue
 
                 questions = self.generate_alternative_questions(
-                    str(source_text), n=n_questions
+                    str(source_text), n=n_questions, allow_vague=allow_vague
                 )
 
                 if questions is None:
@@ -505,6 +558,7 @@ try:
             output_csv_path: str,
             rephrase_mode: str = "source",
             domain: Optional[str] = None,
+            allow_vague: bool = False,
             columns_mapping: Optional[dict] = None,
         ) -> pd.DataFrame:
             """
@@ -520,6 +574,9 @@ try:
                 Mode of rephrasing: 'source' or 'domain'. Default is 'source'.
             domain : Optional[str], optional
                 Domain context for rephrasing when mode is 'domain'.
+            allow_vague : bool, optional
+                If True, allows rephrased questions to use less precise language.
+                If False (default), ensures questions are clear and specific.
             columns_mapping : Optional[dict], optional
                 Mapping of expected column names.
 
@@ -535,6 +592,7 @@ try:
                 df,
                 rephrase_mode=rephrase_mode,
                 domain=domain,
+                allow_vague=allow_vague,
                 columns_mapping=columns_mapping,
             )
 
@@ -548,6 +606,7 @@ try:
             input_csv_path: str,
             output_csv_path: str,
             n_questions: int = 5,
+            allow_vague: bool = False,
             columns_mapping: Optional[dict] = None,
         ) -> pd.DataFrame:
             """
@@ -561,6 +620,9 @@ try:
                 Path to save the output CSV with generated questions.
             n_questions : int, optional
                 Number of questions to generate per source. Default is 5.
+            allow_vague : bool, optional
+                If True, allows generated questions to use less precise language.
+                If False (default), ensures questions are specific and focused.
             columns_mapping : Optional[dict], optional
                 Mapping of expected column names.
 
@@ -573,7 +635,10 @@ try:
             df = pd.read_csv(input_csv_path)
 
             result_df = self.process_dataframe_generation(
-                df, n_questions=n_questions, columns_mapping=columns_mapping
+                df,
+                n_questions=n_questions,
+                allow_vague=allow_vague,
+                columns_mapping=columns_mapping,
             )
 
             result_df.to_csv(output_csv_path, index=False, encoding="utf-8")
@@ -586,14 +651,14 @@ except ImportError as e:
     _IMPORT_ERROR = str(e)
 
     LOGGER.warning(
-        "CSVQuestionAgent dependencies not available: %s. "
+        "QuestionAugmentationAgent dependencies not available: %s. "
         "Install with: pip install langchain langchain_core tqdm pandas",
         e,
     )
 
-    class CSVQuestionAgent:
+    class QuestionAugmentationAgent:
         """
-        Placeholder for CSVQuestionAgent when dependencies are missing.
+        Placeholder for QuestionAugmentationAgent when dependencies are missing.
 
         To use this agent, install required dependencies:
             pip install langchain langchain_core tqdm pandas
@@ -602,7 +667,7 @@ except ImportError as e:
         def __init__(self, *args, **kwargs):
             """Raise ImportError for missing dependencies."""
             raise ImportError(
-                f"CSVQuestionAgent requires langchain_core and related dependencies to be installed.\n"
+                f"QuestionAugmentationAgent requires langchain_core and related dependencies to be installed.\n"
                 f"Original import error: {_IMPORT_ERROR}\n"
                 f"Install with: pip install langchain langchain_core tqdm pandas"
             )
@@ -610,5 +675,5 @@ except ImportError as e:
         def __getattr__(self, name):
             """Raise ImportError for missing dependencies."""
             raise ImportError(
-                f"CSVQuestionAgent not available due to missing dependencies: {_IMPORT_ERROR}"
+                f"QuestionAugmentationAgent not available due to missing dependencies: {_IMPORT_ERROR}"
             )
