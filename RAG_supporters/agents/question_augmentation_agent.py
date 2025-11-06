@@ -647,7 +647,6 @@ try:
             return result_df
 
 except ImportError as e:
-    _DEPENDENCIES_AVAILABLE = False
     _IMPORT_ERROR = str(e)
 
     LOGGER.warning(
