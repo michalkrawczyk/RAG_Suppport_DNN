@@ -1,8 +1,8 @@
-# CSVQuestionAgent Documentation
+# QuestionAugmentationAgent Documentation
 
 ## Overview
 
-The `CSVQuestionAgent` provides functionality to work with questions in CSV/DataFrame contexts, specifically for RAG (Retrieval-Augmented Generation) datasets. It supports two main features:
+The `QuestionAugmentationAgent` provides functionality to work with questions in CSV/DataFrame contexts, specifically for RAG (Retrieval-Augmented Generation) datasets. It supports two main features:
 
 1. **Question Rephrasing**: Rephrase questions to align with source content and domain terminology
 2. **Alternative Question Generation**: Generate multiple relevant questions based on source text
@@ -45,11 +45,11 @@ For other LLM providers, install the appropriate langchain integration package.
 
 ```python
 from langchain_openai import ChatOpenAI
-from RAG_supporters.agents.csv_question_agent import CSVQuestionAgent
+from RAG_supporters.agents.question_augmentation_agent import QuestionAugmentationAgent
 
 # Initialize with an LLM
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)
-agent = CSVQuestionAgent(llm=llm, max_retries=3)
+agent = QuestionAugmentationAgent(llm=llm, max_retries=3)
 ```
 
 ### Feature 1: Question Rephrasing
@@ -208,7 +208,7 @@ result_df = agent.process_dataframe_rephrasing(
 
 ```python
 # Initialize with custom retry settings
-agent = CSVQuestionAgent(llm=llm, max_retries=5)
+agent = QuestionAugmentationAgent(llm=llm, max_retries=5)
 ```
 
 ### Handling Large Datasets
@@ -232,12 +232,12 @@ final_df.to_csv("processed_large_file.csv", index=False)
 
 ```python
 from langchain_openai import ChatOpenAI
-from RAG_supporters.agents.csv_question_agent import CSVQuestionAgent
+from RAG_supporters.agents.question_augmentation_agent import QuestionAugmentationAgent
 import pandas as pd
 
 # Initialize
 llm = ChatOpenAI(model="gpt-4", temperature=0.5)
-agent = CSVQuestionAgent(llm=llm)
+agent = QuestionAugmentationAgent(llm=llm)
 
 # Sample data with generic questions
 data = {
@@ -265,12 +265,12 @@ print(result[["question_text", "rephrased_question"]])
 
 ```python
 from langchain_openai import ChatOpenAI
-from RAG_supporters.agents.csv_question_agent import CSVQuestionAgent
+from RAG_supporters.agents.question_augmentation_agent import QuestionAugmentationAgent
 import pandas as pd
 
 # Initialize
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.8)
-agent = CSVQuestionAgent(llm=llm)
+agent = QuestionAugmentationAgent(llm=llm)
 
 # Load sources
 sources_df = pd.read_csv("scientific_articles.csv")
@@ -290,12 +290,12 @@ print(f"Generated pairs: {len(augmented_df)}")
 
 ```python
 from langchain_openai import ChatOpenAI
-from RAG_supporters.agents.csv_question_agent import CSVQuestionAgent
+from RAG_supporters.agents.question_augmentation_agent import QuestionAugmentationAgent
 import pandas as pd
 
 # Initialize
 llm = ChatOpenAI(model="gpt-4", temperature=0.3)
-agent = CSVQuestionAgent(llm=llm)
+agent = QuestionAugmentationAgent(llm=llm)
 
 # Load general questions
 df = pd.read_csv("general_questions.csv")
@@ -346,12 +346,12 @@ source_text
 
 ## API Reference
 
-### CSVQuestionAgent Class
+### QuestionAugmentationAgent Class
 
 #### Constructor
 
 ```python
-CSVQuestionAgent(llm: BaseChatModel, max_retries: int = 3)
+QuestionAugmentationAgent(llm: BaseChatModel, max_retries: int = 3)
 ```
 
 **Parameters:**
