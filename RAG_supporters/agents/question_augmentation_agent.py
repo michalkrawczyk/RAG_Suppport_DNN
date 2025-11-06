@@ -105,16 +105,14 @@ try:
                         continue
 
                     return result.strip()
+
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     LOGGER.warning(
-                        "LLM invocation failed (attempt %d/%d): %s",
-                        attempt + 1,
-                        self._max_retries,
-                        str(e),
+                        f"LLM invocation failed (attempt {attempt + 1}/{self._max_retries}): {str(e)}"
                     )
                     if attempt == self._max_retries - 1:
                         LOGGER.error(
-                            "All %d LLM invocation attempts failed", self._max_retries
+                            f"All {self._max_retries} LLM invocation attempts failed"
                         )
                         return None
             return None
@@ -281,13 +279,13 @@ try:
 
             if n < 1:
                 LOGGER.warning(
-                    "Invalid n value (%d) for question generation, must be >= 1", n
+                    f"Invalid n value ({n}) for question generation, must be >= 1"
                 )
                 return None
 
             if n > 20:
                 LOGGER.warning(
-                    "Large n value (%d) may result in lower quality questions", n
+                    f"Large n value ({n}) may result in lower quality questions"
                 )
 
             clarity_instruction = (
@@ -313,30 +311,22 @@ try:
                 LOGGER.debug(f"Response was: {response}")
                 return None
 
-                data = json.loads(response_cleaned)
-                questions = data.get("questions", [])
+            questions = data.get("questions", [])
 
-                if not isinstance(questions, list):
-                    LOGGER.error("Response JSON 'questions' field is not a list")
-                    return None
-
-                if len(questions) != n:
-                    LOGGER.warning(
-                        "Expected %d questions but received %d from JSON response",
-                        n,
-                        len(questions),
-                    )
-
-                if not questions:
-                    LOGGER.error("No questions found in JSON response")
-                    return None
-
-                return questions
-
-            except json.JSONDecodeError as e:
-                LOGGER.error("Failed to parse JSON response: %s", str(e))
-                LOGGER.debug("Response was: %s", response)
+            if not isinstance(questions, list):
+                LOGGER.error("Response JSON 'questions' field is not a list")
                 return None
+
+            if len(questions) != n:
+                LOGGER.warning(
+                    f"Expected {n} questions but received {len(questions)} from JSON response"
+                )
+
+            if not questions:
+                LOGGER.error("No questions found in JSON response")
+                return None
+
+            return questions
 
         def process_dataframe_rephrasing(
             self,
@@ -381,12 +371,22 @@ try:
                 LOGGER.warning("Empty DataFrame provided")
                 return df
 
-            # Set up column mapping
+            # Set up column mapping with validation
             default_mapping = {
                 "question_text": "question_text",
                 "source_text": "source_text",
                 "rephrased_question": "rephrased_question",
             }
+
+            # Validate columns_mapping keys
+            if columns_mapping:
+                invalid_keys = set(columns_mapping.keys()) - set(default_mapping.keys())
+                if invalid_keys:
+                    raise ValueError(
+                        f"Invalid column mapping keys: {invalid_keys}. "
+                        f"Valid keys are: {list(default_mapping.keys())}"
+                    )
+
             col_map = {**default_mapping, **(columns_mapping or {})}
 
             # Validate mode
@@ -415,9 +415,7 @@ try:
                 )
 
             LOGGER.info(
-                "Starting rephrasing of %d questions in mode '%s'",
-                len(df),
-                rephrase_mode,
+                f"Starting rephrasing of {len(df)} questions in mode '{rephrase_mode}'"
             )
 
             rephrased_questions = []
@@ -428,14 +426,14 @@ try:
                 question_text = row[col_map["question_text"]]
 
                 if pd.isna(question_text) or not str(question_text).strip():
-                    LOGGER.warning("Empty question at index %s, skipping", idx)
+                    LOGGER.warning(f"Empty question at index {idx}, skipping")
                     rephrased_questions.append(None)
                     continue
 
                 if rephrase_mode == "source":
                     source_text = row[col_map["source_text"]]
                     if pd.isna(source_text) or not str(source_text).strip():
-                        LOGGER.warning("Empty source at index %s, skipping", idx)
+                        LOGGER.warning(f"Empty source at index {idx}, skipping")
                         rephrased_questions.append(None)
                         continue
 
@@ -448,7 +446,7 @@ try:
                     )
 
                 if rephrased is None:
-                    LOGGER.warning("Failed to rephrase question at index %s", idx)
+                    LOGGER.warning(f"Failed to rephrase question at index {idx}")
 
                 rephrased_questions.append(rephrased)
 
@@ -458,9 +456,7 @@ try:
 
             successful_count = sum(1 for q in rephrased_questions if q is not None)
             LOGGER.info(
-                "Successfully rephrased %d out of %d questions",
-                successful_count,
-                len(df),
+                f"Successfully rephrased {successful_count} out of {len(df)} questions"
             )
 
             return result_df
@@ -506,11 +502,21 @@ try:
                 LOGGER.warning("Empty DataFrame provided")
                 return df
 
-            # Set up column mapping
+            # Set up column mapping with validation
             default_mapping = {
                 "source_text": "source_text",
                 "question_text": "question_text",
             }
+
+            # Validate columns_mapping keys
+            if columns_mapping:
+                invalid_keys = set(columns_mapping.keys()) - set(default_mapping.keys())
+                if invalid_keys:
+                    raise ValueError(
+                        f"Invalid column mapping keys: {invalid_keys}. "
+                        f"Valid keys are: {list(default_mapping.keys())}"
+                    )
+
             col_map = {**default_mapping, **(columns_mapping or {})}
 
             # Validate columns exist
@@ -521,9 +527,7 @@ try:
                 )
 
             LOGGER.info(
-                "Starting generation of %d questions per source for %d sources",
-                n_questions,
-                len(df),
+                f"Starting generation of {n_questions} questions per source for {len(df)} sources"
             )
 
             generated_rows = []
@@ -534,7 +538,7 @@ try:
                 source_text = row[col_map["source_text"]]
 
                 if pd.isna(source_text) or not str(source_text).strip():
-                    LOGGER.warning("Empty source at index %s, skipping", idx)
+                    LOGGER.warning(f"Empty source at index {idx}, skipping")
                     continue
 
                 questions = self.generate_alternative_questions(
@@ -543,7 +547,7 @@ try:
 
                 if questions is None:
                     LOGGER.warning(
-                        "Failed to generate questions for source at index %s", idx
+                        f"Failed to generate questions for source at index {idx}"
                     )
                     continue
 
@@ -556,9 +560,7 @@ try:
             if generated_rows:
                 result_df = pd.DataFrame(generated_rows)
                 LOGGER.info(
-                    "Generated %d question-source pairs from %d sources",
-                    len(result_df),
-                    len(df),
+                    f"Generated {len(result_df)} question-source pairs from {len(df)} sources"
                 )
                 return result_df
 
@@ -598,8 +600,8 @@ try:
             pd.DataFrame
                 The processed DataFrame with rephrased questions.
             """
-            LOGGER.info("Loading CSV from %s", input_csv_path)
-            df = pd.read_csv(input_csv_path)
+            LOGGER.info(f"Loading CSV from {input_csv_path}")
+            df = pd.read_csv(input_csv_path, encoding="utf-8")
 
             result_df = self.process_dataframe_rephrasing(
                 df,
@@ -610,7 +612,7 @@ try:
             )
 
             result_df.to_csv(output_csv_path, index=False, encoding="utf-8")
-            LOGGER.info("Processed CSV saved to %s", output_csv_path)
+            LOGGER.info(f"Processed CSV saved to {output_csv_path}")
 
             return result_df
 
@@ -644,8 +646,8 @@ try:
             pd.DataFrame
                 The generated DataFrame with question-source pairs.
             """
-            LOGGER.info("Loading CSV from %s", input_csv_path)
-            df = pd.read_csv(input_csv_path)
+            LOGGER.info(f"Loading CSV from {input_csv_path}")
+            df = pd.read_csv(input_csv_path, encoding="utf-8")
 
             result_df = self.process_dataframe_generation(
                 df,
@@ -655,7 +657,7 @@ try:
             )
 
             result_df.to_csv(output_csv_path, index=False, encoding="utf-8")
-            LOGGER.info("Generated CSV saved to %s", output_csv_path)
+            LOGGER.info(f"Generated CSV saved to {output_csv_path}")
 
             return result_df
 
@@ -663,9 +665,8 @@ except ImportError as e:
     _IMPORT_ERROR = str(e)
 
     LOGGER.warning(
-        "QuestionAugmentationAgent dependencies not available: %s. "
-        "Install with: pip install langchain langchain_core tqdm pandas",
-        e,
+        f"QuestionAugmentationAgent dependencies not available: {e}. "
+        "Install with: pip install langchain langchain_core tqdm pandas"
     )
 
     class QuestionAugmentationAgent:
