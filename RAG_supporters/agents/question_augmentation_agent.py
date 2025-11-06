@@ -91,11 +91,19 @@ try:
                 try:
                     message = HumanMessage(content=prompt)
                     response = self._llm.invoke([message])
-                    result = (
-                        response.content
-                        if hasattr(response, "content")
-                        else str(response)
-                    )
+
+                    # Validate response content
+                    if hasattr(response, "content"):
+                        result = response.content
+                    else:
+                        result = str(response) if response else None
+
+                    if result is None:
+                        LOGGER.warning(
+                            f"LLM returned None content (attempt {attempt + 1}/{self._max_retries})"
+                        )
+                        continue
+
                     return result.strip()
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     LOGGER.warning(
