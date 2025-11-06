@@ -3,6 +3,7 @@
 import re
 from typing import List
 
+
 def base_text_splitter(text: str, max_words: int = 200):
     """
     Split text into chunks of max_words words
