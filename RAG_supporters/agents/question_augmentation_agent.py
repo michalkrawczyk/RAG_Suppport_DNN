@@ -307,14 +307,11 @@ try:
 
             # Parse JSON response
             try:
-                # Try to extract JSON from the response
-                response_cleaned = response.strip()
-                # Handle potential markdown code blocks
-                if response_cleaned.startswith("```"):
-                    lines = response_cleaned.split("\n")
-                    response_cleaned = "\n".join(
-                        line for line in lines if not line.strip().startswith("```")
-                    )
+                data = json.loads(response)
+            except json.JSONDecodeError as e:
+                LOGGER.error(f"Failed to parse JSON response: {str(e)}")
+                LOGGER.debug(f"Response was: {response}")
+                return None
 
                 data = json.loads(response_cleaned)
                 questions = data.get("questions", [])
