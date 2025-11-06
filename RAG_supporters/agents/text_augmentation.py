@@ -7,7 +7,7 @@ preserving their original meaning, useful for data augmentation in RAG datasets.
 
 import logging
 import random
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 LOGGER = logging.getLogger(__name__)
 
@@ -40,6 +40,8 @@ try:
             Whether to verify that rephrased text preserves meaning. Default is False.
         max_retries : int, optional
             Maximum number of retries for LLM calls. Default is 3.
+        batch_size : int, optional
+            Default batch size for batch processing. Default is 10.
 
         Attributes
         ----------
@@ -49,6 +51,8 @@ try:
             Whether to verify meaning preservation.
         _max_retries : int
             Maximum retries for LLM operations.
+        batch_size : int
+            Default batch size for processing.
         """
 
         def __init__(
@@ -56,6 +60,7 @@ try:
             llm: BaseChatModel,
             verify_meaning: bool = False,
             max_retries: int = 3,
+            batch_size: int = 10,
         ):
             """
             Initialize the TextAugmentationAgent.
@@ -68,10 +73,31 @@ try:
                 Whether to verify that rephrased text preserves meaning. Default is False.
             max_retries : int, optional
                 Maximum number of retries for LLM calls. Default is 3.
+            batch_size : int, optional
+                Default batch size for batch processing. Default is 10.
             """
             self._llm = llm
             self._verify_meaning = verify_meaning
             self._max_retries = max_retries
+            self.batch_size = batch_size
+
+            # Check if LLM supports batch processing
+            self._is_openai_llm = self._check_openai_llm()
+
+        def _check_openai_llm(self) -> bool:
+            """Check if the LLM is from OpenAI for batch processing"""
+            try:
+                from langchain_openai import AzureChatOpenAI, ChatOpenAI
+
+                return isinstance(self._llm, (ChatOpenAI, AzureChatOpenAI))
+            except ImportError:
+                LOGGER.debug(
+                    "langchain_openai not installed, batch processing unavailable"
+                )
+                return False
+            except Exception as e:
+                LOGGER.debug(f"Could not determine if LLM is OpenAI: {e}")
+                return False
 
         def _invoke_llm_with_retry(self, prompt: str) -> Optional[str]:
             """
@@ -111,6 +137,47 @@ try:
                         return None
             return None
 
+        def _invoke_llm_batch(self, prompts: List[str]) -> List[Optional[str]]:
+            """
+            Invoke the LLM with a batch of prompts.
+
+            Parameters
+            ----------
+            prompts : List[str]
+                List of prompts to send to the LLM.
+
+            Returns
+            -------
+            List[Optional[str]]
+                List of responses, or None for failed items.
+            """
+            try:
+                # Prepare messages
+                messages_batch = [[HumanMessage(content=prompt)] for prompt in prompts]
+
+                # Use LangChain's batch method
+                responses = self._llm.batch(messages_batch)
+
+                # Extract content from responses
+                results = []
+                for response in responses:
+                    try:
+                        result = (
+                            response.content
+                            if hasattr(response, "content")
+                            else str(response)
+                        )
+                        results.append(result.strip() if result else None)
+                    except Exception as e:
+                        LOGGER.warning(f"Error extracting response content: {e}")
+                        results.append(None)
+
+                return results
+
+            except Exception as e:
+                LOGGER.error(f"Batch LLM invocation failed: {e}")
+                return [None] * len(prompts)
+
         def _verify_text_equivalence(
             self, original_text: str, rephrased_text: str
         ) -> bool:
@@ -144,6 +211,41 @@ try:
                 return False
 
             return "EQUIVALENT" in result.upper()
+
+        def _verify_text_equivalence_batch(
+            self, original_texts: List[str], rephrased_texts: List[str]
+        ) -> List[bool]:
+            """
+            Verify meaning preservation for batch of text pairs.
+
+            Parameters
+            ----------
+            original_texts : List[str]
+                List of original texts.
+            rephrased_texts : List[str]
+                List of rephrased texts.
+
+            Returns
+            -------
+            List[bool]
+                List of verification results.
+            """
+            if not self._verify_meaning:
+                return [True] * len(original_texts)
+
+            prompts = [
+                VERIFY_MEANING_PRESERVATION_PROMPT.format(
+                    original_text=orig, rephrased_text=reph
+                )
+                for orig, reph in zip(original_texts, rephrased_texts)
+            ]
+
+            results = self._invoke_llm_batch(prompts)
+
+            return [
+                "EQUIVALENT" in result.upper() if result else False
+                for result in results
+            ]
 
         def rephrase_full_text(
             self, text: str, verify: Optional[bool] = None
@@ -183,6 +285,93 @@ try:
                     return None
 
             return rephrased
+
+        def rephrase_full_text_batch(
+            self, texts: List[str], verify: Optional[bool] = None
+        ) -> List[Optional[str]]:
+            """
+            Rephrase multiple texts while preserving their meanings.
+
+            Parameters
+            ----------
+            texts : List[str]
+                List of texts to rephrase.
+            verify : Optional[bool], optional
+                Whether to verify meaning preservation. If None, uses instance default.
+
+            Returns
+            -------
+            List[Optional[str]]
+                List of rephrased texts, or None for failed items.
+            """
+            if not self._is_openai_llm:
+                LOGGER.info(
+                    "Batch processing not available, using sequential processing"
+                )
+                return [self.rephrase_full_text(text, verify) for text in texts]
+
+            # Filter empty texts
+            valid_indices = []
+            valid_texts = []
+            for i, text in enumerate(texts):
+                if text and text.strip():
+                    valid_indices.append(i)
+                    valid_texts.append(text)
+
+            if not valid_texts:
+                LOGGER.warning("No valid texts provided for batch rephrasing")
+                return [None] * len(texts)
+
+            # Prepare prompts
+            prompts = [
+                FULL_TEXT_REPHRASE_PROMPT.format(text=text) for text in valid_texts
+            ]
+
+            LOGGER.info(f"Batch rephrasing {len(prompts)} texts")
+
+            try:
+                # Get batch responses
+                rephrased_texts = self._invoke_llm_batch(prompts)
+
+                # Verify if needed
+                verify_flag = verify if verify is not None else self._verify_meaning
+                if verify_flag:
+                    # Filter out None results for verification
+                    texts_to_verify = []
+                    rephrased_to_verify = []
+                    verify_indices = []
+
+                    for i, rephrased in enumerate(rephrased_texts):
+                        if rephrased is not None:
+                            texts_to_verify.append(valid_texts[i])
+                            rephrased_to_verify.append(rephrased)
+                            verify_indices.append(i)
+
+                    if texts_to_verify:
+                        verification_results = self._verify_text_equivalence_batch(
+                            texts_to_verify, rephrased_to_verify
+                        )
+
+                        # Set failed verifications to None
+                        for i, verified in zip(verify_indices, verification_results):
+                            if not verified:
+                                LOGGER.warning(
+                                    f"Rephrased text {i} failed meaning verification"
+                                )
+                                rephrased_texts[i] = None
+
+                # Build final results array
+                results = [None] * len(texts)
+                for i, idx in enumerate(valid_indices):
+                    results[idx] = rephrased_texts[i]
+
+                return results
+
+            except Exception as e:
+                LOGGER.error(
+                    f"Batch rephrasing failed: {e}, falling back to sequential"
+                )
+                return [self.rephrase_full_text(text, verify) for text in texts]
 
         def rephrase_random_sentence(
             self, text: str, verify: Optional[bool] = None
@@ -233,6 +422,101 @@ try:
 
             return rephrased
 
+        def rephrase_random_sentence_batch(
+            self, texts: List[str], verify: Optional[bool] = None
+        ) -> List[Optional[str]]:
+            """
+            Rephrase a random sentence in multiple texts.
+
+            Parameters
+            ----------
+            texts : List[str]
+                List of texts to process.
+            verify : Optional[bool], optional
+                Whether to verify meaning preservation. If None, uses instance default.
+
+            Returns
+            -------
+            List[Optional[str]]
+                List of texts with one sentence rephrased, or None for failed items.
+            """
+            if not self._is_openai_llm:
+                LOGGER.info(
+                    "Batch processing not available, using sequential processing"
+                )
+                return [self.rephrase_random_sentence(text, verify) for text in texts]
+
+            # Filter and prepare texts
+            valid_indices = []
+            valid_texts = []
+            selected_sentences = []
+
+            for i, text in enumerate(texts):
+                if not text or not text.strip():
+                    continue
+
+                sentences = split_into_sentences(text)
+                if len(sentences) == 0:
+                    continue
+
+                valid_indices.append(i)
+                valid_texts.append(text)
+                selected_sentences.append(random.choice(sentences))
+
+            if not valid_texts:
+                LOGGER.warning("No valid texts provided for batch sentence rephrasing")
+                return [None] * len(texts)
+
+            # Prepare prompts
+            prompts = [
+                SENTENCE_REPHRASE_PROMPT.format(text=text, sentence=sentence)
+                for text, sentence in zip(valid_texts, selected_sentences)
+            ]
+
+            LOGGER.info(f"Batch rephrasing sentences in {len(prompts)} texts")
+
+            try:
+                # Get batch responses
+                rephrased_texts = self._invoke_llm_batch(prompts)
+
+                # Verify if needed
+                verify_flag = verify if verify is not None else self._verify_meaning
+                if verify_flag:
+                    texts_to_verify = []
+                    rephrased_to_verify = []
+                    verify_indices = []
+
+                    for i, rephrased in enumerate(rephrased_texts):
+                        if rephrased is not None:
+                            texts_to_verify.append(valid_texts[i])
+                            rephrased_to_verify.append(rephrased)
+                            verify_indices.append(i)
+
+                    if texts_to_verify:
+                        verification_results = self._verify_text_equivalence_batch(
+                            texts_to_verify, rephrased_to_verify
+                        )
+
+                        for i, verified in zip(verify_indices, verification_results):
+                            if not verified:
+                                LOGGER.warning(
+                                    f"Rephrased text {i} failed meaning verification"
+                                )
+                                rephrased_texts[i] = None
+
+                # Build final results
+                results = [None] * len(texts)
+                for i, idx in enumerate(valid_indices):
+                    results[idx] = rephrased_texts[i]
+
+                return results
+
+            except Exception as e:
+                LOGGER.error(
+                    f"Batch sentence rephrasing failed: {e}, falling back to sequential"
+                )
+                return [self.rephrase_random_sentence(text, verify) for text in texts]
+
         def augment_dataframe(
             self,
             df: pd.DataFrame,
@@ -241,6 +525,8 @@ try:
             rephrase_mode: str = "random",
             probability: float = 0.5,
             columns_mapping: Optional[dict] = None,
+            use_batch_processing: bool = True,
+            batch_size: Optional[int] = None,
         ) -> pd.DataFrame:
             """
             Augment a DataFrame by adding rephrased versions of questions and/or sources.
@@ -262,6 +548,10 @@ try:
                 Mapping of expected column names. Should contain:
                 'question_text' (default: 'question_text'),
                 'source_text' (default: 'source_text').
+            use_batch_processing : bool, optional
+                Use batch processing if available. Default is True.
+            batch_size : int, optional
+                Batch size for processing. If None, uses instance default.
 
             Returns
             -------
@@ -292,9 +582,42 @@ try:
                     f"Invalid rephrase_mode: {rephrase_mode}. Must be one of {valid_modes}"
                 )
 
-            augmented_rows = []
+            batch_size = batch_size or self.batch_size
+            should_batch = use_batch_processing and self._is_openai_llm
 
             LOGGER.info("Starting augmentation of %d rows", len(df))
+
+            if should_batch:
+                return self._augment_dataframe_batch(
+                    df,
+                    col_map,
+                    rephrase_question,
+                    rephrase_source,
+                    rephrase_mode,
+                    probability,
+                    batch_size,
+                )
+            else:
+                return self._augment_dataframe_sequential(
+                    df,
+                    col_map,
+                    rephrase_question,
+                    rephrase_source,
+                    rephrase_mode,
+                    probability,
+                )
+
+        def _augment_dataframe_sequential(
+            self,
+            df: pd.DataFrame,
+            col_map: dict,
+            rephrase_question: bool,
+            rephrase_source: bool,
+            rephrase_mode: str,
+            probability: float,
+        ) -> pd.DataFrame:
+            """Process DataFrame sequentially (original implementation)"""
+            augmented_rows = []
 
             for idx, row in tqdm(
                 df.iterrows(), total=len(df), desc="Augmenting dataset"
@@ -363,6 +686,165 @@ try:
             LOGGER.warning("No rows were successfully augmented")
             return df
 
+        def _augment_dataframe_batch(
+            self,
+            df: pd.DataFrame,
+            col_map: dict,
+            rephrase_question: bool,
+            rephrase_source: bool,
+            rephrase_mode: str,
+            probability: float,
+            batch_size: int,
+        ) -> pd.DataFrame:
+            """Process DataFrame using batch processing"""
+            # First, determine which rows to process
+            rows_to_augment = []
+            row_indices = []
+            row_modes = []
+
+            for idx, row in df.iterrows():
+                if random.random() <= probability:
+                    rows_to_augment.append(row)
+                    row_indices.append(idx)
+                    # Determine mode for this row
+                    if rephrase_mode == "random":
+                        row_modes.append(random.choice(["full", "sentence"]))
+                    else:
+                        row_modes.append(rephrase_mode)
+
+            if not rows_to_augment:
+                LOGGER.warning("No rows selected for augmentation")
+                return df
+
+            LOGGER.info(f"Augmenting {len(rows_to_augment)} rows in batches")
+
+            augmented_rows = []
+            total_batches = (len(rows_to_augment) + batch_size - 1) // batch_size
+
+            for batch_start in tqdm(
+                range(0, len(rows_to_augment), batch_size),
+                total=total_batches,
+                desc="Processing batches",
+            ):
+                batch_end = min(batch_start + batch_size, len(rows_to_augment))
+                batch_rows = rows_to_augment[batch_start:batch_end]
+                batch_modes = row_modes[batch_start:batch_end]
+
+                # Separate into full and sentence mode batches
+                full_mode_indices = [
+                    i for i, mode in enumerate(batch_modes) if mode == "full"
+                ]
+                sentence_mode_indices = [
+                    i for i, mode in enumerate(batch_modes) if mode == "sentence"
+                ]
+
+                # Process questions
+                question_rephrased = {}
+                if rephrase_question:
+                    questions = [
+                        str(row[col_map["question_text"]])
+                        for row in batch_rows
+                        if pd.notna(row[col_map["question_text"]])
+                        and str(row[col_map["question_text"]]).strip()
+                    ]
+
+                    if questions:
+                        # Batch for full mode
+                        if full_mode_indices:
+                            full_questions = [
+                                str(batch_rows[i][col_map["question_text"]])
+                                for i in full_mode_indices
+                                if pd.notna(batch_rows[i][col_map["question_text"]])
+                            ]
+                            full_results = self.rephrase_full_text_batch(full_questions)
+                            for i, result in zip(full_mode_indices, full_results):
+                                if result:
+                                    question_rephrased[i] = result
+
+                        # Batch for sentence mode
+                        if sentence_mode_indices:
+                            sentence_questions = [
+                                str(batch_rows[i][col_map["question_text"]])
+                                for i in sentence_mode_indices
+                                if pd.notna(batch_rows[i][col_map["question_text"]])
+                            ]
+                            sentence_results = self.rephrase_random_sentence_batch(
+                                sentence_questions
+                            )
+                            for i, result in zip(
+                                sentence_mode_indices, sentence_results
+                            ):
+                                if result:
+                                    question_rephrased[i] = result
+
+                # Process sources
+                source_rephrased = {}
+                if rephrase_source:
+                    sources = [
+                        str(row[col_map["source_text"]])
+                        for row in batch_rows
+                        if pd.notna(row[col_map["source_text"]])
+                        and str(row[col_map["source_text"]]).strip()
+                    ]
+
+                    if sources:
+                        # Batch for full mode
+                        if full_mode_indices:
+                            full_sources = [
+                                str(batch_rows[i][col_map["source_text"]])
+                                for i in full_mode_indices
+                                if pd.notna(batch_rows[i][col_map["source_text"]])
+                            ]
+                            full_results = self.rephrase_full_text_batch(full_sources)
+                            for i, result in zip(full_mode_indices, full_results):
+                                if result:
+                                    source_rephrased[i] = result
+
+                        # Batch for sentence mode
+                        if sentence_mode_indices:
+                            sentence_sources = [
+                                str(batch_rows[i][col_map["source_text"]])
+                                for i in sentence_mode_indices
+                                if pd.notna(batch_rows[i][col_map["source_text"]])
+                            ]
+                            sentence_results = self.rephrase_random_sentence_batch(
+                                sentence_sources
+                            )
+                            for i, result in zip(
+                                sentence_mode_indices, sentence_results
+                            ):
+                                if result:
+                                    source_rephrased[i] = result
+
+                # Build augmented rows
+                for i, row in enumerate(batch_rows):
+                    modified = False
+                    augmented_row = row.copy()
+
+                    if i in question_rephrased:
+                        augmented_row[col_map["question_text"]] = question_rephrased[i]
+                        modified = True
+
+                    if i in source_rephrased:
+                        augmented_row[col_map["source_text"]] = source_rephrased[i]
+                        modified = True
+
+                    if modified:
+                        augmented_rows.append(augmented_row)
+
+            if augmented_rows:
+                augmented_df = pd.DataFrame(augmented_rows)
+                result_df = pd.concat([df, augmented_df], ignore_index=True)
+                LOGGER.info(
+                    "Added %d augmented rows. Total rows: %d",
+                    len(augmented_rows),
+                    len(result_df),
+                )
+                return result_df
+
+            LOGGER.warning("No rows were successfully augmented")
+            return df
+
         def process_csv(
             self,
             input_csv_path: str,
@@ -372,6 +854,8 @@ try:
             rephrase_mode: str = "random",
             probability: float = 0.5,
             columns_mapping: Optional[dict] = None,
+            use_batch_processing: bool = True,
+            batch_size: Optional[int] = None,
         ) -> pd.DataFrame:
             """
             Process a CSV file by augmenting it with rephrased versions.
@@ -392,6 +876,10 @@ try:
                 Probability of applying rephrasing to each row. Default is 0.5.
             columns_mapping : Optional[dict], optional
                 Mapping of expected column names.
+            use_batch_processing : bool, optional
+                Use batch processing if available. Default is True.
+            batch_size : int, optional
+                Batch size for processing.
 
             Returns
             -------
@@ -408,6 +896,8 @@ try:
                 rephrase_mode=rephrase_mode,
                 probability=probability,
                 columns_mapping=columns_mapping,
+                use_batch_processing=use_batch_processing,
+                batch_size=batch_size,
             )
 
             output_path = output_csv_path or input_csv_path
