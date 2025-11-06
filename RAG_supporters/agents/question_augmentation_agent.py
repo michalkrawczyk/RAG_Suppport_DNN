@@ -62,6 +62,14 @@ try:
             max_retries : int, optional
                 Maximum number of retries for LLM calls. Default is 3.
             """
+            # Validate LLM
+            if llm is None:
+                raise ValueError("llm parameter cannot be None")
+            if not isinstance(llm, BaseChatModel):
+                raise TypeError(
+                    f"llm must be a BaseChatModel instance, got {type(llm).__name__}"
+                )
+
             self._llm = llm
             self._max_retries = max_retries
 
