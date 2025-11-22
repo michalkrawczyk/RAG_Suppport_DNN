@@ -420,7 +420,6 @@ def save_embeddings_to_json(
             "model_name": model_name,
             "embedding_dimension": embedding_dim,
             "num_keywords": len(keyword_embeddings),
-            "keywords": list(keyword_embeddings.keys()),
             **(metadata or {}),
         },
         "embeddings": embeddings_json,
