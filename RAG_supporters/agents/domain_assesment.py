@@ -931,6 +931,13 @@ try:
                         result_df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
+                except KeyboardInterrupt:
+                    LOGGER.warning("Processing interrupted by user")
+                    if save_path:
+                        result_df.to_csv(save_path, index=False)
+                        LOGGER.info(f"Progress saved to {save_path}")
+                    break
+
                 except Exception as e:
                     LOGGER.error(f"Batch error: {e}")
                     for idx in batch_indices:
