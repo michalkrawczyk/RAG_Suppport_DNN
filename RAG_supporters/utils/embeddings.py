@@ -260,16 +260,22 @@ def create_embeddings_for_keywords(
 def load_suggestions_from_csv(
         csv_path: str,
         suggestion_column: str = "suggestions",
+        chunksize: int = 1000,
+        show_progress: bool = True,
 ) -> List[Dict[str, Any]]:
     """
-    Load and parse suggestions from CSV file.
+    Load and parse suggestions from CSV file (supports large files).
 
     Parameters
     ----------
     csv_path : str
         Path to the CSV file
     suggestion_column : str
-        Name of the column containing suggestions
+        Name of the column containing suggestions (as JSON)
+    chunksize : int
+        Number of rows to process at a time (for large files)
+    show_progress : bool
+        Whether to show progress bar for large files
 
     Returns
     -------
@@ -282,51 +288,90 @@ def load_suggestions_from_csv(
     >>> len(suggestions)
     150
     """
-    import ast
-
     LOGGER.info(f"Loading suggestions from {csv_path}")
-    df = pd.read_csv(csv_path)
 
-    if suggestion_column not in df.columns:
-        raise ValueError(f"Column '{suggestion_column}' not found in CSV")
+    # First, get total rows for progress tracking
+    total_rows = None
+    if show_progress:
+        try:
+            # Quick count of lines
+            with open(csv_path, 'r', encoding='utf-8') as f:
+                total_rows = sum(1 for _ in f) - 1  # Exclude header
+        except Exception:
+            pass
 
     all_suggestions = []
 
-    for idx, row in df.iterrows():
-        suggestion_str = row[suggestion_column]
+    try:
+        # Read CSV in chunks
+        chunk_iterator = pd.read_csv(csv_path, chunksize=chunksize)
 
-        if pd.isna(suggestion_str):
-            continue
+        # Wrap with progress bar if requested
+        if show_progress and total_rows:
+            try:
+                from tqdm import tqdm
+                chunk_iterator = tqdm(
+                    chunk_iterator,
+                    total=(total_rows // chunksize) + 1,
+                    desc="Processing CSV chunks"
+                )
+            except ImportError:
+                LOGGER.debug("tqdm not available, skipping progress bar")
 
-        try:
-            # Handle string representation of list
-            if isinstance(suggestion_str, str):
-                suggestion_str = suggestion_str.strip()
-                if suggestion_str.startswith('[') and suggestion_str.endswith(']'):
-                    suggestions = ast.literal_eval(suggestion_str)
-                else:
-                    LOGGER.warning(
-                        f"Unexpected format at row {idx}: {suggestion_str[:100]}"
-                    )
+        rows_processed = 0
+
+        for chunk_df in chunk_iterator:
+            if suggestion_column not in chunk_df.columns:
+                raise ValueError(f"Column '{suggestion_column}' not found in CSV")
+
+            for idx, row in chunk_df.iterrows():
+                suggestion_str = row[suggestion_column]
+
+                if pd.isna(suggestion_str):
                     continue
-            else:
-                suggestions = suggestion_str
 
-            # Handle list of dicts
-            if isinstance(suggestions, list):
-                for item in suggestions:
-                    if isinstance(item, dict):
-                        all_suggestions.append(item)
+                try:
+                    # Parse JSON string
+                    if isinstance(suggestion_str, str):
+                        suggestion_str = suggestion_str.strip()
+                        suggestions = json.loads(suggestion_str)
                     else:
                         LOGGER.warning(
-                            f"Unexpected suggestion type at row {idx}: {type(item)}"
+                            f"Unexpected type at row {idx}: {type(suggestion_str)}"
+                        )
+                        continue
+
+                    # Handle list of dicts
+                    if isinstance(suggestions, list):
+                        for item in suggestions:
+                            if isinstance(item, dict):
+                                all_suggestions.append(item)
+                            else:
+                                LOGGER.warning(
+                                    f"Unexpected suggestion item type at row {idx}: {type(item)}"
+                                )
+                    else:
+                        LOGGER.warning(
+                            f"Expected list of suggestions at row {idx}, got {type(suggestions)}"
                         )
 
-        except Exception as e:
-            LOGGER.error(f"Error parsing suggestions at row {idx}: {e}")
-            continue
+                except json.JSONDecodeError as e:
+                    LOGGER.error(f"JSON decode error at row {idx}: {e}")
+                    continue
+                except Exception as e:
+                    LOGGER.error(f"Error parsing suggestions at row {idx}: {e}")
+                    continue
 
-    LOGGER.info(f"Loaded {len(all_suggestions)} total suggestions from {len(df)} rows")
+            rows_processed += len(chunk_df)
+
+        LOGGER.info(
+            f"Loaded {len(all_suggestions)} total suggestions from {rows_processed} rows"
+        )
+
+    except Exception as e:
+        LOGGER.error(f"Error reading CSV file: {e}")
+        raise
+
     return all_suggestions
 
 
