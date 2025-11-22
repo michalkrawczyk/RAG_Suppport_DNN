@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from sklearn.cluster import BisectingKMeans, KMeans
 
 LOGGER = logging.getLogger(__name__)
 
@@ -639,6 +638,14 @@ class KeywordClusterer:
 
     def _create_model(self):
         """Create the clustering model"""
+        try:
+            from sklearn.cluster import BisectingKMeans, KMeans
+        except ImportError:
+            raise ImportError(
+                "scikit-learn is required for clustering. "
+                "Install with: pip install scikit-learn"
+            )
+
         if self.algorithm == "kmeans":
             return KMeans(
                 n_clusters=self.n_clusters,
