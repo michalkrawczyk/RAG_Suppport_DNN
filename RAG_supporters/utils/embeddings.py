@@ -77,8 +77,8 @@ def aggregate_unique_keywords(
         suggestions: List[Dict[str, Any]],
         term_key: str = 'term',
         normalize: bool = True,
-        include_metadata: bool = False,
-) -> Union[List[str], Dict[str, Dict[str, Any]]]:
+        return_counts: bool = False,
+) -> Tuple[List[str], Optional[Dict[str, int]]]:
     """
     Aggregate suggestions into unique keywords.
 
@@ -90,89 +90,70 @@ def aggregate_unique_keywords(
         Key name for the term in suggestion dictionaries
     normalize : bool
         Whether to normalize terms (lowercase, strip whitespace)
-    include_metadata : bool
-        If True, return dict with metadata (type, confidence, reason) for each unique term
+    return_counts : bool
+        If True, also return occurrence counts for each unique term
 
     Returns
     -------
-    Union[List[str], Dict[str, Dict[str, Any]]]
-        If include_metadata=False: List of unique keywords
-        If include_metadata=True: Dict mapping keywords to their metadata
+    Tuple[List[str], Optional[Dict[str, int]]]
+        Tuple of (unique_keywords, counts_dict)
+        - unique_keywords: List of unique keywords (order preserved)
+        - counts_dict: Dict mapping keywords to counts if return_counts=True, else None
 
     Examples
     --------
     >>> suggestions = [
-    ...     {'term': 'Machine Learning', 'type': 'domain', 'confidence': 0.9},
-    ...     {'term': 'machine learning', 'type': 'domain', 'confidence': 0.85},
-    ...     {'term': 'Deep Learning', 'type': 'subdomain', 'confidence': 0.8}
+    ...     {'term': 'Machine Learning', 'confidence': 0.9},
+    ...     {'term': 'machine learning', 'confidence': 0.85},
+    ...     {'term': 'Deep Learning', 'confidence': 0.8},
+    ...     {'term': 'Machine Learning', 'confidence': 0.75}
     ... ]
-    >>> keywords = aggregate_unique_keywords(suggestions, normalize=True)
+    >>> keywords, counts = aggregate_unique_keywords(suggestions, normalize=True)
     >>> keywords
     ['machine learning', 'deep learning']
+    >>> counts is None
+    True
 
-    >>> keywords_meta = aggregate_unique_keywords(suggestions, normalize=True, include_metadata=True)
-    >>> keywords_meta['machine learning']['confidence']
-    0.9
+    >>> keywords, counts = aggregate_unique_keywords(suggestions, normalize=True, return_counts=True)
+    >>> keywords
+    ['machine learning', 'deep learning']
+    >>> counts
+    {'machine learning': 3, 'deep learning': 1}
     """
     if not suggestions:
         LOGGER.warning("Empty suggestions list provided")
-        return [] if not include_metadata else {}
+        return [], None
 
-    if include_metadata:
-        # Keep metadata for each unique term (first occurrence wins)
-        unique_keywords = {}
+    keywords = []
+    seen = set()
+    keyword_counts = {} if return_counts else None
 
-        for suggestion in suggestions:
-            term = suggestion.get(term_key, '')
-            if not term:
-                continue
+    for suggestion in suggestions:
+        term = suggestion.get(term_key, '')
+        if not term:
+            continue
 
-            # Normalize if requested
-            if normalize:
-                term = term.lower().strip()
-            else:
-                term = term.strip()
+        # Normalize if requested
+        if normalize:
+            term = term.lower().strip()
+        else:
+            term = term.strip()
 
-            # Add if not seen before (first occurrence)
-            if term not in unique_keywords:
-                unique_keywords[term] = {
-                    'type': suggestion.get('type', 'unknown'),
-                    'confidence': suggestion.get('confidence', 0.0),
-                    'reason': suggestion.get('reason', ''),
-                    'original_term': suggestion.get(term_key, term),
-                }
+        # Track counts if requested
+        if return_counts:
+            keyword_counts[term] = keyword_counts.get(term, 0) + 1
 
-        LOGGER.info(
-            f"Aggregated {len(unique_keywords)} unique keywords "
-            f"from {len(suggestions)} suggestions (with metadata)"
-        )
-        return unique_keywords
+        # Add to list if not seen (preserving order)
+        if term not in seen:
+            keywords.append(term)
+            seen.add(term)
 
-    else:
-        # Simple list of unique terms
-        keywords = []
-        seen = set()
+    log_msg = f"Aggregated {len(keywords)} unique keywords from {len(suggestions)} suggestions"
+    if return_counts:
+        log_msg += " (with counts)"
+    LOGGER.info(log_msg)
 
-        for suggestion in suggestions:
-            term = suggestion.get(term_key, '')
-            if not term:
-                continue
-
-            # Normalize if requested
-            if normalize:
-                term = term.lower().strip()
-            else:
-                term = term.strip()
-
-            # Add if not seen (preserving order)
-            if term not in seen:
-                keywords.append(term)
-                seen.add(term)
-
-        LOGGER.info(
-            f"Aggregated {len(keywords)} unique keywords from {len(suggestions)} suggestions"
-        )
-        return keywords
+    return keywords, keyword_counts
 
 
 def create_embeddings_for_keywords(
@@ -541,8 +522,7 @@ class KeywordEmbedder:
         keywords = aggregate_unique_keywords(
             filtered_suggestions,
             normalize=normalize_keywords,
-            include_metadata=False,
-        )
+        )[0]
 
         if not keywords:
             LOGGER.warning("No keywords found after filtering and aggregation")
