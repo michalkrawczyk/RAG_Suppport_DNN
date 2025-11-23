@@ -72,14 +72,14 @@ def filter_suggestions_by_confidence(
     return filtered
 
 
-def aggregate_unique_keywords(
+def aggregate_unique_terms(
         suggestions: List[Dict[str, Any]],
         term_key: str = 'term',
         normalize: bool = True,
         return_counts: bool = False,
 ) -> Tuple[List[str], Optional[Dict[str, int]]]:
     """
-    Aggregate suggestions into unique keywords.
+    Aggregate terms into unique keywords.
 
     Parameters
     ----------
@@ -107,13 +107,13 @@ def aggregate_unique_keywords(
     ...     {'term': 'Deep Learning', 'confidence': 0.8},
     ...     {'term': 'Machine Learning', 'confidence': 0.75}
     ... ]
-    >>> keywords, counts = aggregate_unique_keywords(suggestions, normalize=True)
+    >>> keywords, counts = aggregate_unique_terms(suggestions, normalize=True)
     >>> keywords
     ['machine learning', 'deep learning']
     >>> counts is None
     True
 
-    >>> keywords, counts = aggregate_unique_keywords(suggestions, normalize=True, return_counts=True)
+    >>> keywords, counts = aggregate_unique_terms(suggestions, normalize=True, return_counts=True)
     >>> keywords
     ['machine learning', 'deep learning']
     >>> counts
@@ -562,7 +562,7 @@ class KeywordEmbedder:
         )
 
         # Step 3: Aggregate unique keywords
-        keywords = aggregate_unique_keywords(
+        keywords = aggregate_unique_terms(
             filtered_suggestions,
             normalize=normalize_keywords,
         )[0]
