@@ -20,25 +20,27 @@ LOGGER = logging.getLogger(__name__)
 # CORE FUNCTIONS - Independent implementations
 # ============================================================================
 
-def filter_suggestions_by_confidence(
+def filter_by_field_value(
         suggestions: List[Dict[str, Any]],
-        min_confidence: float = 0.7,
+        min_value: float = 0.7,
+        field_name: str = 'confidence',
 ) -> List[Dict[str, Any]]:
     """
-    Filter suggestions by confidence threshold.
-    (This is used for suggestions in domain analysis results)
+    Filter suggestions by a numeric field threshold.
 
     Parameters
     ----------
     suggestions : List[Dict[str, Any]]
-        List of suggestions, each containing at least 'confidence' key
-    min_confidence : float
-        Minimum confidence threshold (0.0 to 1.0)
+        List of suggestions, each containing numeric field to filter by
+    min_value : float
+        Minimum threshold value (0.0 to 1.0 for confidence-like fields)
+    field_name : str
+        Name of the numeric field to filter by (default: 'confidence')
 
     Returns
     -------
     List[Dict[str, Any]]
-        Filtered suggestions that meet the confidence threshold
+        Filtered suggestions that meet the threshold
 
     Examples
     --------
@@ -47,26 +49,54 @@ def filter_suggestions_by_confidence(
     ...     {'term': 'data science', 'confidence': 0.6},
     ...     {'term': 'AI', 'confidence': 0.85}
     ... ]
-    >>> filtered = filter_suggestions_by_confidence(suggestions, 0.7)
+    >>> filtered = filter_by_field_value(suggestions, 0.7)
     >>> len(filtered)
     2
+
+    >>> # Filter by custom field
+    >>> suggestions = [
+    ...     {'term': 'keyword1', 'score': 0.8},
+    ...     {'term': 'keyword2', 'score': 0.5}
+    ... ]
+    >>> filtered = filter_by_field_value(suggestions, 0.6, field_name='score')
+    >>> len(filtered)
+    1
     """
     if not suggestions:
         LOGGER.warning("Empty suggestions list provided")
         return []
 
-    if not 0.0 <= min_confidence <= 1.0:
-        raise ValueError(f"min_confidence must be between 0.0 and 1.0, got {min_confidence}")
-
     filtered = []
+    skipped_missing_field = 0
+
     for suggestion in suggestions:
-        confidence = suggestion.get('confidence', 0.0)
-        if confidence >= min_confidence:
+        # Check if field exists
+        if field_name not in suggestion:
+            skipped_missing_field += 1
+            continue
+
+        field_value = suggestion.get(field_name, 0.0)
+
+        # Try to convert to float if not already
+        try:
+            field_value = float(field_value)
+        except (ValueError, TypeError):
+            LOGGER.warning(
+                f"Could not convert field '{field_name}' value '{field_value}' to float, skipping"
+            )
+            continue
+
+        if field_value >= min_value:
             filtered.append(suggestion)
+
+    if skipped_missing_field > 0:
+        LOGGER.warning(
+            f"Skipped {skipped_missing_field} suggestions missing field '{field_name}'"
+        )
 
     LOGGER.info(
         f"Filtered {len(filtered)}/{len(suggestions)} suggestions "
-        f"with confidence >= {min_confidence}"
+        f"with {field_name} >= {min_value}"
     )
 
     return filtered
@@ -557,7 +587,7 @@ class KeywordEmbedder:
         suggestions = load_suggestions_from_csv(csv_path, suggestion_column)
 
         # Step 2: Filter by confidence
-        filtered_suggestions = filter_suggestions_by_confidence(
+        filtered_suggestions = filter_by_field_value(
             suggestions, min_confidence
         )
 
