@@ -1,9 +1,4 @@
-"""
-domain_embeddings_clustering.py
-Process domain analysis results: filter, embed, cluster, and compare keywords.
-
-This module is standalone and does not depend on domain_analysis_agent.py
-"""
+# TODO Docstring
 
 import json
 import logging
@@ -14,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 LOGGER = logging.getLogger(__name__)
-
+# TODO: SPlit it to separate files
 
 # ============================================================================
 # CORE FUNCTIONS - Independent implementations
@@ -292,6 +287,7 @@ def load_suggestions_from_csv(
         chunksize: int = 1000,
         show_progress: bool = True,
 ) -> List[Dict[str, Any]]:
+    # TODO: Refactor
     """
     Load and parse suggestions from CSV file (supports large files).
 
