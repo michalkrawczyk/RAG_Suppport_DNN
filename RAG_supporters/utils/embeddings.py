@@ -155,8 +155,8 @@ def aggregate_unique_keywords(
     return keywords, keyword_counts
 
 
-def create_embeddings_for_keywords(
-        keywords: List[str],
+def create_embeddings_for_strings(
+        str_list: List[str],
         embedding_model: Optional[Any] = None,
         model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
         batch_size: int = 32,
@@ -168,8 +168,8 @@ def create_embeddings_for_keywords(
 
     Parameters
     ----------
-    keywords : List[str]
-        List of keywords to embed
+    str_list : List[str]
+        List of words to embed
     embedding_model : Optional[Any]
         Pre-loaded embedding model. If None, will load model_name
     model_name : str
@@ -184,12 +184,12 @@ def create_embeddings_for_keywords(
     Returns
     -------
     Dict[str, np.ndarray]
-        Dictionary mapping each keyword to its embedding vector
+        Dictionary mapping each word to its embedding vector
 
     Examples
     --------
     >>> keywords = ['machine learning', 'data science', 'artificial intelligence']
-    >>> embeddings = create_embeddings_for_keywords(keywords)
+    >>> embeddings = create_embeddings_for_strings(str_list)
     >>> len(embeddings)
     3
     >>> embeddings['machine learning'].shape
@@ -202,15 +202,15 @@ def create_embeddings_for_keywords(
     ValueError
         If keywords list is empty
     """
-    if not keywords:
+    if not str_list:
         raise ValueError("Keywords list cannot be empty")
 
     # Remove duplicates while preserving order
-    unique_keywords = list(dict.fromkeys(keywords))
+    unique_keywords = list(dict.fromkeys(str_list))
 
-    if len(unique_keywords) < len(keywords):
+    if len(unique_keywords) < len(str_list):
         LOGGER.warning(
-            f"Removed {len(keywords) - len(unique_keywords)} duplicate keywords"
+            f"Removed {len(str_list) - len(unique_keywords)} duplicate keywords"
         )
 
     # Load model if not provided
@@ -572,7 +572,7 @@ class KeywordEmbedder:
             return {}
 
         # Step 4: Create embeddings for keywords
-        keyword_embeddings = create_embeddings_for_keywords(
+        keyword_embeddings = create_embeddings_for_strings(
             keywords,
             embedding_model=self.model,
             model_name=self.model_name,
