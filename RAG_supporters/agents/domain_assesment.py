@@ -683,21 +683,27 @@ try:
                     ]
 
         def process_dataframe(
-            self,
-            df: pd.DataFrame,
-            mode: OperationMode,
-            text_source_col: Optional[str] = None,
-            question_col: Optional[str] = None,
-            available_terms: Optional[Union[List[str], List[Dict], str]] = None,
-            progress_bar: bool = True,
-            save_path: Optional[str] = None,
-            skip_existing: bool = True,
-            checkpoint_batch_size: Optional[int] = None,
-            use_batch_processing: bool = True,
-            batch_size: Optional[int] = None,
+                self,
+                df: pd.DataFrame,
+                mode: OperationMode,
+                text_source_col: Optional[str] = None,
+                question_col: Optional[str] = None,
+                available_terms: Optional[Union[List[str], List[Dict], str]] = None,
+                progress_bar: bool = True,
+                save_path: Optional[str] = None,
+                skip_existing: bool = True,
+                checkpoint_batch_size: Optional[int] = None,
+                use_batch_processing: bool = True,
+                batch_size: Optional[int] = None,
         ) -> pd.DataFrame:
             """
             Process a DataFrame based on the specified operation mode.
+
+            In EXTRACT mode, if 'source_id' column exists, the method will:
+            - Group rows by source_id
+            - Process each unique source only once (using text from first occurrence)
+            - Apply the result to all rows with the same source_id
+            This optimization reduces redundant processing when multiple rows reference the same source.
 
             Parameters
             ----------
@@ -766,6 +772,28 @@ try:
                 if col not in result_df.columns:
                     result_df[col] = None
 
+            # Check if we should use source_id grouping (EXTRACT mode only)
+            use_source_grouping = (
+                    mode == OperationMode.EXTRACT
+                    and "source_id" in result_df.columns
+            )
+
+            if use_source_grouping:
+                LOGGER.info(
+                    "source_id column detected in EXTRACT mode - using source grouping optimization"
+                )
+                return self._process_dataframe_with_source_grouping(
+                    result_df,
+                    text_source_col,
+                    skip_existing,
+                    progress_bar,
+                    save_path,
+                    checkpoint_batch_size,
+                    should_batch,
+                    batch_size,
+                )
+
+            # Regular processing (existing code continues below)
             # Collect rows to process
             rows_to_process = []
             indices_to_process = []
@@ -773,15 +801,15 @@ try:
             for idx, row in result_df.iterrows():
                 # Skip if has existing results
                 if skip_existing and (
-                    pd.notna(row.get("total_suggestions"))
-                    or pd.notna(row.get("total_selected"))
+                        pd.notna(row.get("total_suggestions"))
+                        or pd.notna(row.get("total_selected"))
                 ):
                     continue
 
                 # Check for empty inputs
                 if mode == OperationMode.EXTRACT:
                     if pd.isna(row[text_source_col]) or is_empty_text(
-                        row[text_source_col]
+                            row[text_source_col]
                     ):
                         result_df.at[idx, "domain_analysis_error"] = (
                             "Missing or empty text source"
@@ -1045,6 +1073,146 @@ try:
             LOGGER.info(
                 f"Sequential processing complete: {processed} successful, {errors} errors"
             )
+            return result_df
+
+        def _process_dataframe_with_source_grouping(
+                self,
+                result_df,
+                text_source_col,
+                skip_existing,
+                progress_bar,
+                save_path,
+                checkpoint_batch_size,
+                should_batch,
+                batch_size,
+        ):
+            """
+            Process DataFrame by grouping rows with same source_id.
+            Only processes each unique source once and applies results to all rows with that source_id.
+
+            Parameters
+            ----------
+            result_df : pd.DataFrame
+                DataFrame to process
+            text_source_col : str
+                Column name containing source text
+            skip_existing : bool
+                Skip rows with existing results
+            progress_bar : bool
+                Show progress bar
+            save_path : str, optional
+                Path to save results
+            checkpoint_batch_size : int, optional
+                Save checkpoint every N rows
+            should_batch : bool
+                Whether to use batch processing
+            batch_size : int
+                Batch size for processing
+
+            Returns
+            -------
+            pd.DataFrame
+                Processed DataFrame
+            """
+            # Build mapping of source_id -> list of row indices
+            source_id_to_indices = {}
+
+            for idx, row in result_df.iterrows():
+                source_id = row.get('source_id')
+
+                # Skip rows with missing source_id
+                if pd.isna(source_id):
+                    result_df.at[idx, "domain_analysis_error"] = "Missing source_id"
+                    continue
+
+                # Skip rows with existing results
+                if skip_existing and pd.notna(row.get("total_suggestions")):
+                    continue
+
+                # Skip rows with empty source text
+                if pd.isna(row[text_source_col]) or is_empty_text(row[text_source_col]):
+                    result_df.at[idx, "domain_analysis_error"] = "Missing or empty text source"
+                    continue
+
+                # Add to mapping
+                if source_id not in source_id_to_indices:
+                    source_id_to_indices[source_id] = []
+                source_id_to_indices[source_id].append(idx)
+
+            if not source_id_to_indices:
+                LOGGER.info("No rows to process after filtering")
+                return result_df
+
+            total_rows = sum(len(v) for v in source_id_to_indices.values())
+            LOGGER.info(
+                f"Processing {len(source_id_to_indices)} unique sources "
+                f"(covering {total_rows} total rows)"
+            )
+
+            # Prepare list of unique sources to process
+            source_ids_to_process = list(source_id_to_indices.keys())
+            sources_to_process = []
+
+            for source_id in source_ids_to_process:
+                # Get source text from first occurrence
+                first_idx = source_id_to_indices[source_id][0]
+                source_text = result_df.at[first_idx, text_source_col]
+                sources_to_process.append(source_text)
+
+            # Process sources (batch or sequential)
+            if should_batch:
+                LOGGER.info(f"Using batch processing with batch_size={batch_size}")
+                results = self.extract_domains_batch(sources_to_process)
+            else:
+                LOGGER.info("Using sequential processing")
+                results = []
+                iterator = (
+                    tqdm(sources_to_process, desc="Processing unique sources")
+                    if progress_bar
+                    else sources_to_process
+                )
+                for source_text in iterator:
+                    result = self.extract_domains(source_text)
+                    results.append(result)
+
+            # Apply results to all rows with same source_id
+            processed = 0
+            errors = 0
+
+            for source_id, result in zip(source_ids_to_process, results):
+                indices = source_id_to_indices[source_id]
+
+                if result is not None:
+                    # Apply result to all rows with this source_id
+                    for idx in indices:
+                        result_df.at[idx, "suggestions"] = str(result["suggestions"])
+                        result_df.at[idx, "total_suggestions"] = result["total_suggestions"]
+                        result_df.at[idx, "primary_theme"] = result.get("primary_theme")
+                    processed += len(indices)
+
+                    LOGGER.debug(
+                        f"Applied result for source_id={source_id} to {len(indices)} rows"
+                    )
+                else:
+                    # Mark all rows with this source_id as failed
+                    for idx in indices:
+                        result_df.at[idx, "domain_analysis_error"] = "Analysis failed"
+                    errors += len(indices)
+
+                # Checkpoint based on total rows processed
+                if save_path and checkpoint_batch_size and processed % checkpoint_batch_size == 0:
+                    result_df.to_csv(save_path, index=False)
+                    LOGGER.info(f"Checkpoint saved at {processed} rows processed")
+
+            LOGGER.info(
+                f"Source grouping processing complete: {processed} rows successful, "
+                f"{errors} rows with errors"
+            )
+
+            if save_path:
+                result_df.to_csv(save_path, index=False)
+                LOGGER.info(f"Final results saved to {save_path}")
+
             return result_df
 
 except ImportError as e:
