@@ -768,14 +768,16 @@ try:
                     "domain_analysis_error",
                 ]
 
+            existing_cols = result_df.columns
+
             for col in result_columns:
-                if col not in result_df.columns:
+                if col not in existing_cols:
                     result_df[col] = None
 
             # Check if we should use source_id grouping (EXTRACT mode only)
             use_source_grouping = (
                     mode == OperationMode.EXTRACT
-                    and "source_id" in result_df.columns
+                    and "source_id" in existing_cols
             )
 
             if use_source_grouping:
@@ -1115,9 +1117,11 @@ try:
                 Processed DataFrame
             """
             # Build mapping of source_id -> list of row indices
+            LOGGER.info("Starting source grouping optimization...")
             source_id_to_indices = {}
 
-            for idx, row in result_df.iterrows():
+            for idx, row in tqdm(result_df.iterrows(),
+                                 desc="Building source_id mapping") if progress_bar else result_df.iterrows():
                 source_id = row.get('source_id')
 
                 # Skip rows with missing source_id
