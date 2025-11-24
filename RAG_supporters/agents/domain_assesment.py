@@ -1119,8 +1119,9 @@ try:
             # Build mapping of source_id -> list of row indices
             LOGGER.info("Starting source grouping optimization...")
             source_id_to_indices = {}
+            total_rows = 0
 
-            for idx, row in tqdm(result_df.iterrows(),
+            for idx, row in tqdm(result_df.iterrows(), total=len(result_df),
                                  desc="Building source_id mapping") if progress_bar else result_df.iterrows():
                 source_id = row.get('source_id')
 
@@ -1142,12 +1143,12 @@ try:
                 if source_id not in source_id_to_indices:
                     source_id_to_indices[source_id] = []
                 source_id_to_indices[source_id].append(idx)
+                total_rows += 1
 
             if not source_id_to_indices:
                 LOGGER.info("No rows to process after filtering")
                 return result_df
 
-            total_rows = sum(len(v) for v in source_id_to_indices.values())
             LOGGER.info(
                 f"Processing {len(source_id_to_indices)} unique sources "
                 f"(covering {total_rows} total rows)"
@@ -1157,7 +1158,7 @@ try:
             source_ids_to_process = list(source_id_to_indices.keys())
             sources_to_process = []
 
-            for source_id in source_ids_to_process:
+            for source_id in tqdm(source_ids_to_process, desc="Preparing sources") if progress_bar else source_ids_to_process:
                 # Get source text from first occurrence
                 first_idx = source_id_to_indices[source_id][0]
                 source_text = result_df.at[first_idx, text_source_col]
@@ -1183,7 +1184,8 @@ try:
             processed = 0
             errors = 0
 
-            for source_id, result in zip(source_ids_to_process, results):
+            for source_id, result in tqdm(zip(source_ids_to_process, results), desc="Applying results") \
+                    if progress_bar else zip(source_ids_to_process, results):
                 indices = source_id_to_indices[source_id]
 
                 if result is not None:
