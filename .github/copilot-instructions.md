@@ -13,26 +13,32 @@ This repository is about experiments with enhancing RAG (Retrieval-Augmented Gen
 - **Pandas**: Data manipulation and analysis
 - **Datasets**: HuggingFace datasets library for dataset handling
 - **ChromaDB** (`langchain_chroma`): Vector store for embeddings and similarity search
-- **OpenAI Embeddings**: Optional embedding model (`text-embedding-3-small`) - used for tests and examples
 
 ## Project Structure
 
 ```
 RAG_supporters/
 ├── agents/                     # LangGraph-based agents for source evaluation
+│   ├── __init__.py
 │   ├── dataset_check.py       # Agent for comparing two text sources
 │   └── source_assesment.py    # Agent for evaluating single sources
 ├── dataset/                    # Dataset handling and RAG dataset implementations
+│   ├── __init__.py
 │   ├── rag_dataset.py         # Core RAG dataset classes (BaseRAGDatasetGenerator)
 │   ├── templates/             # Dataset templates for specific formats
+│   │   ├── __init__.py
 │   │   └── rag_mini_bioasq.py # BioASQ dataset implementation
 │   └── utils/                 # Dataset utilities and loaders
+│       ├── __init__.py
 │       ├── dataset_loader.py  # PyTorch DataLoader implementations
 │       └── text_splitters.py  # Text chunking utilities
 ├── nn/                        # Neural network models
+│   ├── __init__.py
 │   └── models/                # Model builders and architectures
+│       ├── __init__.py
 │       └── model_builder.py   # YAML-based configurable model builder
 ├── prompts_templates/         # LLM prompt templates
+│   ├── __init__.py
 │   ├── rag_verifiers.py      # Prompts for source verification and scoring
 │   └── rag_generators.py     # Prompts for text generation tasks
 ├── requirements.txt           # Main dependencies
@@ -231,7 +237,7 @@ The repository uses several prompt templates in `prompts_templates/`:
 - **TODOs**: Check inline TODO comments for areas needing improvement (e.g., plugin architecture for custom layers)
 - **Label Conventions**: For triplet comparisons: -1 = unlabeled/error, 0 = neither/both irrelevant, 1 = source1 better, 2 = source2 better
 - **Embedding Model**: Default is OpenAI's `text-embedding-3-small`
-- **HuggingFace Datasets**: Uses `enelpol/rag-mini-bioasq` dataset for BioASQ examples
+- **HuggingFace Datasets**: Uses `enelpol/rag-mini-bioasq` dataset for primary testing, more datasets will be added
 
 ## Examples for Common Tasks
 
@@ -286,13 +292,6 @@ class MyDatasetGenerator(BaseRAGDatasetGenerator):
             persist_directory=os.path.join(self._dataset_dir, "text_corpus_db"),
         )
 ```
-
-### Adding a New Evaluation Criterion
-
-1. Add the criterion to the prompt template in `prompts_templates/rag_verifiers.py`
-2. Add a corresponding Pydantic field to the evaluation model
-3. Update the scoring logic in the agent
-4. Evaluation can also be based on statistics rather than just LLM outputs
 
 ### Working with Prompts
 
