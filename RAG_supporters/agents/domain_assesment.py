@@ -254,6 +254,10 @@ try:
             else:
                 raise ValueError(f"Unknown operation mode: {mode}")
 
+        def _get_column_prefix(self, mode: OperationMode) -> str:
+            """Get column prefix for mode to avoid overwrites"""
+            return mode.value  # Returns 'extract', 'guess', or 'assess'
+
         def _build_graph(self) -> StateGraph:
             """Build the LangGraph workflow"""
             workflow = StateGraph(AgentState)
@@ -873,25 +877,24 @@ try:
             if mode == OperationMode.ASSESS and available_terms is None:
                 raise ValueError("available_terms required for ASSESS mode")
 
-            # Add result columns based on mode
+            # Get column prefix to avoid overwrites
+            prefix = self._get_column_prefix(mode)
+
+            # Add result columns based on mode with prefix
             if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
                 result_columns = [
-                    "suggestions",
-                    "total_suggestions",
-                    (
-                        "primary_theme"
-                        if mode == OperationMode.EXTRACT
-                        else "question_category"
-                    ),
-                    "domain_analysis_error",
+                    f"{prefix}_suggestions",
+                    f"{prefix}_total_suggestions",
+                    f"{prefix}_primary_theme" if mode == OperationMode.EXTRACT else f"{prefix}_question_category",
+                    f"{prefix}_error",
                 ]
             else:  # ASSESS
                 result_columns = [
-                    "selected_terms",
-                    "total_selected",
-                    "question_intent",
-                    "primary_topics",
-                    "domain_analysis_error",
+                    f"{prefix}_selected_terms",
+                    f"{prefix}_total_selected",
+                    f"{prefix}_question_intent",
+                    f"{prefix}_primary_topics",
+                    f"{prefix}_error",
                 ]
 
             existing_cols = result_df.columns
@@ -910,6 +913,7 @@ try:
                 return self._process_dataframe_with_source_grouping(
                     result_df,
                     text_source_col,
+                    prefix,
                     skip_existing,
                     progress_bar,
                     save_path,
@@ -924,25 +928,27 @@ try:
             indices_to_process = []
 
             for idx, row in result_df.iterrows():
-                # Skip if has existing results
-                if skip_existing and (
-                    pd.notna(row.get("total_suggestions"))
-                    or pd.notna(row.get("total_selected"))
-                ):
-                    continue
+                # Skip if has existing results (check mode-specific columns)
+                if skip_existing:
+                    if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
+                        if pd.notna(row.get(f"{prefix}_total_suggestions")):
+                            continue
+                    else:  # ASSESS
+                        if pd.notna(row.get(f"{prefix}_total_selected")):
+                            continue
 
                 # Check for empty inputs
                 if mode == OperationMode.EXTRACT:
                     if pd.isna(row[text_source_col]) or is_empty_text(
                         row[text_source_col]
                     ):
-                        result_df.at[idx, "domain_analysis_error"] = (
+                        result_df.at[idx, f"{prefix}_error"] = (
                             "Missing or empty text source"
                         )
                         continue
                 else:
                     if pd.isna(row[question_col]) or is_empty_text(row[question_col]):
-                        result_df.at[idx, "domain_analysis_error"] = (
+                        result_df.at[idx, f"{prefix}_error"] = (
                             "Missing or empty question"
                         )
                         continue
@@ -963,6 +969,7 @@ try:
                     indices_to_process,
                     result_df,
                     mode,
+                    prefix,
                     text_source_col,
                     question_col,
                     available_terms,
@@ -977,6 +984,7 @@ try:
                     indices_to_process,
                     result_df,
                     mode,
+                    prefix,
                     text_source_col,
                     question_col,
                     available_terms,
@@ -997,6 +1005,7 @@ try:
             indices,
             result_df,
             mode,
+            prefix,
             text_col,
             question_col,
             available_terms,
@@ -1058,30 +1067,21 @@ try:
                 for idx, result in iterator:
                     if result is not None:
                         if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
-                            result_df.at[idx, "suggestions"] = str(result["suggestions"])
-                            result_df.at[idx, "total_suggestions"] = result[
-                                "total_suggestions"
-                            ]
-                            key = (
-                                "primary_theme"
-                                if mode == OperationMode.EXTRACT
-                                else "question_category"
-                            )
-                            result_df.at[idx, key] = result.get(key)
+                            result_df.at[idx, f"{prefix}_suggestions"] = str(result["suggestions"])
+                            result_df.at[idx, f"{prefix}_total_suggestions"] = result["total_suggestions"]
+
+                            if mode == OperationMode.EXTRACT:
+                                result_df.at[idx, f"{prefix}_primary_theme"] = result.get("primary_theme")
+                            else:  # GUESS
+                                result_df.at[idx, f"{prefix}_question_category"] = result.get("question_category")
                         else:  # ASSESS
-                            result_df.at[idx, "selected_terms"] = str(
-                                result["selected_terms"]
-                            )
-                            result_df.at[idx, "total_selected"] = result["total_selected"]
-                            result_df.at[idx, "question_intent"] = result[
-                                "question_intent"
-                            ]
-                            result_df.at[idx, "primary_topics"] = str(
-                                result["primary_topics"]
-                            )
+                            result_df.at[idx, f"{prefix}_selected_terms"] = str(result["selected_terms"])
+                            result_df.at[idx, f"{prefix}_total_selected"] = result["total_selected"]
+                            result_df.at[idx, f"{prefix}_question_intent"] = result["question_intent"]
+                            result_df.at[idx, f"{prefix}_primary_topics"] = str(result["primary_topics"])
                         processed += 1
                     else:
-                        result_df.at[idx, "domain_analysis_error"] = "Analysis failed"
+                        result_df.at[idx, f"{prefix}_error"] = "Analysis failed"
                         errors += 1
 
                     # Checkpoint
@@ -1097,7 +1097,7 @@ try:
             except Exception as e:
                 LOGGER.error(f"Batch processing error: {e}")
                 for idx in indices:
-                    result_df.at[idx, "domain_analysis_error"] = f"Batch error: {str(e)}"
+                    result_df.at[idx, f"{prefix}_error"] = f"Batch error: {str(e)}"
                 errors = len(indices)
 
             LOGGER.info(
@@ -1111,6 +1111,7 @@ try:
             indices,
             result_df,
             mode,
+            prefix,
             text_col,
             question_col,
             available_terms,
@@ -1140,30 +1141,21 @@ try:
 
                     if result is not None:
                         if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
-                            result_df.at[idx, "suggestions"] = str(result["suggestions"])
-                            result_df.at[idx, "total_suggestions"] = result[
-                                "total_suggestions"
-                            ]
-                            key = (
-                                "primary_theme"
-                                if mode == OperationMode.EXTRACT
-                                else "question_category"
-                            )
-                            result_df.at[idx, key] = result.get(key)
+                            result_df.at[idx, f"{prefix}_suggestions"] = str(result["suggestions"])
+                            result_df.at[idx, f"{prefix}_total_suggestions"] = result["total_suggestions"]
+
+                            if mode == OperationMode.EXTRACT:
+                                result_df.at[idx, f"{prefix}_primary_theme"] = result.get("primary_theme")
+                            else:  # GUESS
+                                result_df.at[idx, f"{prefix}_question_category"] = result.get("question_category")
                         else:  # ASSESS
-                            result_df.at[idx, "selected_terms"] = str(
-                                result["selected_terms"]
-                            )
-                            result_df.at[idx, "total_selected"] = result["total_selected"]
-                            result_df.at[idx, "question_intent"] = result[
-                                "question_intent"
-                            ]
-                            result_df.at[idx, "primary_topics"] = str(
-                                result["primary_topics"]
-                            )
+                            result_df.at[idx, f"{prefix}_selected_terms"] = str(result["selected_terms"])
+                            result_df.at[idx, f"{prefix}_total_selected"] = result["total_selected"]
+                            result_df.at[idx, f"{prefix}_question_intent"] = result["question_intent"]
+                            result_df.at[idx, f"{prefix}_primary_topics"] = str(result["primary_topics"])
                         processed += 1
                     else:
-                        result_df.at[idx, "domain_analysis_error"] = "Analysis failed"
+                        result_df.at[idx, f"{prefix}_error"] = "Analysis failed"
                         errors += 1
 
                     # Checkpoint
@@ -1179,7 +1171,7 @@ try:
                     break
                 except Exception as e:
                     LOGGER.error(f"Error processing row {idx}: {e}")
-                    result_df.at[idx, "domain_analysis_error"] = str(e)
+                    result_df.at[idx, f"{prefix}_error"] = str(e)
                     errors += 1
 
                 if progress_bar and hasattr(iterator, "set_postfix"):
@@ -1194,6 +1186,7 @@ try:
                 self,
                 result_df,
                 text_source_col,
+                prefix,
                 skip_existing,
                 progress_bar,
                 save_path,
@@ -1222,11 +1215,11 @@ try:
 
                 # Skip rows with missing source_id
                 if pd.isna(source_id):
-                    result_df.at[idx, "domain_analysis_error"] = "Missing source_id"
+                    result_df.at[idx, f"{prefix}_error"] = "Missing source_id"
                     continue
 
                 # Track if this source has any results
-                has_results = pd.notna(row.get("total_suggestions"))
+                has_results = pd.notna(row.get(f"{prefix}_total_suggestions"))
 
                 if has_results and source_id not in source_id_with_results:
                     # Store the first row index that has results for this source_id
@@ -1234,7 +1227,7 @@ try:
 
                 # Skip rows with empty source text
                 if pd.isna(row[text_source_col]) or is_empty_text(row[text_source_col]):
-                    result_df.at[idx, "domain_analysis_error"] = (
+                    result_df.at[idx, f"{prefix}_error"] = (
                         "Missing or empty text source"
                     )
                     continue
@@ -1301,9 +1294,9 @@ try:
 
                     for idx, has_results in source_id_to_indices[source_id]:
                         if not has_results:
-                            result_df.at[idx, "suggestions"] = source_row["suggestions"]
-                            result_df.at[idx, "total_suggestions"] = source_row["total_suggestions"]
-                            result_df.at[idx, "primary_theme"] = source_row["primary_theme"]
+                            result_df.at[idx, f"{prefix}_suggestions"] = source_row[f"{prefix}_suggestions"]
+                            result_df.at[idx, f"{prefix}_total_suggestions"] = source_row[f"{prefix}_total_suggestions"]
+                            result_df.at[idx, f"{prefix}_primary_theme"] = source_row[f"{prefix}_primary_theme"]
                             copied_results += 1
 
                 LOGGER.info(f"Copied results to {copied_results} rows")
@@ -1378,11 +1371,9 @@ try:
                     if result is not None:
                         # Apply result to all rows with this source_id
                         for idx in indices:
-                            result_df.at[idx, "suggestions"] = str(result["suggestions"])
-                            result_df.at[idx, "total_suggestions"] = result[
-                                "total_suggestions"
-                            ]
-                            result_df.at[idx, "primary_theme"] = result.get("primary_theme")
+                            result_df.at[idx, f"{prefix}_suggestions"] = str(result["suggestions"])
+                            result_df.at[idx, f"{prefix}_total_suggestions"] = result["total_suggestions"]
+                            result_df.at[idx, f"{prefix}_primary_theme"] = result.get("primary_theme")
                         processed += len(indices)
 
                         LOGGER.debug(
@@ -1392,7 +1383,7 @@ try:
                         # Mark all rows with this source_id as failed
                         error_msg = "Processing interrupted" if interrupted else "Analysis failed"
                         for idx in indices:
-                            result_df.at[idx, "domain_analysis_error"] = error_msg
+                            result_df.at[idx, f"{prefix}_error"] = error_msg
                         errors += len(indices)
 
                     # Checkpoint based on total rows processed
