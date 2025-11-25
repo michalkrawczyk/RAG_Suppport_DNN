@@ -648,19 +648,21 @@ try:
             )
 
         def _batch_process(
-            self,
-            mode: OperationMode,
-            text_sources: Optional[List[str]] = None,
-            questions: Optional[List[str]] = None,
-            available_terms: Optional[List[str]] = None,
-            batch_size: Optional[int] = None,
-            show_progress: bool = True,
+                self,
+                mode: OperationMode,
+                text_sources: Optional[List[str]] = None,
+                questions: Optional[List[str]] = None,
+                available_terms: Optional[List[str]] = None,
+                batch_size: Optional[int] = None,
+                show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Internal method for batch processing with proper chunking.
 
             This method properly splits input into chunks and processes each chunk
             separately using the LLM's batch API.
+
+            Handles KeyboardInterrupt gracefully by returning partial results.
             """
             batch_size = batch_size or self.batch_size
             template = self._get_template_for_mode(mode)
@@ -766,10 +768,22 @@ try:
                         all_results.extend([None] * current_batch_size)
                         failed_parses += current_batch_size
 
+            except KeyboardInterrupt:
+                LOGGER.warning(
+                    f"Batch processing interrupted by user. "
+                    f"Processed {len(all_results)}/{total_items} items "
+                    f"({successful_parses} successful, {failed_parses} failed)."
+                )
+                # Pad remaining items with None to maintain index alignment
+                remaining = total_items - len(all_results)
+                if remaining > 0:
+                    LOGGER.info(f"Padding {remaining} unprocessed items with None")
+                    all_results.extend([None] * remaining)
+                    failed_parses += remaining
 
                 LOGGER.info(
-                    f"Batch processing complete: {successful_parses} successful, "
-                    f"{failed_parses} failed out of {total_items} total items"
+                    f"Returning partial results: {successful_parses} successful, "
+                    f"{failed_parses} failed/unprocessed out of {total_items} total items"
                 )
                 return all_results
 
@@ -787,6 +801,12 @@ try:
                         self.assess_domains(q, t)
                         for q, t in zip(questions, available_terms)
                     ]
+
+            LOGGER.info(
+                f"Batch processing complete: {successful_parses} successful, "
+                f"{failed_parses} failed out of {total_items} total items"
+            )
+            return all_results
 
         def process_dataframe(
             self,
@@ -1272,6 +1292,7 @@ try:
 
             processed = 0
             errors = 0
+            interrupted = False
 
             try:
                 # Process sources (batch or sequential)
@@ -1280,6 +1301,8 @@ try:
                         f"Using batch processing with batch_size={batch_size} "
                         f"for {len(sources_to_process)} unique sources"
                     )
+                    # extract_domains_batch will handle KeyboardInterrupt internally
+                    # and return partial results
                     results = self.extract_domains_batch(
                         sources_to_process, batch_size=batch_size, show_progress=progress_bar
                     )
@@ -1291,9 +1314,21 @@ try:
                         if progress_bar
                         else sources_to_process
                     )
-                    for source_text in iterator:
-                        result = self.extract_domains(source_text)
-                        results.append(result)
+
+                    try:
+                        for source_text in iterator:
+                            result = self.extract_domains(source_text)
+                            results.append(result)
+                    except KeyboardInterrupt:
+                        LOGGER.warning(
+                            f"Sequential processing interrupted. "
+                            f"Processed {len(results)}/{len(sources_to_process)} sources."
+                        )
+                        # Pad remaining with None
+                        remaining = len(sources_to_process) - len(results)
+                        if remaining > 0:
+                            results.extend([None] * remaining)
+                        interrupted = True
 
                 # Apply results to all rows with same source_id
                 iterator = (
@@ -1324,8 +1359,9 @@ try:
                         )
                     else:
                         # Mark all rows with this source_id as failed
+                        error_msg = "Processing interrupted" if interrupted else "Analysis failed"
                         for idx in indices:
-                            result_df.at[idx, "domain_analysis_error"] = "Analysis failed"
+                            result_df.at[idx, "domain_analysis_error"] = error_msg
                         errors += len(indices)
 
                     # Checkpoint based on total rows processed
@@ -1337,19 +1373,6 @@ try:
                         result_df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows processed")
 
-            except KeyboardInterrupt:
-                LOGGER.warning("Processing interrupted by user")
-                if save_path:
-                    result_df.to_csv(save_path, index=False)
-                    LOGGER.info(f"Progress saved to {save_path}")
-                    LOGGER.info(
-                        f"Partial results: {processed} rows successful, {errors} rows with errors"
-                    )
-                else:
-                    LOGGER.warning("No save_path specified - progress not saved")
-                # Re-raise to allow caller to handle if needed, or return partial results
-                # Returning partial results is more useful in this context
-                return result_df
             except Exception as e:
                 LOGGER.error(f"Critical error during source grouping processing: {e}")
                 if save_path:
@@ -1357,11 +1380,14 @@ try:
                     LOGGER.info(f"Progress saved to {save_path} after error")
                 raise
 
+            # Log completion summary
+            status = "interrupted" if interrupted else "complete"
             LOGGER.info(
-                f"Source grouping processing complete: {processed} rows successful, "
+                f"Source grouping processing {status}: {processed} rows successful, "
                 f"{errors} rows with errors"
             )
 
+            # Save final results
             if save_path:
                 result_df.to_csv(save_path, index=False)
                 LOGGER.info(f"Final results saved to {save_path}")
