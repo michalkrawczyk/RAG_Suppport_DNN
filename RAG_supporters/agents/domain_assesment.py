@@ -522,7 +522,10 @@ try:
             return None
 
         def extract_domains_batch(
-            self, text_sources: List[str], batch_size: Optional[int] = None
+            self,
+            text_sources: List[str],
+            batch_size: Optional[int] = None,
+            show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Extract domains from multiple text sources in batch.
@@ -533,6 +536,8 @@ try:
                 List of text sources to analyze
             batch_size : int, optional
                 Batch size for chunking. If None, uses self.batch_size
+            show_progress : bool, optional
+                Show progress bar. Default is True.
 
             Returns
             -------
@@ -547,11 +552,17 @@ try:
 
             batch_size = batch_size or self.batch_size
             return self._batch_process(
-                OperationMode.EXTRACT, text_sources=text_sources, batch_size=batch_size
+                OperationMode.EXTRACT,
+                text_sources=text_sources,
+                batch_size=batch_size,
+                show_progress=show_progress,
             )
 
         def guess_domains_batch(
-            self, questions: List[str], batch_size: Optional[int] = None
+            self,
+            questions: List[str],
+            batch_size: Optional[int] = None,
+            show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Guess domains for multiple questions in batch.
@@ -562,6 +573,8 @@ try:
                 List of questions to analyze
             batch_size : int, optional
                 Batch size for chunking. If None, uses self.batch_size
+            show_progress : bool, optional
+                Show progress bar. Default is True.
 
             Returns
             -------
@@ -576,7 +589,10 @@ try:
 
             batch_size = batch_size or self.batch_size
             return self._batch_process(
-                OperationMode.GUESS, questions=questions, batch_size=batch_size
+                OperationMode.GUESS,
+                questions=questions,
+                batch_size=batch_size,
+                show_progress=show_progress,
             )
 
         def assess_domains_batch(
@@ -584,6 +600,7 @@ try:
             questions: List[str],
             available_terms: Union[List[str], List[Dict], str],
             batch_size: Optional[int] = None,
+            show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Assess domains for multiple questions against the same available terms.
@@ -596,6 +613,8 @@ try:
                 Available terms (same for all questions)
             batch_size : int, optional
                 Batch size for chunking. If None, uses self.batch_size
+            show_progress : bool, optional
+                Show progress bar. Default is True.
 
             Returns
             -------
@@ -625,20 +644,22 @@ try:
                 questions=questions,
                 available_terms=[terms_str] * len(questions),
                 batch_size=batch_size,
+                show_progress=show_progress,
             )
 
         def _batch_process(
-                self,
-                mode: OperationMode,
-                text_sources: Optional[List[str]] = None,
-                questions: Optional[List[str]] = None,
-                available_terms: Optional[List[str]] = None,
-                batch_size: Optional[int] = None,
+            self,
+            mode: OperationMode,
+            text_sources: Optional[List[str]] = None,
+            questions: Optional[List[str]] = None,
+            available_terms: Optional[List[str]] = None,
+            batch_size: Optional[int] = None,
+            show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Internal method for batch processing with proper chunking.
 
-            This method now properly splits input into chunks and processes each chunk
+            This method properly splits input into chunks and processes each chunk
             separately using the LLM's batch API.
             """
             batch_size = batch_size or self.batch_size
@@ -662,14 +683,25 @@ try:
             )
 
             all_results = []
+            successful_parses = 0
+            failed_parses = 0
 
             try:
-                # Process in chunks
-                for batch_idx, batch_start in enumerate(
-                        range(0, total_items, batch_size), 1
-                ):
+                # Process in chunks with progress bar
+                batch_iterator = range(0, total_items, batch_size)
+
+                if show_progress:
+                    batch_iterator = tqdm(
+                        batch_iterator,
+                        total=total_batches,
+                        desc=f"Processing {mode.value} batches",
+                        unit="batch",
+                    )
+
+                for batch_start in batch_iterator:
                     batch_end = min(batch_start + batch_size, total_items)
                     current_batch_size = batch_end - batch_start
+                    batch_idx = (batch_start // batch_size) + 1
 
                     LOGGER.debug(
                         f"Processing batch {batch_idx}/{total_batches}: "
@@ -711,16 +743,19 @@ try:
                                 try:
                                     result = fixing_parser.parse(content)
                                     all_results.append(self._extract_result_dict(result))
+                                    successful_parses += 1
                                 except Exception:
                                     # Fallback to regular parser
                                     result = parser.parse(content)
                                     all_results.append(self._extract_result_dict(result))
+                                    successful_parses += 1
 
                             except Exception as e:
                                 LOGGER.error(
                                     f"Error parsing item {global_idx} in batch {batch_idx}: {e}"
                                 )
                                 all_results.append(None)
+                                failed_parses += 1
 
                     except Exception as e:
                         LOGGER.error(
@@ -729,7 +764,13 @@ try:
                         )
                         # Add None for all items in this failed batch
                         all_results.extend([None] * current_batch_size)
+                        failed_parses += current_batch_size
 
+
+                LOGGER.info(
+                    f"Batch processing complete: {successful_parses} successful, "
+                    f"{failed_parses} failed out of {total_items} total items"
+                )
                 return all_results
 
             except Exception as e:
@@ -947,8 +988,7 @@ try:
             """
             Process DataFrame using batch API.
 
-            Note: Now simplified since _batch_process() handles chunking internally.
-            We collect all inputs and call the batch method once.
+            Note: Simplified since _batch_process() handles chunking and progress internally.
             """
             LOGGER.info(
                 f"Using batch processing for {len(rows)} rows "
@@ -964,18 +1004,21 @@ try:
                 all_inputs = [row[question_col] for row in rows]
 
             try:
-                # Call the appropriate batch method (which now handles chunking)
+                # Call the appropriate batch method (which handles chunking and progress)
                 if mode == OperationMode.EXTRACT:
                     batch_results = self.extract_domains_batch(
-                        all_inputs, batch_size=batch_size
+                        all_inputs, batch_size=batch_size, show_progress=progress_bar
                     )
                 elif mode == OperationMode.GUESS:
                     batch_results = self.guess_domains_batch(
-                        all_inputs, batch_size=batch_size
+                        all_inputs, batch_size=batch_size, show_progress=progress_bar
                     )
                 else:  # ASSESS
                     batch_results = self.assess_domains_batch(
-                        all_inputs, available_terms, batch_size=batch_size
+                        all_inputs,
+                        available_terms,
+                        batch_size=batch_size,
+                        show_progress=progress_bar,
                     )
 
                 # Update DataFrame with results
@@ -986,7 +1029,7 @@ try:
                     tqdm(
                         zip(indices, batch_results),
                         total=len(indices),
-                        desc="Updating results",
+                        desc="Updating DataFrame",
                     )
                     if progress_bar
                     else zip(indices, batch_results)
@@ -1233,7 +1276,9 @@ try:
                     f"Using batch processing with batch_size={batch_size} "
                     f"for {len(sources_to_process)} unique sources"
                 )
-                results = self.extract_domains_batch(sources_to_process, batch_size=batch_size)
+                results = self.extract_domains_batch(
+                    sources_to_process, batch_size=batch_size, show_progress=progress_bar
+                )
             else:
                 LOGGER.info("Using sequential processing")
                 results = []
