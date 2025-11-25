@@ -1204,34 +1204,11 @@ try:
             """
             Process DataFrame by grouping rows with same source_id.
             Only processes each unique source once and applies results to all rows with that source_id.
-
-            Parameters
-            ----------
-            result_df : pd.DataFrame
-                DataFrame to process
-            text_source_col : str
-                Column name containing source text
-            skip_existing : bool
-                Skip rows with existing results
-            progress_bar : bool
-                Show progress bar
-            save_path : str, optional
-                Path to save results
-            checkpoint_batch_size : int, optional
-                Save checkpoint every N rows
-            should_batch : bool
-                Whether to use batch processing
-            batch_size : int
-                Batch size for processing
-
-            Returns
-            -------
-            pd.DataFrame
-                Processed DataFrame
             """
             # Build mapping of source_id -> list of row indices
             LOGGER.info("Starting source grouping optimization...")
             source_id_to_indices = {}
+            source_id_with_results = {}  # Track which sources already have results
             total_rows = 0
 
             iterator = (
@@ -1248,9 +1225,12 @@ try:
                     result_df.at[idx, "domain_analysis_error"] = "Missing source_id"
                     continue
 
-                # Skip rows with existing results
-                if skip_existing and pd.notna(row.get("total_suggestions")):
-                    continue
+                # Track if this source has any results
+                has_results = pd.notna(row.get("total_suggestions"))
+
+                if has_results and source_id not in source_id_with_results:
+                    # Store the first row index that has results for this source_id
+                    source_id_with_results[source_id] = idx
 
                 # Skip rows with empty source text
                 if pd.isna(row[text_source_col]) or is_empty_text(row[text_source_col]):
@@ -1259,36 +1239,89 @@ try:
                     )
                     continue
 
-                # Add to mapping
+                # Add to mapping (we'll filter later based on skip_existing)
                 if source_id not in source_id_to_indices:
                     source_id_to_indices[source_id] = []
-                source_id_to_indices[source_id].append(idx)
+                source_id_to_indices[source_id].append((idx, has_results))
                 total_rows += 1
 
             if not source_id_to_indices:
                 LOGGER.info("No rows to process after filtering")
                 return result_df
 
-            LOGGER.info(
-                f"Processing {len(source_id_to_indices)} unique sources "
-                f"(covering {total_rows} total rows)"
-            )
-
-            # Prepare list of unique sources to process
-            source_ids_to_process = list(source_id_to_indices.keys())
+            # Apply skip_existing logic at source_id level
+            source_ids_to_process = []
             sources_to_process = []
+            source_ids_to_copy = []  # Sources where we'll copy existing results
+            skipped_sources = 0
+            copied_results = 0
 
-            iterator = (
-                tqdm(source_ids_to_process, desc="Preparing sources")
-                if progress_bar
-                else source_ids_to_process
+            for source_id, idx_list in source_id_to_indices.items():
+                # Check if ANY row has results
+                any_has_results = any(has_results for _, has_results in idx_list)
+                all_have_results = all(has_results for _, has_results in idx_list)
+
+                if skip_existing and any_has_results:
+                    if all_have_results:
+                        # All rows already have results, skip entirely
+                        skipped_sources += 1
+                        LOGGER.debug(f"Skipping source_id={source_id} - all rows already processed")
+                    else:
+                        # Some rows have results, some don't - copy existing results
+                        source_ids_to_copy.append(source_id)
+                        LOGGER.debug(
+                            f"Copying existing results for source_id={source_id} to unprocessed rows"
+                        )
+                else:
+                    # Need to process this source
+                    source_ids_to_process.append(source_id)
+                    # Get source text from first row
+                    first_idx = idx_list[0][0]
+                    source_text = result_df.at[first_idx, text_source_col]
+                    sources_to_process.append(source_text)
+
+            # Handle result copying for sources with partial results
+            if source_ids_to_copy:
+                LOGGER.info(f"Copying results for {len(source_ids_to_copy)} sources with partial results")
+
+                for source_id in source_ids_to_copy:
+                    # Get existing results from any row that has them
+                    source_row_idx = source_id_with_results.get(source_id)
+                    if source_row_idx is None:
+                        LOGGER.warning(f"No existing results found for source_id={source_id}, will process")
+                        # Shouldn't happen, but handle gracefully
+                        first_idx = source_id_to_indices[source_id][0][0]
+                        source_text = result_df.at[first_idx, text_source_col]
+                        sources_to_process.append(source_text)
+                        source_ids_to_process.append(source_id)
+                        continue
+
+                    # Copy results to all rows with this source_id that don't have results
+                    source_row = result_df.loc[source_row_idx]
+
+                    for idx, has_results in source_id_to_indices[source_id]:
+                        if not has_results:
+                            result_df.at[idx, "suggestions"] = source_row["suggestions"]
+                            result_df.at[idx, "total_suggestions"] = source_row["total_suggestions"]
+                            result_df.at[idx, "primary_theme"] = source_row["primary_theme"]
+                            copied_results += 1
+
+                LOGGER.info(f"Copied results to {copied_results} rows")
+
+            if not source_ids_to_process:
+                LOGGER.info(
+                    f"No sources to process. Skipped {skipped_sources} sources, "
+                    f"copied results for {len(source_ids_to_copy)} sources."
+                )
+                if save_path:
+                    result_df.to_csv(save_path, index=False)
+                    LOGGER.info(f"Results saved to {save_path}")
+                return result_df
+
+            LOGGER.info(
+                f"Processing {len(sources_to_process)} unique sources "
+                f"(skipped {skipped_sources}, copying {len(source_ids_to_copy)})"
             )
-
-            for source_id in iterator:
-                # Get source text from first occurrence
-                first_idx = source_id_to_indices[source_id][0]
-                source_text = result_df.at[first_idx, text_source_col]
-                sources_to_process.append(source_text)
 
             processed = 0
             errors = 0
@@ -1301,8 +1334,6 @@ try:
                         f"Using batch processing with batch_size={batch_size} "
                         f"for {len(sources_to_process)} unique sources"
                     )
-                    # extract_domains_batch will handle KeyboardInterrupt internally
-                    # and return partial results
                     results = self.extract_domains_batch(
                         sources_to_process, batch_size=batch_size, show_progress=progress_bar
                     )
@@ -1324,7 +1355,6 @@ try:
                             f"Sequential processing interrupted. "
                             f"Processed {len(results)}/{len(sources_to_process)} sources."
                         )
-                        # Pad remaining with None
                         remaining = len(sources_to_process) - len(results)
                         if remaining > 0:
                             results.extend([None] * remaining)
@@ -1342,7 +1372,8 @@ try:
                 )
 
                 for source_id, result in iterator:
-                    indices = source_id_to_indices[source_id]
+                    # Get all indices for this source_id (regardless of existing results)
+                    indices = [idx for idx, _ in source_id_to_indices[source_id]]
 
                     if result is not None:
                         # Apply result to all rows with this source_id
@@ -1384,7 +1415,7 @@ try:
             status = "interrupted" if interrupted else "complete"
             LOGGER.info(
                 f"Source grouping processing {status}: {processed} rows successful, "
-                f"{errors} rows with errors"
+                f"{errors} rows with errors, {copied_results} rows copied from existing"
             )
 
             # Save final results
