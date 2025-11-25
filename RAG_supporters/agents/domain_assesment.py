@@ -1171,15 +1171,15 @@ try:
             return result_df
 
         def _process_dataframe_with_source_grouping(
-            self,
-            result_df,
-            text_source_col,
-            skip_existing,
-            progress_bar,
-            save_path,
-            checkpoint_batch_size,
-            should_batch,
-            batch_size,
+                self,
+                result_df,
+                text_source_col,
+                skip_existing,
+                progress_bar,
+                save_path,
+                checkpoint_batch_size,
+                should_batch,
+                batch_size,
         ):
             """
             Process DataFrame by grouping rows with same source_id.
@@ -1270,71 +1270,92 @@ try:
                 source_text = result_df.at[first_idx, text_source_col]
                 sources_to_process.append(source_text)
 
-            # Process sources (batch or sequential)
-            if should_batch:
-                LOGGER.info(
-                    f"Using batch processing with batch_size={batch_size} "
-                    f"for {len(sources_to_process)} unique sources"
-                )
-                results = self.extract_domains_batch(
-                    sources_to_process, batch_size=batch_size, show_progress=progress_bar
-                )
-            else:
-                LOGGER.info("Using sequential processing")
-                results = []
-                iterator = (
-                    tqdm(sources_to_process, desc="Processing unique sources")
-                    if progress_bar
-                    else sources_to_process
-                )
-                for source_text in iterator:
-                    result = self.extract_domains(source_text)
-                    results.append(result)
-
-            # Apply results to all rows with same source_id
             processed = 0
             errors = 0
 
-            iterator = (
-                tqdm(
-                    zip(source_ids_to_process, results),
-                    total=len(source_ids_to_process),
-                    desc="Applying results",
-                )
-                if progress_bar
-                else zip(source_ids_to_process, results)
-            )
-
-            for source_id, result in iterator:
-                indices = source_id_to_indices[source_id]
-
-                if result is not None:
-                    # Apply result to all rows with this source_id
-                    for idx in indices:
-                        result_df.at[idx, "suggestions"] = str(result["suggestions"])
-                        result_df.at[idx, "total_suggestions"] = result[
-                            "total_suggestions"
-                        ]
-                        result_df.at[idx, "primary_theme"] = result.get("primary_theme")
-                    processed += len(indices)
-
-                    LOGGER.debug(
-                        f"Applied result for source_id={source_id} to {len(indices)} rows"
+            try:
+                # Process sources (batch or sequential)
+                if should_batch:
+                    LOGGER.info(
+                        f"Using batch processing with batch_size={batch_size} "
+                        f"for {len(sources_to_process)} unique sources"
+                    )
+                    results = self.extract_domains_batch(
+                        sources_to_process, batch_size=batch_size, show_progress=progress_bar
                     )
                 else:
-                    # Mark all rows with this source_id as failed
-                    for idx in indices:
-                        result_df.at[idx, "domain_analysis_error"] = "Analysis failed"
-                    errors += len(indices)
+                    LOGGER.info("Using sequential processing")
+                    results = []
+                    iterator = (
+                        tqdm(sources_to_process, desc="Processing unique sources")
+                        if progress_bar
+                        else sources_to_process
+                    )
+                    for source_text in iterator:
+                        result = self.extract_domains(source_text)
+                        results.append(result)
 
-                # Checkpoint based on total rows processed
-                if (
-                    save_path
-                    and checkpoint_batch_size
-                    and processed % checkpoint_batch_size == 0
-                ):
+                # Apply results to all rows with same source_id
+                iterator = (
+                    tqdm(
+                        zip(source_ids_to_process, results),
+                        total=len(source_ids_to_process),
+                        desc="Applying results",
+                    )
+                    if progress_bar
+                    else zip(source_ids_to_process, results)
+                )
+
+                for source_id, result in iterator:
+                    indices = source_id_to_indices[source_id]
+
+                    if result is not None:
+                        # Apply result to all rows with this source_id
+                        for idx in indices:
+                            result_df.at[idx, "suggestions"] = str(result["suggestions"])
+                            result_df.at[idx, "total_suggestions"] = result[
+                                "total_suggestions"
+                            ]
+                            result_df.at[idx, "primary_theme"] = result.get("primary_theme")
+                        processed += len(indices)
+
+                        LOGGER.debug(
+                            f"Applied result for source_id={source_id} to {len(indices)} rows"
+                        )
+                    else:
+                        # Mark all rows with this source_id as failed
+                        for idx in indices:
+                            result_df.at[idx, "domain_analysis_error"] = "Analysis failed"
+                        errors += len(indices)
+
+                    # Checkpoint based on total rows processed
+                    if (
+                            save_path
+                            and checkpoint_batch_size
+                            and processed % checkpoint_batch_size == 0
+                    ):
+                        result_df.to_csv(save_path, index=False)
+                        LOGGER.info(f"Checkpoint saved at {processed} rows processed")
+
+            except KeyboardInterrupt:
+                LOGGER.warning("Processing interrupted by user")
+                if save_path:
                     result_df.to_csv(save_path, index=False)
-                    LOGGER.info(f"Checkpoint saved at {processed} rows processed")
+                    LOGGER.info(f"Progress saved to {save_path}")
+                    LOGGER.info(
+                        f"Partial results: {processed} rows successful, {errors} rows with errors"
+                    )
+                else:
+                    LOGGER.warning("No save_path specified - progress not saved")
+                # Re-raise to allow caller to handle if needed, or return partial results
+                # Returning partial results is more useful in this context
+                return result_df
+            except Exception as e:
+                LOGGER.error(f"Critical error during source grouping processing: {e}")
+                if save_path:
+                    result_df.to_csv(save_path, index=False)
+                    LOGGER.info(f"Progress saved to {save_path} after error")
+                raise
 
             LOGGER.info(
                 f"Source grouping processing complete: {processed} rows successful, "
