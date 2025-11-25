@@ -522,7 +522,7 @@ try:
             return None
 
         def extract_domains_batch(
-            self, text_sources: List[str]
+            self, text_sources: List[str], batch_size: Optional[int] = None
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Extract domains from multiple text sources in batch.
@@ -531,6 +531,8 @@ try:
             ----------
             text_sources : List[str]
                 List of text sources to analyze
+            batch_size : int, optional
+                Batch size for chunking. If None, uses self.batch_size
 
             Returns
             -------
@@ -543,10 +545,13 @@ try:
                 )
                 return [self.extract_domains(text) for text in text_sources]
 
-            return self._batch_process(OperationMode.EXTRACT, text_sources=text_sources)
+            batch_size = batch_size or self.batch_size
+            return self._batch_process(
+                OperationMode.EXTRACT, text_sources=text_sources, batch_size=batch_size
+            )
 
         def guess_domains_batch(
-            self, questions: List[str]
+            self, questions: List[str], batch_size: Optional[int] = None
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Guess domains for multiple questions in batch.
@@ -555,6 +560,8 @@ try:
             ----------
             questions : List[str]
                 List of questions to analyze
+            batch_size : int, optional
+                Batch size for chunking. If None, uses self.batch_size
 
             Returns
             -------
@@ -567,12 +574,16 @@ try:
                 )
                 return [self.guess_domains(q) for q in questions]
 
-            return self._batch_process(OperationMode.GUESS, questions=questions)
+            batch_size = batch_size or self.batch_size
+            return self._batch_process(
+                OperationMode.GUESS, questions=questions, batch_size=batch_size
+            )
 
         def assess_domains_batch(
             self,
             questions: List[str],
             available_terms: Union[List[str], List[Dict], str],
+            batch_size: Optional[int] = None,
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Assess domains for multiple questions against the same available terms.
@@ -583,6 +594,8 @@ try:
                 List of questions to analyze
             available_terms : Union[List[str], List[Dict], str]
                 Available terms (same for all questions)
+            batch_size : int, optional
+                Batch size for chunking. If None, uses self.batch_size
 
             Returns
             -------
@@ -606,72 +619,124 @@ try:
             else:
                 terms_str = json.dumps(available_terms, indent=2)
 
+            batch_size = batch_size or self.batch_size
             return self._batch_process(
                 OperationMode.ASSESS,
                 questions=questions,
                 available_terms=[terms_str] * len(questions),
+                batch_size=batch_size,
             )
 
         def _batch_process(
-            self,
-            mode: OperationMode,
-            text_sources: Optional[List[str]] = None,
-            questions: Optional[List[str]] = None,
-            available_terms: Optional[List[str]] = None,
+                self,
+                mode: OperationMode,
+                text_sources: Optional[List[str]] = None,
+                questions: Optional[List[str]] = None,
+                available_terms: Optional[List[str]] = None,
+                batch_size: Optional[int] = None,
         ) -> List[Optional[Dict[str, Any]]]:
-            """Internal method for batch processing"""
+            """
+            Internal method for batch processing with proper chunking.
+
+            This method now properly splits input into chunks and processes each chunk
+            separately using the LLM's batch API.
+            """
+            batch_size = batch_size or self.batch_size
             template = self._get_template_for_mode(mode)
             parser, fixing_parser = self._get_parser_for_mode(mode)
 
-            # Prepare prompts
-            prompts = []
+            # Determine total count based on mode
             if mode == OperationMode.EXTRACT:
-                for text in text_sources:
-                    prompts.append(template.format(text_source=text))
+                total_items = len(text_sources)
             elif mode == OperationMode.GUESS:
-                for question in questions:
-                    prompts.append(template.format(question=question))
+                total_items = len(questions)
             elif mode == OperationMode.ASSESS:
-                for question, terms in zip(questions, available_terms):
-                    prompts.append(
-                        template.format(question=question, available_terms=terms)
-                    )
+                total_items = len(questions)
+            else:
+                raise ValueError(f"Unknown mode: {mode}")
 
-            LOGGER.info(f"Processing batch of {len(prompts)} items for mode: {mode}")
+            total_batches = (total_items + batch_size - 1) // batch_size
+            LOGGER.info(
+                f"Processing {total_items} items in {total_batches} batches "
+                f"(batch_size={batch_size}) for mode: {mode}"
+            )
+
+            all_results = []
 
             try:
-                # Use LangChain's batch method
-                responses = self.llm.batch(prompts)
+                # Process in chunks
+                for batch_idx, batch_start in enumerate(
+                        range(0, total_items, batch_size), 1
+                ):
+                    batch_end = min(batch_start + batch_size, total_items)
+                    current_batch_size = batch_end - batch_start
 
-                # Parse each response
-                results = []
-                for i, response in enumerate(responses):
+                    LOGGER.debug(
+                        f"Processing batch {batch_idx}/{total_batches}: "
+                        f"items {batch_start}-{batch_end}"
+                    )
+
+                    # Prepare prompts for this batch
+                    prompts = []
+                    if mode == OperationMode.EXTRACT:
+                        batch_texts = text_sources[batch_start:batch_end]
+                        for text in batch_texts:
+                            prompts.append(template.format(text_source=text))
+                    elif mode == OperationMode.GUESS:
+                        batch_questions = questions[batch_start:batch_end]
+                        for question in batch_questions:
+                            prompts.append(template.format(question=question))
+                    elif mode == OperationMode.ASSESS:
+                        batch_questions = questions[batch_start:batch_end]
+                        batch_terms = available_terms[batch_start:batch_end]
+                        for question, terms in zip(batch_questions, batch_terms):
+                            prompts.append(
+                                template.format(question=question, available_terms=terms)
+                            )
+
                     try:
-                        if hasattr(response, "content"):
-                            content = response.content
-                        else:
-                            content = str(response)
+                        # Use LangChain's batch method for this chunk
+                        responses = self.llm.batch(prompts)
 
-                        # Try fixing parser
-                        try:
-                            result = fixing_parser.parse(content)
-                            results.append(self._extract_result_dict(result))
-                        except Exception:
-                            # Fallback to regular parser
-                            result = parser.parse(content)
-                            results.append(self._extract_result_dict(result))
+                        # Parse each response in the batch
+                        for i, response in enumerate(responses):
+                            global_idx = batch_start + i
+                            try:
+                                if hasattr(response, "content"):
+                                    content = response.content
+                                else:
+                                    content = str(response)
+
+                                # Try fixing parser first
+                                try:
+                                    result = fixing_parser.parse(content)
+                                    all_results.append(self._extract_result_dict(result))
+                                except Exception:
+                                    # Fallback to regular parser
+                                    result = parser.parse(content)
+                                    all_results.append(self._extract_result_dict(result))
+
+                            except Exception as e:
+                                LOGGER.error(
+                                    f"Error parsing item {global_idx} in batch {batch_idx}: {e}"
+                                )
+                                all_results.append(None)
 
                     except Exception as e:
-                        LOGGER.error(f"Error processing batch item {i}: {e}")
-                        results.append(None)
+                        LOGGER.error(
+                            f"Batch {batch_idx}/{total_batches} failed: {e}. "
+                            f"Adding None for {current_batch_size} items"
+                        )
+                        # Add None for all items in this failed batch
+                        all_results.extend([None] * current_batch_size)
 
-                return results
+                return all_results
 
             except Exception as e:
-                LOGGER.error(f"Batch processing failed: {e}")
+                LOGGER.error(f"Critical error in batch processing: {e}")
                 LOGGER.info("Falling back to sequential processing")
 
-                # Fallback to sequential
+                # Fallback to sequential processing
                 if mode == OperationMode.EXTRACT:
                     return [self.extract_domains(text) for text in text_sources]
                 elif mode == OperationMode.GUESS:
@@ -683,18 +748,18 @@ try:
                     ]
 
         def process_dataframe(
-                self,
-                df: pd.DataFrame,
-                mode: OperationMode,
-                text_source_col: Optional[str] = None,
-                question_col: Optional[str] = None,
-                available_terms: Optional[Union[List[str], List[Dict], str]] = None,
-                progress_bar: bool = True,
-                save_path: Optional[str] = None,
-                skip_existing: bool = True,
-                checkpoint_batch_size: Optional[int] = None,
-                use_batch_processing: bool = True,
-                batch_size: Optional[int] = None,
+            self,
+            df: pd.DataFrame,
+            mode: OperationMode,
+            text_source_col: Optional[str] = None,
+            question_col: Optional[str] = None,
+            available_terms: Optional[Union[List[str], List[Dict], str]] = None,
+            progress_bar: bool = True,
+            save_path: Optional[str] = None,
+            skip_existing: bool = True,
+            checkpoint_batch_size: Optional[int] = None,
+            use_batch_processing: bool = True,
+            batch_size: Optional[int] = None,
         ) -> pd.DataFrame:
             """
             Process a DataFrame based on the specified operation mode.
@@ -775,10 +840,7 @@ try:
                     result_df[col] = None
 
             # Check if we should use source_id grouping (EXTRACT mode only)
-            use_source_grouping = (
-                    mode == OperationMode.EXTRACT
-                    and "source_id" in existing_cols
-            )
+            use_source_grouping = mode == OperationMode.EXTRACT and "source_id" in existing_cols
 
             if use_source_grouping:
                 LOGGER.info(
@@ -795,7 +857,7 @@ try:
                     batch_size,
                 )
 
-            # Regular processing (existing code continues below)
+            # Regular processing without source grouping
             # Collect rows to process
             rows_to_process = []
             indices_to_process = []
@@ -803,15 +865,15 @@ try:
             for idx, row in result_df.iterrows():
                 # Skip if has existing results
                 if skip_existing and (
-                        pd.notna(row.get("total_suggestions"))
-                        or pd.notna(row.get("total_selected"))
+                    pd.notna(row.get("total_suggestions"))
+                    or pd.notna(row.get("total_selected"))
                 ):
                     continue
 
                 # Check for empty inputs
                 if mode == OperationMode.EXTRACT:
                     if pd.isna(row[text_source_col]) or is_empty_text(
-                            row[text_source_col]
+                        row[text_source_col]
                     ):
                         result_df.at[idx, "domain_analysis_error"] = (
                             "Missing or empty text source"
@@ -882,102 +944,98 @@ try:
             save_path,
             checkpoint_size,
         ):
-            """Process DataFrame using batch API"""
-            total_batches = (len(rows) + batch_size - 1) // batch_size
-            iterator = (
-                tqdm(
-                    range(0, len(rows), batch_size),
-                    total=total_batches,
-                    desc="Processing batches",
-                )
-                if progress_bar
-                else range(0, len(rows), batch_size)
+            """
+            Process DataFrame using batch API.
+
+            Note: Now simplified since _batch_process() handles chunking internally.
+            We collect all inputs and call the batch method once.
+            """
+            LOGGER.info(
+                f"Using batch processing for {len(rows)} rows "
+                f"(batch_size={batch_size})"
             )
 
-            processed = 0
-            errors = 0
+            # Collect all inputs
+            if mode == OperationMode.EXTRACT:
+                all_inputs = [row[text_col] for row in rows]
+            elif mode == OperationMode.GUESS:
+                all_inputs = [row[question_col] for row in rows]
+            else:  # ASSESS
+                all_inputs = [row[question_col] for row in rows]
 
-            for batch_start in iterator:
-                batch_end = min(batch_start + batch_size, len(rows))
-                batch_rows = rows[batch_start:batch_end]
-                batch_indices = indices[batch_start:batch_end]
+            try:
+                # Call the appropriate batch method (which now handles chunking)
+                if mode == OperationMode.EXTRACT:
+                    batch_results = self.extract_domains_batch(
+                        all_inputs, batch_size=batch_size
+                    )
+                elif mode == OperationMode.GUESS:
+                    batch_results = self.guess_domains_batch(
+                        all_inputs, batch_size=batch_size
+                    )
+                else:  # ASSESS
+                    batch_results = self.assess_domains_batch(
+                        all_inputs, available_terms, batch_size=batch_size
+                    )
 
-                try:
-                    # Prepare batch inputs
-                    if mode == OperationMode.EXTRACT:
-                        texts = [row[text_col] for row in batch_rows]
-                        batch_results = self.extract_domains_batch(texts)
-                    elif mode == OperationMode.GUESS:
-                        questions = [row[question_col] for row in batch_rows]
-                        batch_results = self.guess_domains_batch(questions)
-                    else:  # ASSESS
-                        questions = [row[question_col] for row in batch_rows]
-                        batch_results = self.assess_domains_batch(
-                            questions, available_terms
-                        )
+                # Update DataFrame with results
+                processed = 0
+                errors = 0
 
-                    # Update DataFrame
-                    for idx, result in zip(batch_indices, batch_results):
-                        if result is not None:
-                            if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
-                                result_df.at[idx, "suggestions"] = str(
-                                    result["suggestions"]
-                                )
-                                result_df.at[idx, "total_suggestions"] = result[
-                                    "total_suggestions"
-                                ]
-                                key = (
-                                    "primary_theme"
-                                    if mode == OperationMode.EXTRACT
-                                    else "question_category"
-                                )
-                                result_df.at[idx, key] = result.get(key)
-                            else:  # ASSESS
-                                result_df.at[idx, "selected_terms"] = str(
-                                    result["selected_terms"]
-                                )
-                                result_df.at[idx, "total_selected"] = result[
-                                    "total_selected"
-                                ]
-                                result_df.at[idx, "question_intent"] = result[
-                                    "question_intent"
-                                ]
-                                result_df.at[idx, "primary_topics"] = str(
-                                    result["primary_topics"]
-                                )
-                            processed += 1
-                        else:
-                            result_df.at[idx, "domain_analysis_error"] = (
-                                "Analysis failed"
+                iterator = (
+                    tqdm(
+                        zip(indices, batch_results),
+                        total=len(indices),
+                        desc="Updating results",
+                    )
+                    if progress_bar
+                    else zip(indices, batch_results)
+                )
+
+                for idx, result in iterator:
+                    if result is not None:
+                        if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
+                            result_df.at[idx, "suggestions"] = str(result["suggestions"])
+                            result_df.at[idx, "total_suggestions"] = result[
+                                "total_suggestions"
+                            ]
+                            key = (
+                                "primary_theme"
+                                if mode == OperationMode.EXTRACT
+                                else "question_category"
                             )
-                            errors += 1
+                            result_df.at[idx, key] = result.get(key)
+                        else:  # ASSESS
+                            result_df.at[idx, "selected_terms"] = str(
+                                result["selected_terms"]
+                            )
+                            result_df.at[idx, "total_selected"] = result["total_selected"]
+                            result_df.at[idx, "question_intent"] = result[
+                                "question_intent"
+                            ]
+                            result_df.at[idx, "primary_topics"] = str(
+                                result["primary_topics"]
+                            )
+                        processed += 1
+                    else:
+                        result_df.at[idx, "domain_analysis_error"] = "Analysis failed"
+                        errors += 1
 
                     # Checkpoint
-                    if (
-                        save_path
-                        and checkpoint_size
-                        and processed % checkpoint_size == 0
-                    ):
+                    if save_path and checkpoint_size and processed % checkpoint_size == 0:
                         result_df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
-                except KeyboardInterrupt:
-                    LOGGER.warning("Processing interrupted by user")
-                    if save_path:
-                        result_df.to_csv(save_path, index=False)
-                        LOGGER.info(f"Progress saved to {save_path}")
-                    break
-
-                except Exception as e:
-                    LOGGER.error(f"Batch error: {e}")
-                    for idx in batch_indices:
-                        result_df.at[idx, "domain_analysis_error"] = (
-                            f"Batch error: {str(e)}"
-                        )
-                    errors += len(batch_indices)
-
-                if progress_bar and hasattr(iterator, "set_postfix"):
-                    iterator.set_postfix({"Processed": processed, "Errors": errors})
+            except KeyboardInterrupt:
+                LOGGER.warning("Processing interrupted by user")
+                if save_path:
+                    result_df.to_csv(save_path, index=False)
+                    LOGGER.info(f"Progress saved to {save_path}")
+            except Exception as e:
+                LOGGER.error(f"Batch processing error: {e}")
+                for idx in indices:
+                    result_df.at[idx, "domain_analysis_error"] = f"Batch error: {str(e)}"
+                errors = len(indices)
 
             LOGGER.info(
                 f"Batch processing complete: {processed} successful, {errors} errors"
@@ -1019,9 +1077,7 @@ try:
 
                     if result is not None:
                         if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
-                            result_df.at[idx, "suggestions"] = str(
-                                result["suggestions"]
-                            )
+                            result_df.at[idx, "suggestions"] = str(result["suggestions"])
                             result_df.at[idx, "total_suggestions"] = result[
                                 "total_suggestions"
                             ]
@@ -1035,9 +1091,7 @@ try:
                             result_df.at[idx, "selected_terms"] = str(
                                 result["selected_terms"]
                             )
-                            result_df.at[idx, "total_selected"] = result[
-                                "total_selected"
-                            ]
+                            result_df.at[idx, "total_selected"] = result["total_selected"]
                             result_df.at[idx, "question_intent"] = result[
                                 "question_intent"
                             ]
@@ -1050,11 +1104,7 @@ try:
                         errors += 1
 
                     # Checkpoint
-                    if (
-                        save_path
-                        and checkpoint_size
-                        and processed % checkpoint_size == 0
-                    ):
+                    if save_path and checkpoint_size and processed % checkpoint_size == 0:
                         result_df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
@@ -1078,15 +1128,15 @@ try:
             return result_df
 
         def _process_dataframe_with_source_grouping(
-                self,
-                result_df,
-                text_source_col,
-                skip_existing,
-                progress_bar,
-                save_path,
-                checkpoint_batch_size,
-                should_batch,
-                batch_size,
+            self,
+            result_df,
+            text_source_col,
+            skip_existing,
+            progress_bar,
+            save_path,
+            checkpoint_batch_size,
+            should_batch,
+            batch_size,
         ):
             """
             Process DataFrame by grouping rows with same source_id.
@@ -1121,9 +1171,14 @@ try:
             source_id_to_indices = {}
             total_rows = 0
 
-            for idx, row in tqdm(result_df.iterrows(), total=len(result_df),
-                                 desc="Building source_id mapping") if progress_bar else result_df.iterrows():
-                source_id = row.get('source_id')
+            iterator = (
+                tqdm(result_df.iterrows(), total=len(result_df), desc="Building source_id mapping")
+                if progress_bar
+                else result_df.iterrows()
+            )
+
+            for idx, row in iterator:
+                source_id = row.get("source_id")
 
                 # Skip rows with missing source_id
                 if pd.isna(source_id):
@@ -1136,7 +1191,9 @@ try:
 
                 # Skip rows with empty source text
                 if pd.isna(row[text_source_col]) or is_empty_text(row[text_source_col]):
-                    result_df.at[idx, "domain_analysis_error"] = "Missing or empty text source"
+                    result_df.at[idx, "domain_analysis_error"] = (
+                        "Missing or empty text source"
+                    )
                     continue
 
                 # Add to mapping
@@ -1158,7 +1215,13 @@ try:
             source_ids_to_process = list(source_id_to_indices.keys())
             sources_to_process = []
 
-            for source_id in tqdm(source_ids_to_process, desc="Preparing sources") if progress_bar else source_ids_to_process:
+            iterator = (
+                tqdm(source_ids_to_process, desc="Preparing sources")
+                if progress_bar
+                else source_ids_to_process
+            )
+
+            for source_id in iterator:
                 # Get source text from first occurrence
                 first_idx = source_id_to_indices[source_id][0]
                 source_text = result_df.at[first_idx, text_source_col]
@@ -1166,8 +1229,11 @@ try:
 
             # Process sources (batch or sequential)
             if should_batch:
-                LOGGER.info(f"Using batch processing with batch_size={batch_size}")
-                results = self.extract_domains_batch(sources_to_process)
+                LOGGER.info(
+                    f"Using batch processing with batch_size={batch_size} "
+                    f"for {len(sources_to_process)} unique sources"
+                )
+                results = self.extract_domains_batch(sources_to_process, batch_size=batch_size)
             else:
                 LOGGER.info("Using sequential processing")
                 results = []
@@ -1184,15 +1250,26 @@ try:
             processed = 0
             errors = 0
 
-            for source_id, result in tqdm(zip(source_ids_to_process, results), desc="Applying results") \
-                    if progress_bar else zip(source_ids_to_process, results):
+            iterator = (
+                tqdm(
+                    zip(source_ids_to_process, results),
+                    total=len(source_ids_to_process),
+                    desc="Applying results",
+                )
+                if progress_bar
+                else zip(source_ids_to_process, results)
+            )
+
+            for source_id, result in iterator:
                 indices = source_id_to_indices[source_id]
 
                 if result is not None:
                     # Apply result to all rows with this source_id
                     for idx in indices:
                         result_df.at[idx, "suggestions"] = str(result["suggestions"])
-                        result_df.at[idx, "total_suggestions"] = result["total_suggestions"]
+                        result_df.at[idx, "total_suggestions"] = result[
+                            "total_suggestions"
+                        ]
                         result_df.at[idx, "primary_theme"] = result.get("primary_theme")
                     processed += len(indices)
 
@@ -1206,7 +1283,11 @@ try:
                     errors += len(indices)
 
                 # Checkpoint based on total rows processed
-                if save_path and checkpoint_batch_size and processed % checkpoint_batch_size == 0:
+                if (
+                    save_path
+                    and checkpoint_batch_size
+                    and processed % checkpoint_batch_size == 0
+                ):
                     result_df.to_csv(save_path, index=False)
                     LOGGER.info(f"Checkpoint saved at {processed} rows processed")
 
@@ -1220,6 +1301,7 @@ try:
                 LOGGER.info(f"Final results saved to {save_path}")
 
             return result_df
+
 
 except ImportError as e:
     _DEPENDENCIES_AVAILABLE = False
