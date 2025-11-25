@@ -2,7 +2,7 @@
 
 ## Repository Overview
 
-This repository implements a RAG (Retrieval-Augmented Generation) Support system with Deep Neural Networks for evaluating and comparing text sources in question-answering scenarios. The project uses LangChain and LangGraph to build intelligent agents that assess source quality and relevance.
+This repository is about experiments with enhancing RAG (Retrieval-Augmented Generation) systems using Deep Neural Networks. The project focuses on evaluating and comparing text sources in question-answering scenarios. It uses LangChain and LangGraph to build intelligent agents that assess source quality and relevance.
 
 ## Key Technologies
 
@@ -13,7 +13,7 @@ This repository implements a RAG (Retrieval-Augmented Generation) Support system
 - **Pandas**: Data manipulation and analysis
 - **Datasets**: HuggingFace datasets library for dataset handling
 - **ChromaDB** (`langchain_chroma`): Vector store for embeddings and similarity search
-- **OpenAI Embeddings**: Default embedding model (`text-embedding-3-small`)
+- **OpenAI Embeddings**: Optional embedding model (`text-embedding-3-small`) - used for tests and examples
 
 ## Project Structure
 
@@ -36,7 +36,7 @@ RAG_supporters/
 │   ├── rag_verifiers.py      # Prompts for source verification and scoring
 │   └── rag_generators.py     # Prompts for text generation tasks
 ├── requirements.txt           # Main dependencies
-└── requirements_agents.txt    # Agent-specific dependencies
+└── requirements_agents.txt    # Agent-specific dependencies (LangChain, LangGraph, Pydantic)
 ```
 
 ## Architecture & Design Patterns
@@ -144,9 +144,9 @@ The project uses **LangGraph** for building stateful agents with retry logic and
 ### Dataset Handling
 
 - Use `SamplePairingType` enum for different pairing strategies (relevant, all_existing, embedding_similarity)
-- RAG datasets use triplets: question + source1 + source2
+- RAG datasets use triplets (question + source1 + source2) and pairs (question + source)
 - Support for ChromaDB vector stores via `langchain_chroma`
-- Use `tqdm` for progress bars in batch operations
+- Use `tqdm` for progress bars in batch operations and large iteration operations
 - Checkpoint saves during long processing with `checkpoint_batch_size` parameter
 - CSV export/import for triplet samples with `save_triplets_to_csv()`
 
@@ -206,7 +206,7 @@ The repository uses several prompt templates in `prompts_templates/`:
        result_df.to_csv(save_path, index=False)
    ```
 
-8. **Fallback Classes for Missing Dependencies**:
+8. **Fallback Classes for Missing Agent Dependencies** (only for agents and code using `requirements_agents.txt`):
    ```python
    except ImportError as e:
        LOGGER.warning(f"ImportError: {str(e)}...")
@@ -226,7 +226,7 @@ The repository uses several prompt templates in `prompts_templates/`:
 ## Important Notes
 
 - **LLM Providers**: The code checks for OpenAI LLMs using `_check_openai_llm()` but is designed to work with any `BaseChatModel`
-- **Score Validation**: All evaluation scores must be integers within defined ranges (use Pydantic `Field` with `ge` and `le`)
+- **Score Validation**: Evaluation scores can be integers or floats within defined ranges (use Pydantic `Field` with `ge` and `le`)
 - **Domain Inference**: A key feature is inferring the domain from question/source context rather than requiring explicit domain specification
 - **TODOs**: Check inline TODO comments for areas needing improvement (e.g., plugin architecture for custom layers)
 - **Label Conventions**: For triplet comparisons: -1 = unlabeled/error, 0 = neither/both irrelevant, 1 = source1 better, 2 = source2 better
@@ -292,6 +292,7 @@ class MyDatasetGenerator(BaseRAGDatasetGenerator):
 1. Add the criterion to the prompt template in `prompts_templates/rag_verifiers.py`
 2. Add a corresponding Pydantic field to the evaluation model
 3. Update the scoring logic in the agent
+4. Evaluation can also be based on statistics rather than just LLM outputs
 
 ### Working with Prompts
 
