@@ -685,18 +685,19 @@ class BaseRAGDatasetGenerator(ABC):
 
         return results
 
+    #TODO: Think about removing it from here and moving to DomainAnalysisAgent directly
     def analyze_domains(
-        self,
-        llm: BaseChatModel,
-        mode: str,
-        df: pd.DataFrame,
-        available_terms: Optional[Union[List[str], List[Dict], str]] = None,
-        skip_existing: bool = True,
-        save_path: Optional[str] = None,
-        max_retries: int = 3,
-        checkpoint_batch_size: Optional[int] = None,
-        use_batch_processing: bool = True,
-        batch_size: Optional[int] = None,
+            self,
+            llm: BaseChatModel,
+            mode: str,
+            df: pd.DataFrame,
+            available_terms: Optional[Union[List[str], List[Dict], str]] = None,
+            skip_existing: bool = True,
+            save_path: Optional[str] = None,
+            max_retries: int = 3,
+            checkpoint_batch_size: Optional[int] = None,
+            use_batch_processing: bool = True,
+            batch_size: Optional[int] = None,
     ) -> pd.DataFrame:
         """
         Analyze domains for questions or sources using the DomainAnalysisAgent.
@@ -743,20 +744,27 @@ class BaseRAGDatasetGenerator(ABC):
         Returns
         -------
         pd.DataFrame
-            DataFrame with domain analysis results. Added columns depend on mode:
+            DataFrame with domain analysis results. Added columns have mode-specific prefixes
+            (extract_, guess_, or assess_):
 
-            For "extract" and "guess" modes:
-            - suggestions: List of domain/subdomain/keyword suggestions
-            - total_suggestions: Number of suggestions made
-            - primary_theme (extract) or question_category (guess): Main identified theme
-            - domain_analysis_error: Error message if analysis failed
+            For "extract" mode:
+            - extract_suggestions: List of domain/subdomain/keyword suggestions
+            - extract_total_suggestions: Number of suggestions made
+            - extract_primary_theme: Main identified theme
+            - extract_error: Error message if analysis failed
+
+            For "guess" mode:
+            - guess_suggestions: List of domain suggestions
+            - guess_total_suggestions: Number of suggestions made
+            - guess_question_category: Question category identified
+            - guess_error: Error message if analysis failed
 
             For "assess" mode:
-            - selected_terms: List of selected relevant terms
-            - total_selected: Number of terms selected
-            - question_intent: Brief description of question intent
-            - primary_topics: List of primary topics identified
-            - domain_analysis_error: Error message if analysis failed
+            - assess_selected_terms: List of selected relevant terms
+            - assess_total_selected: Number of terms selected
+            - assess_question_intent: Brief description of question intent
+            - assess_primary_topics: List of primary topics identified
+            - assess_error: Error message if analysis failed
 
         Raises
         ------
@@ -775,7 +783,7 @@ class BaseRAGDatasetGenerator(ABC):
         ...     df=sources_df,
         ...     save_path="output/source_domains.csv"
         ... )
-        >>> print(result_df[["source_id", "primary_theme", "total_suggestions"]].head())
+        >>> print(result_df[["source_id", "extract_primary_theme", "extract_total_suggestions"]].head())
 
         # Guess domains for questions in existing pairs DataFrame
         >>> # pairs_df has: question_id, source_id, question_text, source_text
@@ -786,7 +794,7 @@ class BaseRAGDatasetGenerator(ABC):
         ...     save_path="output/question_domains.csv",
         ...     checkpoint_batch_size=50
         ... )
-        >>> print(result_df[["question_id", "question_category", "total_suggestions"]].head())
+        >>> print(result_df[["question_id", "guess_question_category", "guess_total_suggestions"]].head())
 
         # Assess questions against available terms - use unique questions
         >>> unique_questions = pairs_df[["question_id", "question_text"]].drop_duplicates()
@@ -799,7 +807,7 @@ class BaseRAGDatasetGenerator(ABC):
         ...     use_batch_processing=True,
         ...     batch_size=20
         ... )
-        >>> print(result_df[["question_id", "total_selected", "primary_topics"]].head())
+        >>> print(result_df[["question_id", "assess_total_selected", "assess_primary_topics"]].head())
 
         # Extract with text already in DataFrame (no ChromaDB fetch needed)
         >>> sources_with_text = pd.DataFrame({
@@ -818,7 +826,9 @@ class BaseRAGDatasetGenerator(ABC):
           in the DataFrame are preserved in the output but not used for analysis.
         - If text columns are missing, they are fetched from ChromaDB using the ID columns.
         - Progress bars are automatically displayed during processing.
-        - Failed analyses are logged with error messages in the 'domain_analysis_error' column.
+        - Failed analyses are logged with error messages in the mode-specific error column.
+        - All result columns use mode-specific prefixes to avoid conflicts when multiple
+          analyses are performed on the same DataFrame.
         """
         # Validate mode
         valid_modes = ["extract", "guess", "assess"]
@@ -955,18 +965,25 @@ class BaseRAGDatasetGenerator(ABC):
 
             LOGGER.info(f"Successfully analyzed {len(analyzed_df)} items")
 
+            # Define mode-specific column names
+            error_col = f"{mode}_error"
+
             # Log error rate
-            error_count = analyzed_df["domain_analysis_error"].notna().sum()
-            if error_count > 0:
-                LOGGER.warning(
-                    f"Failed to analyze {error_count} items "
-                    f"({error_count / len(analyzed_df) * 100:.1f}%)"
-                )
+            if error_col in analyzed_df.columns:
+                error_count = analyzed_df[error_col].notna().sum()
+                if error_count > 0:
+                    LOGGER.warning(
+                        f"Failed to analyze {error_count} items "
+                        f"({error_count / len(analyzed_df) * 100:.1f}%)"
+                    )
+            else:
+                LOGGER.warning(f"Expected error column '{error_col}' not found in results")
 
             # Log summary statistics based on mode
             if mode in ["extract", "guess"]:
-                if "total_suggestions" in analyzed_df.columns:
-                    valid_suggestions = analyzed_df["total_suggestions"].dropna()
+                total_col = f"{mode}_total_suggestions"
+                if total_col in analyzed_df.columns:
+                    valid_suggestions = analyzed_df[total_col].dropna()
                     if len(valid_suggestions) > 0:
                         avg_suggestions = valid_suggestions.mean()
                         max_suggestions = valid_suggestions.max()
@@ -979,25 +996,25 @@ class BaseRAGDatasetGenerator(ABC):
                         LOGGER.warning("No valid suggestions found in results")
 
                     # Log primary theme/category distribution if available
-                    if mode == "extract" and "primary_theme" in analyzed_df.columns:
-                        theme_counts = (
-                            analyzed_df["primary_theme"].value_counts().head(5)
-                        )
-                        if not theme_counts.empty:
-                            LOGGER.info(f"Top 5 primary themes:\n{theme_counts}")
-
-                    elif mode == "guess" and "question_category" in analyzed_df.columns:
-                        category_counts = (
-                            analyzed_df["question_category"].value_counts().head(5)
-                        )
-                        if not category_counts.empty:
-                            LOGGER.info(
-                                f"Top 5 question categories:\n{category_counts}"
-                            )
+                    if mode == "extract":
+                        theme_col = f"{mode}_primary_theme"
+                        if theme_col in analyzed_df.columns:
+                            theme_counts = analyzed_df[theme_col].value_counts().head(5)
+                            if not theme_counts.empty:
+                                LOGGER.info(f"Top 5 primary themes:\n{theme_counts}")
+                    elif mode == "guess":
+                        category_col = f"{mode}_question_category"
+                        if category_col in analyzed_df.columns:
+                            category_counts = analyzed_df[category_col].value_counts().head(5)
+                            if not category_counts.empty:
+                                LOGGER.info(f"Top 5 question categories:\n{category_counts}")
+                else:
+                    LOGGER.warning(f"Expected column '{total_col}' not found in results")
 
             else:  # assess mode
-                if "total_selected" in analyzed_df.columns:
-                    valid_selected = analyzed_df["total_selected"].dropna()
+                total_col = f"{mode}_total_selected"
+                if total_col in analyzed_df.columns:
+                    valid_selected = analyzed_df[total_col].dropna()
                     if len(valid_selected) > 0:
                         avg_selected = valid_selected.mean()
                         max_selected = valid_selected.max()
@@ -1016,6 +1033,8 @@ class BaseRAGDatasetGenerator(ABC):
                             )
                     else:
                         LOGGER.warning("No valid term selections found in results")
+                else:
+                    LOGGER.warning(f"Expected column '{total_col}' not found in results")
 
             return analyzed_df
 
