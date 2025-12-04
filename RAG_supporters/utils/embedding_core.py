@@ -215,7 +215,7 @@ def create_embeddings_for_strings(
 
     Examples
     --------
-    >>> keywords = ['machine learning', 'data science', 'artificial intelligence']
+    >>> str_list = ['machine learning', 'data science', 'artificial intelligence']
     >>> embeddings = create_embeddings_for_strings(str_list)
     >>> len(embeddings)
     3
