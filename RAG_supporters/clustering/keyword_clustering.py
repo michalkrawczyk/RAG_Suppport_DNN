@@ -23,16 +23,14 @@ LOGGER = logging.getLogger(__name__)
 
 
 class KeywordClusterer:
-    """
-    Cluster keyword embeddings using KMeans or Bisecting KMeans.
-    """
+    """Cluster keyword embeddings using KMeans or Bisecting KMeans."""
 
     def __init__(
-            self,
-            algorithm: str = "kmeans",
-            n_clusters: int = 8,
-            random_state: int = 42,
-            **kwargs,
+        self,
+        algorithm: str = "kmeans",
+        n_clusters: int = 8,
+        random_state: int = 42,
+        **kwargs,
     ):
         """
         Initialize the clusterer.
@@ -59,7 +57,7 @@ class KeywordClusterer:
         self.cluster_labels = None
 
     def _create_model(self):
-        """Create the clustering model"""
+        """Create the clustering model."""
         try:
             from sklearn.cluster import BisectingKMeans, KMeans
         except ImportError:
@@ -87,9 +85,9 @@ class KeywordClusterer:
             )
 
     def fit(
-            self,
-            keyword_embeddings: Dict[str, np.ndarray],
-    ) -> 'KeywordClusterer':
+        self,
+        keyword_embeddings: Dict[str, np.ndarray],
+    ) -> "KeywordClusterer":
         """
         Fit the clustering model.
 
@@ -105,9 +103,9 @@ class KeywordClusterer:
         """
         # Convert to matrix
         self.keywords = list(keyword_embeddings.keys())
-        self.embeddings_matrix = np.array([
-            keyword_embeddings[kw] for kw in self.keywords
-        ])
+        self.embeddings_matrix = np.array(
+            [keyword_embeddings[kw] for kw in self.keywords]
+        )
 
         LOGGER.info(
             f"Fitting {self.algorithm} with {self.n_clusters} clusters "
@@ -169,15 +167,15 @@ class KeywordClusterer:
         np.ndarray
             Array of cluster centroids, shape (n_clusters, embedding_dim)
         """
-        if not hasattr(self.model, 'cluster_centers_'):
+        if not hasattr(self.model, "cluster_centers_"):
             raise ValueError("Model not fitted or doesn't have centroids")
 
         return self.model.cluster_centers_
 
     def save_results(
-            self,
-            output_path: str,
-            include_embeddings: bool = False,
+        self,
+        output_path: str,
+        include_embeddings: bool = False,
     ):
         """
         Save clustering results to JSON.
@@ -226,7 +224,7 @@ class KeywordClusterer:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
 
         LOGGER.info(f"Saved clustering results to {output_path}")
@@ -246,7 +244,7 @@ class KeywordClusterer:
         Dict[str, Any]
             Clustering results
         """
-        with open(input_path, 'r', encoding='utf-8') as f:
+        with open(input_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         return data

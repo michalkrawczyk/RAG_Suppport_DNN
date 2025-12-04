@@ -21,10 +21,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 def load_suggestions_from_csv(
-        csv_path: str,
-        suggestion_column: str = "suggestions",
-        chunksize: int = 1000,
-        show_progress: bool = True,
+    csv_path: str,
+    suggestion_column: str = "suggestions",
+    chunksize: int = 1000,
+    show_progress: bool = True,
 ) -> List[Dict[str, Any]]:
     """
     Load and parse suggestions from CSV file (supports large files).
@@ -58,7 +58,7 @@ def load_suggestions_from_csv(
     if show_progress:
         try:
             # Quick count of lines
-            with open(csv_path, 'r', encoding='utf-8') as f:
+            with open(csv_path, "r", encoding="utf-8") as f:
                 total_rows = sum(1 for _ in f) - 1  # Exclude header
         except Exception:
             pass
@@ -73,10 +73,11 @@ def load_suggestions_from_csv(
         if show_progress and total_rows:
             try:
                 from tqdm import tqdm
+
                 chunk_iterator = tqdm(
                     chunk_iterator,
                     total=(total_rows // chunksize) + 1,
-                    desc="Processing CSV chunks"
+                    desc="Processing CSV chunks",
                 )
             except ImportError:
                 LOGGER.debug("tqdm not available, skipping progress bar")
@@ -139,10 +140,10 @@ def load_suggestions_from_csv(
 
 
 def save_embeddings_to_json(
-        keyword_embeddings: Dict[str, np.ndarray],
-        output_path: str,
-        model_name: str = "unknown",
-        metadata: Optional[Dict[str, Any]] = None,
+    keyword_embeddings: Dict[str, np.ndarray],
+    output_path: str,
+    model_name: str = "unknown",
+    metadata: Optional[Dict[str, Any]] = None,
 ):
     """
     Save keyword embeddings to JSON file.
@@ -169,8 +170,7 @@ def save_embeddings_to_json(
 
     # Convert embeddings to lists for JSON serialization
     embeddings_json = {
-        keyword: embedding.tolist()
-        for keyword, embedding in keyword_embeddings.items()
+        keyword: embedding.tolist() for keyword, embedding in keyword_embeddings.items()
     }
 
     # Get embedding dimension
@@ -192,14 +192,14 @@ def save_embeddings_to_json(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output_data, f, indent=2, ensure_ascii=False)
 
     LOGGER.info(f"Saved {len(keyword_embeddings)} embeddings to {output_path}")
 
 
 def load_embeddings_from_json(
-        input_path: str,
+    input_path: str,
 ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
     """
     Load keyword embeddings from JSON file.
@@ -222,7 +222,7 @@ def load_embeddings_from_json(
     """
     LOGGER.info(f"Loading embeddings from {input_path}")
 
-    with open(input_path, 'r', encoding='utf-8') as f:
+    with open(input_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     # Convert lists back to numpy arrays

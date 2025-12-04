@@ -18,9 +18,9 @@ LOGGER = logging.getLogger(__name__)
 
 
 def filter_by_field_value(
-        suggestions: List[Dict[str, Any]],
-        min_value: float = 0.7,
-        field_name: str = 'confidence',
+    suggestions: List[Dict[str, Any]],
+    min_value: float = 0.7,
+    field_name: str = "confidence",
 ) -> List[Dict[str, Any]]:
     """
     Filter suggestions by a numeric field threshold.
@@ -100,10 +100,10 @@ def filter_by_field_value(
 
 
 def aggregate_unique_terms(
-        suggestions: List[Dict[str, Any]],
-        term_key: str = 'term',
-        normalize: bool = True,
-        return_counts: bool = False,
+    suggestions: List[Dict[str, Any]],
+    term_key: str = "term",
+    normalize: bool = True,
+    return_counts: bool = False,
 ) -> Tuple[List[str], Optional[Dict[str, int]]]:
     """
     Aggregate terms into unique keywords.
@@ -155,7 +155,7 @@ def aggregate_unique_terms(
     keyword_counts = {} if return_counts else None
 
     for suggestion in suggestions:
-        term = suggestion.get(term_key, '')
+        term = suggestion.get(term_key, "")
         if not term:
             continue
 
@@ -183,12 +183,12 @@ def aggregate_unique_terms(
 
 
 def create_embeddings_for_strings(
-        str_list: List[str],
-        embedding_model: Optional[Any] = None,
-        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-        batch_size: int = 32,
-        show_progress: bool = True,
-        normalize_embeddings: bool = False,
+    str_list: List[str],
+    embedding_model: Optional[Any] = None,
+    model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    batch_size: int = 32,
+    show_progress: bool = True,
+    normalize_embeddings: bool = False,
 ) -> Dict[str, np.ndarray]:
     """
     Create embeddings for each keyword separately.
@@ -266,8 +266,7 @@ def create_embeddings_for_strings(
 
     # Create keyword -> embedding mapping
     keyword_embeddings = {
-        keyword: embedding
-        for keyword, embedding in zip(unique_keywords, embeddings)
+        keyword: embedding for keyword, embedding in zip(unique_keywords, embeddings)
     }
 
     embedding_dim = embeddings.shape[1]

@@ -25,15 +25,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 class CentroidComparator:
-    """
-    Compare keywords or new text against cluster centroids.
-    """
+    """Compare keywords or new text against cluster centroids."""
 
     def __init__(
-            self,
-            centroids: np.ndarray,
-            cluster_labels: Optional[List[int]] = None,
-            cluster_info: Optional[Dict[int, Dict[str, Any]]] = None,
+        self,
+        centroids: np.ndarray,
+        cluster_labels: Optional[List[int]] = None,
+        cluster_info: Optional[Dict[int, Dict[str, Any]]] = None,
     ):
         """
         Initialize the comparator.
@@ -53,9 +51,9 @@ class CentroidComparator:
 
     @classmethod
     def from_clustering_results(
-            cls,
-            clustering_results_path: str,
-    ) -> 'CentroidComparator':
+        cls,
+        clustering_results_path: str,
+    ) -> "CentroidComparator":
         """
         Create comparator from saved clustering results.
 
@@ -69,24 +67,24 @@ class CentroidComparator:
         CentroidComparator
             Initialized comparator
         """
-        with open(clustering_results_path, 'r', encoding='utf-8') as f:
+        with open(clustering_results_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        centroids = np.array(data['centroids'])
+        centroids = np.array(data["centroids"])
         cluster_labels = list(range(len(centroids)))
 
         # Get cluster info if available
         cluster_info = {}
-        if 'cluster_stats' in data:
-            for label_str, stats in data['cluster_stats'].items():
+        if "cluster_stats" in data:
+            for label_str, stats in data["cluster_stats"].items():
                 cluster_info[int(label_str)] = stats
 
         return cls(centroids, cluster_labels, cluster_info)
 
     def compute_distances(
-            self,
-            embedding: np.ndarray,
-            metric: str = "euclidean",
+        self,
+        embedding: np.ndarray,
+        metric: str = "euclidean",
     ) -> np.ndarray:
         """
         Compute distances from embedding to all centroids.
@@ -108,6 +106,7 @@ class CentroidComparator:
         elif metric == "cosine":
             # Cosine distance = 1 - cosine similarity
             from sklearn.metrics.pairwise import cosine_similarity
+
             similarities = cosine_similarity([embedding], self.centroids)[0]
             distances = 1 - similarities
         else:
@@ -118,10 +117,10 @@ class CentroidComparator:
         return distances
 
     def find_nearest_cluster(
-            self,
-            embedding: np.ndarray,
-            metric: str = "euclidean",
-            top_k: int = 1,
+        self,
+        embedding: np.ndarray,
+        metric: str = "euclidean",
+        top_k: int = 1,
     ) -> Union[Tuple[int, float], List[Tuple[int, float]]]:
         """
         Find the nearest cluster(s) for an embedding.
@@ -154,10 +153,10 @@ class CentroidComparator:
             ]
 
     def get_all_distances(
-            self,
-            embedding: np.ndarray,
-            metric: str = "euclidean",
-            sorted: bool = True,
+        self,
+        embedding: np.ndarray,
+        metric: str = "euclidean",
+        sorted: bool = True,
     ) -> Dict[int, float]:
         """
         Get distances to all clusters.
@@ -179,23 +178,20 @@ class CentroidComparator:
         distances = self.compute_distances(embedding, metric)
 
         distance_dict = {
-            label: float(dist)
-            for label, dist in zip(self.cluster_labels, distances)
+            label: float(dist) for label, dist in zip(self.cluster_labels, distances)
         }
 
         if sorted:
-            distance_dict = dict(
-                sorted(distance_dict.items(), key=lambda x: x[1])
-            )
+            distance_dict = dict(sorted(distance_dict.items(), key=lambda x: x[1]))
 
         return distance_dict
 
     def compare_keyword(
-            self,
-            keyword: str,
-            keyword_embeddings: Dict[str, np.ndarray],
-            metric: str = "euclidean",
-            top_k: int = 3,
+        self,
+        keyword: str,
+        keyword_embeddings: Dict[str, np.ndarray],
+        metric: str = "euclidean",
+        top_k: int = 3,
     ) -> Dict[str, Any]:
         """
         Compare a keyword against centroids.
@@ -232,11 +228,11 @@ class CentroidComparator:
         }
 
     def compare_text(
-            self,
-            text: str,
-            embedding_model: Any,
-            metric: str = "euclidean",
-            top_k: int = 3,
+        self,
+        text: str,
+        embedding_model: Any,
+        metric: str = "euclidean",
+        top_k: int = 3,
     ) -> Dict[str, Any]:
         """
         Compare arbitrary text against centroids.

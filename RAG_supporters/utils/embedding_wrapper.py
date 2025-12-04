@@ -30,13 +30,14 @@ LOGGER = logging.getLogger(__name__)
 class KeywordEmbedder:
     """
     Wrapper class for keyword embedding operations.
+
     Uses the core functions internally.
     """
 
     def __init__(
-            self,
-            embedding_model: Optional[Any] = None,
-            model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        self,
+        embedding_model: Optional[Any] = None,
+        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
     ):
         """
         Initialize the keyword embedder.
@@ -55,6 +56,7 @@ class KeywordEmbedder:
         if self.model is None:
             try:
                 from sentence_transformers import SentenceTransformer
+
                 LOGGER.info(f"Loading embedding model: {model_name}")
                 self.model = SentenceTransformer(model_name)
             except ImportError:
@@ -64,14 +66,14 @@ class KeywordEmbedder:
                 )
 
     def process_csv_to_embeddings(
-            self,
-            csv_path: str,
-            output_path: str,
-            min_confidence: float = 0.7,
-            suggestion_column: str = "suggestions",
-            normalize_keywords: bool = True,
-            batch_size: int = 32,
-            show_progress: bool = True,
+        self,
+        csv_path: str,
+        output_path: str,
+        min_confidence: float = 0.7,
+        suggestion_column: str = "suggestions",
+        normalize_keywords: bool = True,
+        batch_size: int = 32,
+        show_progress: bool = True,
     ) -> Dict[str, np.ndarray]:
         """
         Complete pipeline: load CSV, filter, aggregate, embed, and save.
@@ -102,9 +104,7 @@ class KeywordEmbedder:
         suggestions = load_suggestions_from_csv(csv_path, suggestion_column)
 
         # Step 2: Filter by confidence
-        filtered_suggestions = filter_by_field_value(
-            suggestions, min_confidence
-        )
+        filtered_suggestions = filter_by_field_value(suggestions, min_confidence)
 
         # Step 3: Aggregate unique keywords
         keywords = aggregate_unique_terms(
