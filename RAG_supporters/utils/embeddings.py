@@ -4,11 +4,11 @@ Embedding utilities for keyword extraction, embedding, and clustering.
 DEPRECATED: This module is maintained for backward compatibility only.
 
 The embedding functionality has been moved to the RAG_supporters.embeddings package:
-- embeddings.core: Core filtering, aggregation, and embedding creation
-- embeddings.io: CSV/JSON I/O utilities
-- embeddings.wrapper: High-level KeywordEmbedder class
-- clustering.keyword_clustering: KeywordClusterer for KMeans-based clustering
-- clustering.centroid_comparison: CentroidComparator for similarity search
+- RAG_supporters.embeddings.core: Core filtering, aggregation, and embedding creation
+- RAG_supporters.embeddings.io: CSV/JSON I/O utilities
+- RAG_supporters.embeddings.wrapper: High-level KeywordEmbedder class
+- RAG_supporters.clustering.keyword_clustering: KeywordClusterer for KMeans-based clustering
+- RAG_supporters.clustering.centroid_comparison: CentroidComparator for similarity search
 
 For new code, import directly from RAG_supporters.embeddings or RAG_supporters.clustering:
 

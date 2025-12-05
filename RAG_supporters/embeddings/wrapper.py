@@ -7,8 +7,8 @@ This module provides a high-level interface for the complete embedding pipeline:
 - Creating embeddings
 - Saving results
 
-The KeywordEmbedder class integrates the core functions from the embeddings.core
-and embeddings.io modules to provide a simple, one-call interface for common
+The KeywordEmbedder class integrates the core functions from RAG_supporters.embeddings.core
+and RAG_supporters.embeddings.io modules to provide a simple, one-call interface for common
 workflows. Part of the RAG_supporters.embeddings package.
 """
 
