@@ -7,9 +7,9 @@ This module provides a high-level interface for the complete embedding pipeline:
 - Creating embeddings
 - Saving results
 
-The KeywordEmbedder class integrates the core functions from embedding_core
-and embedding_io modules to provide a simple, one-call interface for common
-workflows.
+The KeywordEmbedder class integrates the core functions from the embeddings.core
+and embeddings.io modules to provide a simple, one-call interface for common
+workflows. Part of the RAG_supporters.embeddings package.
 """
 
 import logging
@@ -17,12 +17,12 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from .embedding_core import (
+from .core import (
     aggregate_unique_terms,
     create_embeddings_for_strings,
     filter_by_field_value,
 )
-from .embedding_io import load_suggestions_from_csv, save_embeddings_to_json
+from .io import load_suggestions_from_csv, save_embeddings_to_json
 
 LOGGER = logging.getLogger(__name__)
 

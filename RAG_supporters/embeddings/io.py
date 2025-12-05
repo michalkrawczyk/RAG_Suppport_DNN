@@ -7,6 +7,7 @@ This module handles file operations for embeddings:
 - Loading embeddings from JSON format
 
 Supports chunked processing for large files and includes progress tracking.
+Part of the RAG_supporters.embeddings package.
 """
 
 import json

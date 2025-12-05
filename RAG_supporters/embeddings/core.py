@@ -7,6 +7,7 @@ This module contains the fundamental operations for working with embeddings:
 - Creating embeddings for strings using sentence transformers
 
 These functions are independent and can be used separately or combined in pipelines.
+Part of the RAG_supporters.embeddings package.
 """
 
 import logging
