@@ -454,8 +454,9 @@ class KeywordClusterer:
         """
         Create clusterer from saved clustering results.
 
-        Note: This creates a clusterer with centroids loaded, but without
-        the full fitted model. Use for comparison operations only.
+        Note: This creates a clusterer with centroids loaded for comparison
+        operations. The underlying model is not fully fitted, so clustering
+        operations (like fit()) should not be used on the returned instance.
 
         Parameters
         ----------
@@ -465,7 +466,7 @@ class KeywordClusterer:
         Returns
         -------
         KeywordClusterer
-            Initialized clusterer with loaded centroids
+            Initialized clusterer with loaded centroids for comparison
         """
         with open(clustering_results_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -477,14 +478,22 @@ class KeywordClusterer:
             random_state=metadata.get("random_state", 42),
         )
 
-        # Load centroids and cluster info
+        # Load centroids
         centroids = np.array(data["centroids"])
-        # Manually set the centroids
+
+        # Create a minimal fitted model state for comparison operations
+        # We create dummy data to fit the model, then replace centroids
+        dummy_data = np.zeros((clusterer.n_clusters, centroids.shape[1]))
+        clusterer.model.fit(dummy_data)
         clusterer.model.cluster_centers_ = centroids
 
         # Get cluster info if available
         if "cluster_stats" in data:
             for label_str, stats in data["cluster_stats"].items():
                 clusterer.cluster_info[int(label_str)] = stats
+
+        LOGGER.info(
+            f"Loaded clustering results with {len(centroids)} centroids from {clustering_results_path}"
+        )
 
         return clusterer
