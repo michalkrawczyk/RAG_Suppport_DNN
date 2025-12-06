@@ -24,7 +24,7 @@ LOGGER = logging.getLogger(__name__)
 class SuggestionClusterer:
     """
     Cluster suggestion embeddings to discover topics/subspaces.
-    
+
     This class extends KeywordClusterer functionality specifically for
     suggestions, providing topic extraction and descriptor methods.
     """
@@ -79,12 +79,14 @@ class SuggestionClusterer:
         """
         self.suggestion_embeddings = suggestion_embeddings
         self.suggestions = list(suggestion_embeddings.keys())
-        
+
         # Fit the underlying clusterer
         self.clusterer.fit(suggestion_embeddings)
-        
-        LOGGER.info(f"Clustered {len(self.suggestions)} suggestions into {self.clusterer.n_clusters} topics")
-        
+
+        LOGGER.info(
+            f"Clustered {len(self.suggestions)} suggestions into {self.clusterer.n_clusters} topics"
+        )
+
         return self
 
     def extract_topic_descriptors(
@@ -115,7 +117,7 @@ class SuggestionClusterer:
 
         for cluster_id in range(self.clusterer.n_clusters):
             centroid = centroids[cluster_id]
-            
+
             # Calculate distances from all suggestions to this centroid
             if metric == "euclidean":
                 distances = np.linalg.norm(
@@ -123,6 +125,7 @@ class SuggestionClusterer:
                 )
             elif metric == "cosine":
                 from sklearn.metrics.pairwise import cosine_similarity
+
                 similarities = cosine_similarity(
                     [centroid], self.clusterer.embeddings_matrix
                 )[0]
@@ -134,14 +137,16 @@ class SuggestionClusterer:
 
             # Get indices of n closest suggestions
             closest_indices = np.argsort(distances)[:n_descriptors]
-            
+
             # Get the corresponding suggestions
             descriptors = [self.clusterer.keywords[idx] for idx in closest_indices]
             topics[cluster_id] = descriptors
 
         self.topics = topics
-        LOGGER.info(f"Extracted {n_descriptors} descriptors for each of {len(topics)} topics")
-        
+        LOGGER.info(
+            f"Extracted {n_descriptors} descriptors for each of {len(topics)} topics"
+        )
+
         return topics
 
     def get_cluster_assignments(self) -> Dict[str, int]:
@@ -195,11 +200,11 @@ class SuggestionClusterer:
                 "size": len(suggestions),
                 "suggestions_sample": suggestions[:10],  # First 10 for preview
             }
-            
+
             # Add topic descriptors if available and requested
             if include_topics and self.topics and label in self.topics:
                 stats["topic_descriptors"] = self.topics[label]
-            
+
             cluster_stats[str(label)] = stats
 
         # Prepare output
@@ -218,8 +223,7 @@ class SuggestionClusterer:
 
         if include_embeddings:
             output_data["embeddings"] = {
-                sugg: emb.tolist()
-                for sugg, emb in self.suggestion_embeddings.items()
+                sugg: emb.tolist() for sugg, emb in self.suggestion_embeddings.items()
             }
 
         # Save

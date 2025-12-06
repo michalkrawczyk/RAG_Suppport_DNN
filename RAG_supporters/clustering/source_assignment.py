@@ -23,7 +23,7 @@ LOGGER = logging.getLogger(__name__)
 class SourceAssigner:
     """
     Assign sources to clusters/subspaces based on embeddings.
-    
+
     Supports both hard (one-hot) and soft (probabilistic) assignment modes,
     enabling single or multi-subspace membership.
     """
@@ -68,7 +68,7 @@ class SourceAssigner:
             raise ValueError(
                 f"Invalid assignment_mode: {assignment_mode}. Choose 'hard' or 'soft'"
             )
-        
+
         if metric not in ["euclidean", "cosine"]:
             raise ValueError(
                 f"Invalid metric: {metric}. Choose 'euclidean' or 'cosine'"
@@ -97,16 +97,13 @@ class SourceAssigner:
             Array of distances to each centroid
         """
         if self.metric == "euclidean":
-            distances = np.linalg.norm(
-                self.cluster_centroids - embedding, axis=1
-            )
+            distances = np.linalg.norm(self.cluster_centroids - embedding, axis=1)
         elif self.metric == "cosine":
             from sklearn.metrics.pairwise import cosine_similarity
-            similarities = cosine_similarity(
-                [embedding], self.cluster_centroids
-            )[0]
+
+            similarities = cosine_similarity([embedding], self.cluster_centroids)[0]
             distances = 1 - similarities
-        
+
         return distances
 
     def compute_probabilities(
@@ -127,15 +124,15 @@ class SourceAssigner:
             Array of probabilities for each cluster (sums to 1.0)
         """
         distances = self.compute_distances(embedding)
-        
+
         # Convert distances to similarities (negative distances)
         # Apply temperature scaling
         logits = -distances / self.temperature
-        
+
         # Apply softmax
         exp_logits = np.exp(logits - np.max(logits))  # Numerical stability
         probabilities = exp_logits / np.sum(exp_logits)
-        
+
         return probabilities
 
     def assign_source(
@@ -163,7 +160,7 @@ class SourceAssigner:
             - primary_cluster: ID of most likely cluster
         """
         probabilities = self.compute_probabilities(embedding)
-        
+
         result = {
             "mode": self.assignment_mode,
         }
@@ -171,7 +168,7 @@ class SourceAssigner:
         if self.assignment_mode == "hard":
             # Hard assignment: assign to single cluster
             primary_cluster = int(np.argmax(probabilities))
-            
+
             # Apply threshold if specified
             if self.threshold is not None:
                 if probabilities[primary_cluster] < self.threshold:
@@ -189,18 +186,17 @@ class SourceAssigner:
             # Soft assignment: assign to multiple clusters
             primary_cluster = int(np.argmax(probabilities))
             result["primary_cluster"] = primary_cluster
-            
+
             # Apply threshold if specified
             if self.threshold is not None:
                 # Only include clusters above threshold
                 assigned_clusters = [
-                    i for i, prob in enumerate(probabilities)
-                    if prob >= self.threshold
+                    i for i, prob in enumerate(probabilities) if prob >= self.threshold
                 ]
             else:
                 # Include all clusters with their probabilities
                 assigned_clusters = list(range(self.n_clusters))
-            
+
             result["clusters"] = assigned_clusters
 
         # Include probabilities if requested
@@ -232,15 +228,15 @@ class SourceAssigner:
             Dictionary mapping source IDs to assignment results
         """
         assignments = {}
-        
+
         for source_id, embedding in source_embeddings.items():
             assignments[source_id] = self.assign_source(
                 embedding,
                 return_probabilities=return_probabilities,
             )
-        
+
         LOGGER.info(f"Assigned {len(assignments)} sources to clusters")
-        
+
         return assignments
 
     def save_assignments(
@@ -265,15 +261,15 @@ class SourceAssigner:
         cluster_counts = {i: 0 for i in range(self.n_clusters)}
         multi_cluster_count = 0
         unassigned_count = 0
-        
+
         for source_id, assignment in assignments.items():
             assigned_clusters = assignment.get("clusters", [])
-            
+
             if len(assigned_clusters) == 0:
                 unassigned_count += 1
             elif len(assigned_clusters) > 1:
                 multi_cluster_count += 1
-            
+
             for cluster_id in assigned_clusters:
                 cluster_counts[cluster_id] += 1
 
@@ -334,7 +330,7 @@ class SourceAssigner:
             data = json.load(f)
 
         LOGGER.info(f"Loaded assignments from {input_path}")
-        
+
         return data
 
 
@@ -386,14 +382,14 @@ def assign_sources_to_clusters(
     >>> from RAG_supporters.clustering import SuggestionClusterer
     >>> clusterer = SuggestionClusterer.from_results("suggestion_clusters.json")
     >>> centroids = clusterer.clusterer.get_centroids()
-    >>> 
+    >>>
     >>> # Assign sources using their embeddings
     >>> from RAG_supporters.embeddings import KeywordEmbedder
     >>> embedder = KeywordEmbedder()
     >>> source_texts = {"source1": "text about ML", "source2": "text about DL"}
     >>> source_embeddings = embedder.create_embeddings(list(source_texts.values()))
     >>> source_embeddings = {k: source_embeddings[v] for k, v in source_texts.items()}
-    >>> 
+    >>>
     >>> assignments = assign_sources_to_clusters(
     ...     source_embeddings,
     ...     centroids,
