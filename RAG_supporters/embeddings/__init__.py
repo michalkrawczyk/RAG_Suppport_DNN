@@ -3,35 +3,31 @@ Embedding utilities for keyword extraction, embedding creation, and processing.
 
 This package provides modular components for working with embeddings:
 
-- core: Core filtering, aggregation, and embedding creation functions
-- io: CSV/JSON I/O utilities for embeddings
-- wrapper: High-level KeywordEmbedder class for complete pipelines
+- keyword_embedder: KeywordEmbedder class for creating and managing embeddings
+- io: CSV loading utilities for suggestions
+- core: DEPRECATED - Suggestion processing moved to utils.suggestion_processing
 
 These tools support the RAG and clustering workflows by enabling efficient
 keyword extraction, embedding generation, and similarity-based operations.
+
+Recommended usage:
+    from RAG_supporters.embeddings import KeywordEmbedder
+    from RAG_supporters.utils.suggestion_processing import filter_by_field_value
 """
 
-from .core import (
-    aggregate_unique_terms,
-    create_embeddings_for_strings,
-    filter_by_field_value,
-)
-from .io import (
-    load_embeddings_from_json,
-    load_suggestions_from_csv,
-    save_embeddings_to_json,
-)
-from .wrapper import KeywordEmbedder
+from .keyword_embedder import KeywordEmbedder
+
+# Re-export from core for backward compatibility (now redirects to utils)
+from .core import aggregate_unique_terms, filter_by_field_value
+
+# Re-export from io
+from .io import load_suggestions_from_csv
 
 __all__ = [
-    # Core functions
+    "KeywordEmbedder",
+    # Backward compatibility - these are now in utils.suggestion_processing
     "filter_by_field_value",
     "aggregate_unique_terms",
-    "create_embeddings_for_strings",
-    # I/O functions
+    # I/O
     "load_suggestions_from_csv",
-    "save_embeddings_to_json",
-    "load_embeddings_from_json",
-    # Classes
-    "KeywordEmbedder",
 ]

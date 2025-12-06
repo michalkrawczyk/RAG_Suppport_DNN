@@ -1,10 +1,11 @@
 """
-I/O utilities for loading and saving embeddings and suggestions.
+I/O utilities for loading suggestions from CSV files.
 
-This module handles file operations for embeddings:
-- Loading suggestions from CSV files
-- Saving embeddings to JSON format
-- Loading embeddings from JSON format
+This module handles file operations for loading LLM suggestions:
+- Loading suggestions from CSV files with chunked processing
+
+For embedding save/load operations, use KeywordEmbedder.save_embeddings() and
+KeywordEmbedder.load_embeddings() static methods.
 
 Supports chunked processing for large files and includes progress tracking.
 Part of the RAG_supporters.embeddings package.
@@ -12,10 +13,8 @@ Part of the RAG_supporters.embeddings package.
 
 import json
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
-import numpy as np
 import pandas as pd
 
 LOGGER = logging.getLogger(__name__)
@@ -140,104 +139,30 @@ def load_suggestions_from_csv(
     return all_suggestions
 
 
-def save_embeddings_to_json(
-    keyword_embeddings: Dict[str, np.ndarray],
-    output_path: str,
-    model_name: str = "unknown",
-    metadata: Optional[Dict[str, Any]] = None,
-):
+# Backward compatibility - redirect to KeywordEmbedder static methods
+def save_embeddings_to_json(*args, **kwargs):
     """
-    Save keyword embeddings to JSON file.
+    DEPRECATED: Use KeywordEmbedder.save_embeddings() instead.
 
-    Parameters
-    ----------
-    keyword_embeddings : Dict[str, np.ndarray]
-        Dictionary mapping keywords to embedding vectors
-    output_path : str
-        Path to save JSON file
-    model_name : str
-        Name of the embedding model used
-    metadata : Optional[Dict[str, Any]]
-        Additional metadata to include
-
-    Examples
-    --------
-    >>> embeddings = {'keyword1': np.array([0.1, 0.2]), 'keyword2': np.array([0.3, 0.4])}
-    >>> save_embeddings_to_json(embeddings, 'embeddings.json', 'my-model')
+    This function redirects to KeywordEmbedder.save_embeddings() for backward compatibility.
     """
-    if not keyword_embeddings:
-        LOGGER.warning("No embeddings to save")
-        return
+    from .keyword_embedder import KeywordEmbedder
 
-    # Convert embeddings to lists for JSON serialization
-    embeddings_json = {
-        keyword: embedding.tolist() for keyword, embedding in keyword_embeddings.items()
-    }
-
-    # Get embedding dimension
-    first_embedding = next(iter(keyword_embeddings.values()))
-    embedding_dim = len(first_embedding)
-
-    # Prepare output data
-    output_data = {
-        "metadata": {
-            "model_name": model_name,
-            "embedding_dimension": embedding_dim,
-            "num_keywords": len(keyword_embeddings),
-            **(metadata or {}),
-        },
-        "embeddings": embeddings_json,
-    }
-
-    # Save to file
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(output_data, f, indent=2, ensure_ascii=False)
-
-    LOGGER.info(f"Saved {len(keyword_embeddings)} embeddings to {output_path}")
-
-
-def load_embeddings_from_json(
-    input_path: str,
-) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
-    """
-    Load keyword embeddings from JSON file.
-
-    Parameters
-    ----------
-    input_path : str
-        Path to JSON file
-
-    Returns
-    -------
-    Tuple[Dict[str, np.ndarray], Dict[str, Any]]
-        Tuple of (keyword_embeddings, metadata)
-
-    Examples
-    --------
-    >>> embeddings, metadata = load_embeddings_from_json('embeddings.json')
-    >>> print(metadata['model_name'])
-    'sentence-transformers/all-MiniLM-L6-v2'
-    """
-    LOGGER.info(f"Loading embeddings from {input_path}")
-
-    with open(input_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    # Convert lists back to numpy arrays
-    keyword_embeddings = {
-        keyword: np.array(embedding)
-        for keyword, embedding in data["embeddings"].items()
-    }
-
-    metadata = data.get("metadata", {})
-
-    LOGGER.info(
-        f"Loaded {len(keyword_embeddings)} embeddings "
-        f"(model: {metadata.get('model_name')}, "
-        f"dim: {metadata.get('embedding_dimension')})"
+    LOGGER.warning(
+        "save_embeddings_to_json is deprecated. Use KeywordEmbedder.save_embeddings() instead."
     )
+    return KeywordEmbedder.save_embeddings(*args, **kwargs)
 
-    return keyword_embeddings, metadata
+
+def load_embeddings_from_json(*args, **kwargs):
+    """
+    DEPRECATED: Use KeywordEmbedder.load_embeddings() instead.
+
+    This function redirects to KeywordEmbedder.load_embeddings() for backward compatibility.
+    """
+    from .keyword_embedder import KeywordEmbedder
+
+    LOGGER.warning(
+        "load_embeddings_from_json is deprecated. Use KeywordEmbedder.load_embeddings() instead."
+    )
+    return KeywordEmbedder.load_embeddings(*args, **kwargs)
