@@ -137,32 +137,3 @@ def load_suggestions_from_csv(
         raise
 
     return all_suggestions
-
-
-# Backward compatibility - redirect to KeywordEmbedder static methods
-def save_embeddings_to_json(*args, **kwargs):
-    """
-    DEPRECATED: Use KeywordEmbedder.save_embeddings() instead.
-
-    This function redirects to KeywordEmbedder.save_embeddings() for backward compatibility.
-    """
-    from .keyword_embedder import KeywordEmbedder
-
-    LOGGER.warning(
-        "save_embeddings_to_json is deprecated. Use KeywordEmbedder.save_embeddings() instead."
-    )
-    return KeywordEmbedder.save_embeddings(*args, **kwargs)
-
-
-def load_embeddings_from_json(*args, **kwargs):
-    """
-    DEPRECATED: Use KeywordEmbedder.load_embeddings() instead.
-
-    This function redirects to KeywordEmbedder.load_embeddings() for backward compatibility.
-    """
-    from .keyword_embedder import KeywordEmbedder
-
-    LOGGER.warning(
-        "load_embeddings_from_json is deprecated. Use KeywordEmbedder.load_embeddings() instead."
-    )
-    return KeywordEmbedder.load_embeddings(*args, **kwargs)
