@@ -205,14 +205,12 @@ sources = {
 }
 
 # Embed source texts
-source_texts = list(sources.values())
-source_text_embeddings = embedder.create_embeddings(source_texts)
+source_text_embeddings = embedder.create_embeddings(list(sources.values()))
 
 # Map back to source IDs
-source_embeddings = {
-    source_id: source_text_embeddings[text]
-    for source_id, text in sources.items()
-}
+source_embeddings = {}
+for source_id, text in sources.items():
+    source_embeddings[source_id] = source_text_embeddings[text]
 
 # Step 3: Assign sources to clusters
 assignments = assign_sources_to_clusters(
@@ -436,9 +434,9 @@ for topic_id, descriptors in topics.items():
 # Phase 2: Assign Sources to Clusters
 # ========================================
 
-# Load clustering results
-clusterer = SuggestionClusterer.from_results("results/suggestion_clusters.json")
-centroids = clusterer.clusterer.get_centroids()
+# Load clustering results (reloading to demonstrate persistence)
+loaded_clusterer = SuggestionClusterer.from_results("results/suggestion_clusters.json")
+centroids = loaded_clusterer.clusterer.get_centroids()
 
 # Load and embed sources
 import pandas as pd
