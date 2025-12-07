@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
 from .keyword_clustering import KeywordClusterer
 
@@ -124,8 +125,6 @@ class SuggestionClusterer:
                     self.clusterer.embeddings_matrix - centroid, axis=1
                 )
             elif metric == "cosine":
-                from sklearn.metrics.pairwise import cosine_similarity
-
                 similarities = cosine_similarity(
                     [centroid], self.clusterer.embeddings_matrix
                 )[0]

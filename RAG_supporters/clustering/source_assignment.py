@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
 LOGGER = logging.getLogger(__name__)
 
@@ -99,8 +100,6 @@ class SourceAssigner:
         if self.metric == "euclidean":
             distances = np.linalg.norm(self.cluster_centroids - embedding, axis=1)
         elif self.metric == "cosine":
-            from sklearn.metrics.pairwise import cosine_similarity
-
             similarities = cosine_similarity([embedding], self.cluster_centroids)[0]
             distances = 1 - similarities
 
