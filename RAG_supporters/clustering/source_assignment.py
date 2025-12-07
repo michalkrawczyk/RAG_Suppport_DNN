@@ -378,9 +378,9 @@ def assign_sources_to_clusters(
     Examples
     --------
     >>> # After Phase 1 clustering
-    >>> from RAG_supporters.clustering import SuggestionClusterer
-    >>> clusterer = SuggestionClusterer.from_results("suggestion_clusters.json")
-    >>> centroids = clusterer.clusterer.get_centroids()
+    >>> from RAG_supporters.clustering import KeywordClusterer
+    >>> clusterer = KeywordClusterer.from_results("keyword_clusters.json")
+    >>> centroids = clusterer.get_centroids()
     >>>
     >>> # Assign sources using their embeddings
     >>> from RAG_supporters.embeddings import KeywordEmbedder

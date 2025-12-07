@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
 LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ class KeywordClusterer:
         self.embeddings_matrix = None
         self.cluster_labels = None
         self.cluster_info = {}
+        self.topics = {}
 
     def _create_model(self):
         """Create the clustering model."""
@@ -180,6 +182,71 @@ class KeywordClusterer:
 
         return self.model.cluster_centers_
 
+    def extract_topic_descriptors(
+        self,
+        n_descriptors: int = 10,
+        metric: str = "euclidean",
+    ) -> Dict[int, List[str]]:
+        """
+        Extract topic descriptors (n closest keywords) for each cluster.
+
+        This method identifies the most representative keywords for each cluster
+        by finding the n keywords closest to each cluster centroid.
+
+        Parameters
+        ----------
+        n_descriptors : int
+            Number of closest keywords to use as descriptors per topic
+        metric : str
+            Distance metric: 'euclidean' or 'cosine'
+
+        Returns
+        -------
+        Dict[int, List[str]]
+            Dictionary mapping cluster/topic IDs to lists of descriptor keywords
+
+        Examples
+        --------
+        >>> clusterer = KeywordClusterer(n_clusters=3)
+        >>> clusterer.fit(keyword_embeddings)
+        >>> topics = clusterer.extract_topic_descriptors(n_descriptors=5)
+        >>> print(topics[0])  # Top 5 keywords for cluster 0
+        ['machine learning', 'deep learning', 'neural networks', ...]
+        """
+        if self.cluster_labels is None:
+            raise ValueError("Model not fitted. Call fit() first.")
+
+        centroids = self.get_centroids()
+        topics = {}
+
+        for cluster_id in range(self.n_clusters):
+            centroid = centroids[cluster_id]
+
+            # Calculate distances from all keywords to this centroid
+            if metric == "euclidean":
+                distances = np.linalg.norm(self.embeddings_matrix - centroid, axis=1)
+            elif metric == "cosine":
+                similarities = cosine_similarity([centroid], self.embeddings_matrix)[0]
+                distances = 1 - similarities
+            else:
+                raise ValueError(
+                    f"Unknown metric: {metric}. Choose 'euclidean' or 'cosine'"
+                )
+
+            # Get indices of n closest keywords
+            closest_indices = np.argsort(distances)[:n_descriptors]
+
+            # Get the corresponding keywords
+            descriptors = [self.keywords[idx] for idx in closest_indices]
+            topics[cluster_id] = descriptors
+
+        self.topics = topics
+        LOGGER.info(
+            f"Extracted {n_descriptors} descriptors for each of {len(topics)} topics"
+        )
+
+        return topics
+
     def compute_distances(
         self,
         embedding: np.ndarray,
@@ -206,8 +273,6 @@ class KeywordClusterer:
             distances = np.linalg.norm(centroids - embedding, axis=1)
         elif metric == "cosine":
             # Cosine distance = 1 - cosine similarity
-            from sklearn.metrics.pairwise import cosine_similarity
-
             similarities = cosine_similarity([embedding], centroids)[0]
             distances = 1 - similarities
         else:
@@ -373,6 +438,7 @@ class KeywordClusterer:
         self,
         output_path: str,
         include_embeddings: bool = False,
+        include_topics: bool = True,
     ):
         """
         Save clustering results to JSON.
@@ -383,19 +449,26 @@ class KeywordClusterer:
             Path to save results
         include_embeddings : bool
             Whether to include embeddings in output
+        include_topics : bool
+            Whether to include topic descriptors in output
         """
         # Get cluster assignments and grouped clusters
         assignments = self.get_cluster_assignments()
         clusters = self.get_clusters()
 
         # Calculate cluster statistics
-        cluster_stats = {
-            str(label): {
+        cluster_stats = {}
+        for label, keywords in clusters.items():
+            stats = {
                 "size": len(keywords),
                 "keywords_sample": keywords[:10],  # First 10 for preview
             }
-            for label, keywords in clusters.items()
-        }
+
+            # Add topic descriptors if available and requested
+            if include_topics and self.topics and label in self.topics:
+                stats["topic_descriptors"] = self.topics[label]
+
+            cluster_stats[str(label)] = stats
 
         # Prepare output
         output_data = {
@@ -490,10 +563,87 @@ class KeywordClusterer:
         # Get cluster info if available
         if "cluster_stats" in data:
             for label_str, stats in data["cluster_stats"].items():
-                clusterer.cluster_info[int(label_str)] = stats
+                label = int(label_str)
+                clusterer.cluster_info[label] = stats
+                # Load topic descriptors if available
+                if "topic_descriptors" in stats:
+                    clusterer.topics[label] = stats["topic_descriptors"]
 
         LOGGER.info(
             f"Loaded clustering results with {len(centroids)} centroids from {clustering_results_path}"
         )
 
         return clusterer
+
+
+def cluster_keywords_from_embeddings(
+    keyword_embeddings: Dict[str, np.ndarray],
+    n_clusters: int = 8,
+    algorithm: str = "kmeans",
+    n_descriptors: int = 10,
+    output_path: Optional[str] = None,
+    random_state: int = 42,
+    **kwargs,
+) -> Tuple[KeywordClusterer, Dict[int, List[str]]]:
+    """
+    Complete pipeline to cluster keywords and extract topics.
+
+    This is a convenience function that performs the full clustering workflow:
+    1. Cluster keyword embeddings
+    2. Extract topic descriptors
+    3. Optionally save results
+
+    Parameters
+    ----------
+    keyword_embeddings : Dict[str, np.ndarray]
+        Dictionary mapping keywords to embeddings
+    n_clusters : int
+        Number of clusters/topics to discover
+    algorithm : str
+        Clustering algorithm: 'kmeans' or 'bisecting_kmeans'
+    n_descriptors : int
+        Number of descriptors per topic
+    output_path : Optional[str]
+        Path to save results (if None, results are not saved)
+    random_state : int
+        Random state for reproducibility
+    **kwargs
+        Additional arguments for the clustering algorithm
+
+    Returns
+    -------
+    Tuple[KeywordClusterer, Dict[int, List[str]]]
+        Tuple of (fitted clusterer, topic descriptors)
+
+    Examples
+    --------
+    >>> from RAG_supporters.embeddings import KeywordEmbedder
+    >>> embedder = KeywordEmbedder()
+    >>> keywords = ["machine learning", "deep learning", "neural networks"]
+    >>> embeddings = embedder.create_embeddings(keywords)
+    >>> clusterer, topics = cluster_keywords_from_embeddings(
+    ...     embeddings,
+    ...     n_clusters=2,
+    ...     n_descriptors=5,
+    ...     output_path="results/keyword_clusters.json"
+    ... )
+    >>> print(f"Found {len(topics)} topics")
+    Found 2 topics
+    """
+    # Create and fit clusterer
+    clusterer = KeywordClusterer(
+        algorithm=algorithm,
+        n_clusters=n_clusters,
+        random_state=random_state,
+        **kwargs,
+    )
+    clusterer.fit(keyword_embeddings)
+
+    # Extract topic descriptors
+    topics = clusterer.extract_topic_descriptors(n_descriptors=n_descriptors)
+
+    # Save if output path provided
+    if output_path:
+        clusterer.save_results(output_path, include_topics=True)
+
+    return clusterer, topics

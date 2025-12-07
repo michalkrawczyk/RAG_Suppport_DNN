@@ -24,7 +24,7 @@ Phase 1 focuses on discovering topics or subspaces from suggestion embeddings us
 
 ```python
 from RAG_supporters.embeddings import KeywordEmbedder
-from RAG_supporters.clustering import cluster_suggestions_from_embeddings
+from RAG_supporters.clustering import cluster_keywords_from_embeddings
 
 # Step 1: Create embeddings for suggestions
 embedder = KeywordEmbedder()
@@ -39,12 +39,12 @@ suggestions = [
 suggestion_embeddings = embedder.create_embeddings(suggestions)
 
 # Step 2: Cluster suggestions to discover topics
-clusterer, topics = cluster_suggestions_from_embeddings(
+clusterer, topics = cluster_keywords_from_embeddings(
     suggestion_embeddings,
     n_clusters=5,              # Number of topics to discover
     algorithm="kmeans",         # or "bisecting_kmeans"
     n_descriptors=10,          # Top 10 suggestions per topic
-    output_path="results/suggestion_clusters.json",
+    output_path="results/keyword_clusters.json",
     random_state=42,
 )
 
@@ -61,7 +61,7 @@ If you have suggestions in a CSV file (from LLM output):
 
 ```python
 from RAG_supporters.embeddings import KeywordEmbedder
-from RAG_supporters.clustering import cluster_suggestions_from_embeddings
+from RAG_supporters.clustering import cluster_keywords_from_embeddings
 
 # Process CSV to create embeddings
 embedder = KeywordEmbedder()
@@ -73,23 +73,23 @@ suggestion_embeddings = embedder.process_csv_to_embeddings(
 )
 
 # Cluster the suggestions
-clusterer, topics = cluster_suggestions_from_embeddings(
+clusterer, topics = cluster_keywords_from_embeddings(
     suggestion_embeddings,
     n_clusters=8,
     n_descriptors=15,
-    output_path="results/suggestion_clusters.json",
+    output_path="results/keyword_clusters.json",
 )
 ```
 
-### Using the SuggestionClusterer Class
+### Using the KeywordClusterer Class
 
-For more control, use the `SuggestionClusterer` class directly:
+For more control, use the `KeywordClusterer` class directly:
 
 ```python
-from RAG_supporters.clustering import SuggestionClusterer
+from RAG_supporters.clustering import KeywordClusterer
 
 # Initialize clusterer
-clusterer = SuggestionClusterer(
+clusterer = KeywordClusterer(
     algorithm="bisecting_kmeans",
     n_clusters=10,
     random_state=42,
@@ -114,7 +114,7 @@ print(f"Cluster 0 contains {len(clusters[0])} suggestions")
 
 # Save results
 clusterer.save_results(
-    "results/suggestion_clusters.json",
+    "results/keyword_clusters.json",
     include_topics=True,
     include_embeddings=False,  # Set to True to include embeddings
 )
@@ -123,10 +123,10 @@ clusterer.save_results(
 ### Loading Saved Results
 
 ```python
-from RAG_supporters.clustering import SuggestionClusterer
+from RAG_supporters.clustering import KeywordClusterer
 
 # Load from saved results
-clusterer = SuggestionClusterer.from_results("results/suggestion_clusters.json")
+clusterer = KeywordClusterer.from_results("results/keyword_clusters.json")
 
 # Use the loaded clusterer
 topics = clusterer.topics
@@ -187,12 +187,12 @@ Phase 2 assigns sources (or questions) to the discovered clusters/subspaces base
 ```python
 from RAG_supporters.embeddings import KeywordEmbedder
 from RAG_supporters.clustering import (
-    SuggestionClusterer,
+    KeywordClusterer,
     assign_sources_to_clusters,
 )
 
 # Step 1: Load clustering results from Phase 1
-clusterer = SuggestionClusterer.from_results("results/suggestion_clusters.json")
+clusterer = KeywordClusterer.from_results("results/keyword_clusters.json")
 centroids = clusterer.clusterer.get_centroids()
 
 # Step 2: Create embeddings for your sources/questions
@@ -397,9 +397,9 @@ Here's a complete end-to-end example combining both phases:
 ```python
 from RAG_supporters.embeddings import KeywordEmbedder
 from RAG_supporters.clustering import (
-    cluster_suggestions_from_embeddings,
+    cluster_keywords_from_embeddings,
     assign_sources_to_clusters,
-    SuggestionClusterer,
+    KeywordClusterer,
 )
 
 # ========================================
@@ -415,12 +415,12 @@ suggestion_embeddings = embedder.process_csv_to_embeddings(
 )
 
 # Cluster suggestions to discover topics
-clusterer, topics = cluster_suggestions_from_embeddings(
+clusterer, topics = cluster_keywords_from_embeddings(
     suggestion_embeddings,
     n_clusters=10,
     algorithm="bisecting_kmeans",
     n_descriptors=15,
-    output_path="results/suggestion_clusters.json",
+    output_path="results/keyword_clusters.json",
 )
 
 # Explore discovered topics
@@ -435,7 +435,7 @@ for topic_id, descriptors in topics.items():
 # ========================================
 
 # Load clustering results (reloading to demonstrate persistence)
-loaded_clusterer = SuggestionClusterer.from_results("results/suggestion_clusters.json")
+loaded_clusterer = KeywordClusterer.from_results("results/keyword_clusters.json")
 centroids = loaded_clusterer.clusterer.get_centroids()
 
 # Load and embed sources
@@ -476,16 +476,16 @@ for source_id, assignment in list(assignments.items())[:5]:
 print("\n=== Complete! ===")
 print("Results saved to:")
 print("  - results/suggestion_embeddings.json")
-print("  - results/suggestion_clusters.json")
+print("  - results/keyword_clusters.json")
 print("  - results/source_assignments.json")
 ```
 
 ## API Reference
 
-### SuggestionClusterer
+### KeywordClusterer
 
 ```python
-class SuggestionClusterer(algorithm='kmeans', n_clusters=8, random_state=42, **kwargs)
+class KeywordClusterer(algorithm='kmeans', n_clusters=8, random_state=42, **kwargs)
 ```
 
 **Methods:**
@@ -515,7 +515,7 @@ class SourceAssigner(cluster_centroids, assignment_mode='soft', threshold=None,
 ### Convenience Functions
 
 ```python
-cluster_suggestions_from_embeddings(
+cluster_keywords_from_embeddings(
     suggestion_embeddings,
     n_clusters=8,
     algorithm='kmeans',
