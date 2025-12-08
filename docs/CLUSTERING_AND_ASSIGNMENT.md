@@ -186,14 +186,10 @@ Phase 2 assigns sources (or questions) to the discovered clusters/subspaces base
 
 ```python
 from RAG_supporters.embeddings import KeywordEmbedder
-from RAG_supporters.clustering import (
-    KeywordClusterer,
-    assign_sources_to_clusters,
-)
+from RAG_supporters.clustering import KeywordClusterer
 
 # Step 1: Load clustering results from Phase 1
 clusterer = KeywordClusterer.from_results("results/keyword_clusters.json")
-centroids = clusterer.clusterer.get_centroids()
 
 # Step 2: Create embeddings for your sources/questions
 embedder = KeywordEmbedder()
@@ -212,16 +208,15 @@ source_embeddings = {}
 for source_id, text in sources.items():
     source_embeddings[source_id] = source_text_embeddings[text]
 
-# Step 3: Assign sources to clusters
-assignments = assign_sources_to_clusters(
-    source_embeddings,
-    centroids,
+# Step 3: Configure and assign sources to clusters
+clusterer.configure_assignment(
     assignment_mode="soft",    # "hard" or "soft"
     threshold=0.1,             # Include clusters with prob > 0.1
     temperature=1.0,           # Softmax temperature
     metric="cosine",           # or "euclidean"
-    output_path="results/source_assignments.json",
 )
+
+assignments = clusterer.assign_batch(source_embeddings)
 
 # Step 4: Explore assignments
 for source_id, assignment in assignments.items():
@@ -244,15 +239,14 @@ for source_id, assignment in assignments.items():
 Assigns each source to exactly one cluster:
 
 ```python
-from RAG_supporters.clustering import assign_sources_to_clusters
-
-assignments = assign_sources_to_clusters(
-    source_embeddings,
-    centroids,
+# Configure for hard assignment
+clusterer.configure_assignment(
     assignment_mode="hard",
     threshold=0.3,  # Optional: minimum probability required
-    output_path="results/hard_assignments.json",
+    metric="cosine"
 )
+
+assignments = clusterer.assign_batch(source_embeddings)
 
 # Each source assigned to single cluster
 for source_id, assignment in assignments.items():
@@ -266,14 +260,15 @@ for source_id, assignment in assignments.items():
 Assigns sources to multiple clusters with probabilities:
 
 ```python
-assignments = assign_sources_to_clusters(
-    source_embeddings,
-    centroids,
+# Configure for soft assignment
+clusterer.configure_assignment(
     assignment_mode="soft",
     threshold=0.1,       # Include clusters with probability > 0.1
     temperature=1.0,     # Adjust distribution sharpness
-    output_path="results/soft_assignments.json",
+    metric="cosine"
 )
+
+assignments = clusterer.assign_batch(source_embeddings)
 
 # Sources can belong to multiple clusters
 for source_id, assignment in assignments.items():
@@ -283,20 +278,21 @@ for source_id, assignment in assignments.items():
         print(f"  Cluster {cluster_id}: {prob:.3f}")
 ```
 
-### Using the SourceAssigner Class
+### Advanced Control
 
-For more control, use the `SourceAssigner` class directly:
+You can override assignment settings for individual assignments:
 
 ```python
-from RAG_supporters.clustering import SourceAssigner
+# Use configured defaults
+default_assignment = clusterer.assign(embedding)
 
-# Initialize assigner
-assigner = SourceAssigner(
-    cluster_centroids=centroids,
-    assignment_mode="soft",
-    threshold=0.15,
-    temperature=0.8,  # Lower = more peaked distribution
-    metric="cosine",
+# Override specific parameters
+custom_assignment = clusterer.assign(
+    embedding,
+    mode="hard",           # Override mode
+    threshold=0.5,         # Override threshold  
+    temperature=0.8,       # Override temperature
+    metric="euclidean"     # Override metric
 )
 
 # Assign a single source
@@ -332,7 +328,7 @@ The temperature parameter controls the sharpness of the probability distribution
 ```python
 # High temperature (e.g., 2.0) -> more uniform distribution
 # Sources assigned to more clusters
-assignments_uniform = assign_sources_to_clusters(
+assignments_uniform = clusterer.assign_batch(
     source_embeddings,
     centroids,
     assignment_mode="soft",
@@ -341,7 +337,7 @@ assignments_uniform = assign_sources_to_clusters(
 
 # Low temperature (e.g., 0.5) -> peaked distribution
 # Sources concentrated on fewer clusters
-assignments_peaked = assign_sources_to_clusters(
+assignments_peaked = clusterer.assign_batch(
     source_embeddings,
     centroids,
     assignment_mode="soft",
@@ -452,7 +448,7 @@ for idx, row in sources_df.iterrows():
     source_embeddings[source_id] = emb
 
 # Assign sources to topics with soft assignment
-assignments = assign_sources_to_clusters(
+assignments = clusterer.assign_batch(
     source_embeddings,
     centroids,
     assignment_mode="soft",
@@ -497,26 +493,35 @@ class KeywordClusterer(algorithm='kmeans', n_clusters=8, random_state=42, **kwar
 - `load_results(input_path)` - Load results (static method)
 - `from_results(clustering_results_path)` - Create from saved results (class method)
 
-### SourceAssigner
+### KeywordClusterer
 
 ```python
-class SourceAssigner(cluster_centroids, assignment_mode='soft', threshold=None, 
-                     temperature=1.0, metric='cosine')
+class KeywordClusterer(algorithm='kmeans', n_clusters=8, random_state=42, **kwargs)
 ```
 
-**Methods:**
-- `assign_source(embedding, return_probabilities=True)` - Assign single source
-- `assign_sources_batch(source_embeddings, return_probabilities=True)` - Assign multiple sources
-- `compute_probabilities(embedding)` - Get probability distribution
-- `compute_distances(embedding)` - Get distances to centroids
-- `save_assignments(assignments, output_path, metadata=None)` - Save results
-- `load_assignments(input_path)` - Load results (static method)
+**Key Methods:**
+
+*Clustering (Phase 1):*
+- `fit(keyword_embeddings)` - Fit clustering model
+- `extract_topic_descriptors(n_descriptors=10, metric='euclidean')` - Extract topic descriptors
+- `get_cluster_assignments()` - Get keyword-to-cluster mapping
+- `get_clusters()` - Get clusters with keywords
+- `get_centroids()` - Get cluster centroids
+
+*Assignment (Phase 2):*
+- `configure_assignment(assignment_mode='soft', threshold=None, temperature=1.0, metric='cosine')` - Set assignment defaults
+- `assign(embedding, mode=None, threshold=None, temperature=None, metric=None, return_probabilities=True)` - Assign single embedding
+- `assign_batch(embeddings, mode=None, threshold=None, temperature=None, metric=None, return_probabilities=True)` - Assign multiple embeddings
+
+*Persistence:*
+- `save_results(output_path, include_embeddings=False, include_topics=True)` - Save results
+- `from_results(clustering_results_path)` - Load from results (class method)
 
 ### Convenience Functions
 
 ```python
 cluster_keywords_from_embeddings(
-    suggestion_embeddings,
+    keyword_embeddings,
     n_clusters=8,
     algorithm='kmeans',
     n_descriptors=10,
@@ -526,18 +531,7 @@ cluster_keywords_from_embeddings(
 )
 ```
 
-```python
-assign_sources_to_clusters(
-    source_embeddings,
-    cluster_centroids,
-    assignment_mode='soft',
-    threshold=None,
-    temperature=1.0,
-    metric='cosine',
-    output_path=None,
-    metadata=None
-)
-```
+Returns: `Tuple[KeywordClusterer, Dict[int, List[str]]]` - (fitted clusterer, topic descriptors)
 
 ## Best Practices
 
