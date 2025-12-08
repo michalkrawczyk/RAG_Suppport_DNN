@@ -8,7 +8,7 @@ This module provides clustering capabilities for keyword embeddings:
 - Results saving and loading
 
 TODO: Future extensions could include:
-- Additional clustering algorithms (DBSCAN, hierarchical)
+- Additional clustering algorithms (DBSCAN, hierarchical, Reinforcment)
 - Automatic optimal cluster number detection (elbow method, silhouette score)
 - Cluster quality metrics and visualization
 - Additional distance metrics (Manhattan, Mahalanobis)
@@ -66,10 +66,13 @@ class KeywordClusterer:
         self.cluster_info = {}
         self.topics = {}
 
+        # Store centroids directly (independent of sklearn model)
+        self._centroids = None
+        self._is_fitted = False
+
         # Assignment configuration defaults
         self._default_assignment_mode = "soft"
-        self._default_threshold = None
-        self._default_temperature = 1.0
+        self._default_threshold = 0.1
         self._default_metric = "cosine"
 
     def _create_model(self):
@@ -132,6 +135,10 @@ class KeywordClusterer:
         self.model.fit(self.embeddings_matrix)
         self.cluster_labels = self.model.labels_
 
+        # Store centroids directly (independent of sklearn model)
+        self._centroids = self.model.cluster_centers_.copy()
+        self._is_fitted = True
+
         LOGGER.info("Clustering complete")
 
         return self
@@ -183,10 +190,10 @@ class KeywordClusterer:
         np.ndarray
             Array of cluster centroids, shape (n_clusters, embedding_dim)
         """
-        if not hasattr(self.model, "cluster_centers_"):
-            raise ValueError("Model not fitted or doesn't have centroids")
+        if not self._is_fitted:
+            raise ValueError("Model not fitted. Call fit() first.")
 
-        return self.model.cluster_centers_
+        return self._centroids
 
     def extract_topic_descriptors(
         self,
@@ -256,8 +263,7 @@ class KeywordClusterer:
     def configure_assignment(
         self,
         assignment_mode: str = "soft",
-        threshold: Optional[float] = None,
-        temperature: float = 1.0,
+        threshold: float = 0.1,
         metric: str = "cosine",
     ) -> "KeywordClusterer":
         """
@@ -266,22 +272,41 @@ class KeywordClusterer:
         Parameters
         ----------
         assignment_mode : str
-            Assignment mode: 'hard' (one-hot) or 'soft' (probabilistic)
-        threshold : Optional[float]
-            Threshold for assignment filtering
-        temperature : float
-            Temperature parameter for softmax (higher = more uniform)
+            Assignment mode:
+            - 'hard': Assigns to single best cluster only
+            - 'soft': Assigns to all clusters above threshold probability
+        threshold : float
+            Minimum probability for cluster assignment (0.0 to 1.0)
+            - For hard mode: minimum confidence to assign (else returns no clusters)
+            - For soft mode: minimum probability to include cluster in assignment
+            Recommended ranges:
+            - Soft mode: 0.05-0.2 (include clusters with modest relevance)
+            - Hard mode: 0.3-0.5 (require strong confidence)
         metric : str
             Distance metric: 'euclidean' or 'cosine'
+            Recommended: 'cosine' for text embeddings
 
         Returns
         -------
         KeywordClusterer
             Self for chaining
+
+        Examples
+        --------
+        >>> clusterer.configure_assignment(
+        ...     mode="soft",
+        ...     threshold=0.1,
+        ...     metric="cosine"
+        ... )
         """
         if assignment_mode not in ["hard", "soft"]:
             raise ValueError(
                 f"Invalid assignment_mode: {assignment_mode}. Choose 'hard' or 'soft'"
+            )
+
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError(
+                f"Threshold must be between 0 and 1, got {threshold}"
             )
 
         if metric not in ["euclidean", "cosine"]:
@@ -291,92 +316,109 @@ class KeywordClusterer:
 
         self._default_assignment_mode = assignment_mode
         self._default_threshold = threshold
-        self._default_temperature = temperature
         self._default_metric = metric
 
         LOGGER.info(
             f"Configured assignment: mode={assignment_mode}, "
-            f"threshold={threshold}, temperature={temperature}, metric={metric}"
+            f"threshold={threshold}, metric={metric}"
         )
 
         return self
 
     def _check_fitted(self):
         """Check if the model has been fitted."""
-        if self.cluster_labels is None:
+        if not self._is_fitted:
             raise ValueError(
-                "Model not fitted. Call fit() first before using assignment methods."
+                "Model not fitted. Call fit() or load from results first."
             )
 
     def _compute_probabilities(
         self,
         embedding: np.ndarray,
-        temperature: float,
         metric: str,
     ) -> np.ndarray:
         """
-        Compute probability distribution over clusters using softmax.
+        Compute probability distribution over clusters.
+
+        Converts distances to probabilities using similarity normalization:
+        - For cosine: similarity = 1 - distance, normalized
+        - For euclidean: similarity = 1 / (1 + distance), normalized
 
         Parameters
         ----------
         embedding : np.ndarray
             Query embedding vector
-        temperature : float
-            Temperature parameter for softmax
         metric : str
             Distance metric
 
         Returns
         -------
         np.ndarray
-            Array of probabilities for each cluster (sums to 1.0)
+            Probability distribution over clusters (sums to 1.0)
         """
+        # Validate embedding dimension
+        if embedding.shape[0] != self._centroids.shape[1]:
+            raise ValueError(
+                f"Embedding dimension {embedding.shape[0]} doesn't match "
+                f"centroid dimension {self._centroids.shape[1]}"
+            )
+
         distances = self.compute_distances(embedding, metric)
 
-        # Convert distances to similarities (negative distances)
-        # Apply temperature scaling
-        logits = -distances / temperature
+        # Convert distances to similarities
+        if metric == "cosine":
+            # Cosine distance is in [0, 2], closer to 0 is more similar
+            # Convert to similarity: 1 - distance gives us similarity in [0, 1]
+            similarities = 1 - distances
+            # Clip to handle numerical issues
+            similarities = np.clip(similarities, 0, 1)
+        else:  # euclidean
+            # Euclidean distances are unbounded, use inverse relationship
+            # Add small epsilon to avoid division by zero
+            similarities = 1.0 / (1.0 + distances)
 
-        # Apply softmax with numerical stability
-        exp_logits = np.exp(logits - np.max(logits))
-        probabilities = exp_logits / np.sum(exp_logits)
+        # Normalize to probabilities (sum to 1)
+        probabilities = similarities / similarities.sum()
 
         return probabilities
 
     def _hard_assignment(
         self,
         probabilities: np.ndarray,
-        threshold: Optional[float],
+        threshold: float,
     ) -> Tuple[List[int], Optional[int]]:
         """
-        Perform hard (one-hot) assignment.
+        Perform hard (single-cluster) assignment.
 
         Parameters
         ----------
         probabilities : np.ndarray
             Probability distribution over clusters
-        threshold : Optional[float]
-            Minimum probability threshold
+        threshold : float
+            Minimum probability required for assignment
 
         Returns
         -------
         Tuple[List[int], Optional[int]]
             (assigned_clusters, primary_cluster)
+            If max probability < threshold: ([], None)
+            Otherwise: ([best_cluster], best_cluster)
         """
         primary_cluster = int(np.argmax(probabilities))
 
-        if threshold is not None:
-            if probabilities[primary_cluster] < threshold:
-                return [], None
-            else:
-                return [primary_cluster], primary_cluster
-        else:
-            return [primary_cluster], primary_cluster
+        if probabilities[primary_cluster] < threshold:
+            LOGGER.debug(
+                f"Hard assignment: max probability {probabilities[primary_cluster]:.3f} "
+                f"below threshold {threshold}, no assignment made"
+            )
+            return [], None
+
+        return [primary_cluster], primary_cluster
 
     def _soft_assignment(
         self,
         probabilities: np.ndarray,
-        threshold: Optional[float],
+        threshold: float,
     ) -> Tuple[List[int], int]:
         """
         Perform soft (multi-cluster) assignment.
@@ -385,22 +427,35 @@ class KeywordClusterer:
         ----------
         probabilities : np.ndarray
             Probability distribution over clusters
-        threshold : Optional[float]
-            Minimum probability threshold
+        threshold : float
+            Minimum probability required for cluster inclusion
 
         Returns
         -------
         Tuple[List[int], int]
             (assigned_clusters, primary_cluster)
+            assigned_clusters: All clusters with probability >= threshold
+            primary_cluster: Cluster with highest probability
         """
         primary_cluster = int(np.argmax(probabilities))
 
-        if threshold is not None:
-            assigned_clusters = [
-                i for i, prob in enumerate(probabilities) if prob >= threshold
-            ]
-        else:
-            assigned_clusters = list(range(self.n_clusters))
+        # Filter clusters by threshold
+        assigned_clusters = [
+            i for i, prob in enumerate(probabilities)
+            if prob >= threshold
+        ]
+
+        if not assigned_clusters:
+            LOGGER.warning(
+                f"Soft assignment: no clusters above threshold {threshold}, "
+                f"assigning to primary cluster {primary_cluster} only"
+            )
+            assigned_clusters = [primary_cluster]
+
+        LOGGER.debug(
+            f"Soft assignment: {len(assigned_clusters)} clusters above "
+            f"threshold {threshold}"
+        )
 
         return assigned_clusters, primary_cluster
 
@@ -409,62 +464,71 @@ class KeywordClusterer:
         embedding: np.ndarray,
         mode: Optional[str] = None,
         threshold: Optional[float] = None,
-        temperature: Optional[float] = None,
         metric: Optional[str] = None,
-        return_probabilities: bool = True,
     ) -> Dict[str, Any]:
         """
         Assign an embedding to cluster(s).
+
+        This method computes the probability distribution over clusters and
+        assigns the embedding based on the specified mode and threshold.
 
         Parameters
         ----------
         embedding : np.ndarray
             Query embedding vector
         mode : Optional[str]
-            Assignment mode ('hard' or 'soft'). Uses default if None.
+            Assignment mode ('hard' or 'soft'). Uses configured default if None.
+            - 'hard': Single cluster assignment (if above threshold)
+            - 'soft': Multi-cluster assignment (all clusters above threshold)
         threshold : Optional[float]
-            Probability threshold. Uses default if None.
-        temperature : Optional[float]
-            Softmax temperature. Uses default if None.
+            Minimum probability for assignment. Uses configured default if None.
+            Must be between 0.0 and 1.0.
         metric : Optional[str]
-            Distance metric. Uses default if None.
-        return_probabilities : bool
-            Whether to include full probability distribution
+            Distance metric ('euclidean' or 'cosine'). Uses configured default if None.
 
         Returns
         -------
         Dict[str, Any]
             Assignment results with keys:
             - mode: Assignment mode used
-            - clusters: List of assigned cluster IDs
-            - probabilities: Dict mapping cluster IDs to probabilities (if requested)
-            - primary_cluster: ID of most likely cluster
+            - probabilities: Dict mapping cluster IDs to probabilities (always included)
+            - assigned_clusters: List of assigned cluster IDs (may be empty in hard mode)
+            - primary_cluster: ID of most likely cluster (None if no assignment in hard mode)
+            - threshold_used: Threshold value that was applied
+            - metric: Distance metric used
 
         Examples
         --------
-        >>> clusterer = KeywordClusterer(n_clusters=3)
-        >>> clusterer.fit(keyword_embeddings)
-        >>> embedding = embedder.create_embeddings(["example text"])["example text"]
+        >>> # Hard assignment (single cluster)
+        >>> result = clusterer.assign(embedding, mode="hard", threshold=0.3)
+        >>> print(result['assigned_clusters'])  # [2] or [] if below threshold
+
+        >>> # Soft assignment (multi-cluster)
         >>> result = clusterer.assign(embedding, mode="soft", threshold=0.1)
-        >>> print(result['primary_cluster'])
-        0
+        >>> print(result['assigned_clusters'])  # [0, 2, 5] - all clusters > 10%
+        >>> print(result['probabilities'])      # {0: 0.45, 1: 0.05, 2: 0.25, ...}
         """
         self._check_fitted()
 
         # Use defaults if not specified
         mode = mode if mode is not None else self._default_assignment_mode
         threshold = threshold if threshold is not None else self._default_threshold
-        temperature = (
-            temperature if temperature is not None else self._default_temperature
-        )
         metric = metric if metric is not None else self._default_metric
 
-        # Validate mode
+        # Validate parameters
         if mode not in ["hard", "soft"]:
             raise ValueError(f"Invalid mode: {mode}. Choose 'hard' or 'soft'")
 
+        if threshold is None:
+            raise ValueError(
+                "Threshold is required. Set via configure_assignment() or pass explicitly."
+            )
+
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError(f"Threshold must be between 0 and 1, got {threshold}")
+
         # Compute probabilities
-        probabilities = self._compute_probabilities(embedding, temperature, metric)
+        probabilities = self._compute_probabilities(embedding, metric)
 
         # Perform assignment based on mode
         if mode == "hard":
@@ -476,28 +540,21 @@ class KeywordClusterer:
                 probabilities, threshold
             )
 
-        result = {
+        return {
             "mode": mode,
-            "clusters": assigned_clusters,
+            "probabilities": {i: float(prob) for i, prob in enumerate(probabilities)},
+            "assigned_clusters": assigned_clusters,
             "primary_cluster": primary_cluster,
+            "threshold_used": threshold,
+            "metric": metric,
         }
-
-        # Include probabilities if requested
-        if return_probabilities:
-            result["probabilities"] = {
-                i: float(prob) for i, prob in enumerate(probabilities)
-            }
-
-        return result
 
     def assign_batch(
         self,
         embeddings: Dict[str, np.ndarray],
         mode: Optional[str] = None,
         threshold: Optional[float] = None,
-        temperature: Optional[float] = None,
         metric: Optional[str] = None,
-        return_probabilities: bool = True,
     ) -> Dict[str, Dict[str, Any]]:
         """
         Assign multiple embeddings to clusters.
@@ -510,12 +567,8 @@ class KeywordClusterer:
             Assignment mode. Uses default if None.
         threshold : Optional[float]
             Probability threshold. Uses default if None.
-        temperature : Optional[float]
-            Softmax temperature. Uses default if None.
         metric : Optional[str]
             Distance metric. Uses default if None.
-        return_probabilities : bool
-            Whether to include probability distributions
 
         Returns
         -------
@@ -537,9 +590,7 @@ class KeywordClusterer:
                 embedding,
                 mode=mode,
                 threshold=threshold,
-                temperature=temperature,
                 metric=metric,
-                return_probabilities=return_probabilities,
             )
 
         LOGGER.info(f"Assigned {len(assignments)} items to clusters")
@@ -566,13 +617,20 @@ class KeywordClusterer:
         np.ndarray
             Array of distances to each centroid
         """
-        centroids = self.get_centroids()
+        self._check_fitted()
+
+        # Validate embedding dimension
+        if embedding.shape[0] != self._centroids.shape[1]:
+            raise ValueError(
+                f"Embedding dimension {embedding.shape[0]} doesn't match "
+                f"centroid dimension {self._centroids.shape[1]}"
+            )
 
         if metric == "euclidean":
-            distances = np.linalg.norm(centroids - embedding, axis=1)
+            distances = np.linalg.norm(self._centroids - embedding, axis=1)
         elif metric == "cosine":
             # Cosine distance = 1 - cosine similarity
-            similarities = cosine_similarity([embedding], centroids)[0]
+            similarities = cosine_similarity([embedding], self._centroids)[0]
             distances = 1 - similarities
         else:
             raise ValueError(
@@ -709,7 +767,7 @@ class KeywordClusterer:
         text : str
             Text to compare
         embedding_model : Any
-            Model to generate text embedding
+            Model to generate text embedding (must have encode() method)
         metric : str
             Distance metric
         top_k : int
@@ -752,8 +810,8 @@ class KeywordClusterer:
             Whether to include topic descriptors in output
         """
         # Get cluster assignments and grouped clusters
-        assignments = self.get_cluster_assignments()
-        clusters = self.get_clusters()
+        assignments = self.get_cluster_assignments() if self.keywords else {}
+        clusters = self.get_clusters() if self.keywords else {}
 
         # Calculate cluster statistics
         cluster_stats = {}
@@ -774,22 +832,22 @@ class KeywordClusterer:
             "metadata": {
                 "algorithm": self.algorithm,
                 "n_clusters": self.n_clusters,
-                "n_keywords": len(self.keywords),
+                "n_keywords": len(self.keywords) if self.keywords else 0,
                 "random_state": self.random_state,
+                "embedding_dim": self._centroids.shape[1],
                 "assignment_config": {
                     "default_mode": self._default_assignment_mode,
                     "default_threshold": self._default_threshold,
-                    "default_temperature": self._default_temperature,
                     "default_metric": self._default_metric,
                 },
             },
             "cluster_assignments": assignments,
             "clusters": {str(k): v for k, v in clusters.items()},
             "cluster_stats": cluster_stats,
-            "centroids": self.get_centroids().tolist(),
+            "centroids": self._centroids.tolist(),
         }
 
-        if include_embeddings:
+        if include_embeddings and self.keywords:
             output_data["embeddings"] = {
                 kw: emb.tolist()
                 for kw, emb in zip(self.keywords, self.embeddings_matrix)
@@ -832,10 +890,10 @@ class KeywordClusterer:
         """
         Create clusterer from saved clustering results.
 
-        Note: This creates a clusterer with centroids loaded for comparison
-        and assignment operations. The underlying model is not fully fitted,
-        so clustering operations (like fit()) should not be used on the
-        returned instance. Use this only for loading pre-computed clusters.
+        This creates a clusterer with centroids loaded for assignment and
+        comparison operations. The underlying sklearn clustering model is
+        not restored, but all necessary components for assignment operations
+        are available.
 
         Parameters
         ----------
@@ -847,10 +905,15 @@ class KeywordClusterer:
         KeywordClusterer
             Initialized clusterer with loaded centroids and config
 
-        Warnings
+        Examples
         --------
-        The returned clusterer is in a partially initialized state suitable
-        for assignment operations but not for re-fitting.
+        >>> # Save results
+        >>> clusterer.fit(embeddings)
+        >>> clusterer.save_results("clusters.json")
+
+        >>> # Load and use for assignment
+        >>> loaded = KeywordClusterer.from_results("clusters.json")
+        >>> result = loaded.assign(new_embedding)
         """
         with open(clustering_results_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -868,26 +931,14 @@ class KeywordClusterer:
             clusterer._default_assignment_mode = assignment_config.get(
                 "default_mode", "soft"
             )
-            clusterer._default_threshold = assignment_config.get("default_threshold")
-            clusterer._default_temperature = assignment_config.get(
-                "default_temperature", 1.0
-            )
+            clusterer._default_threshold = assignment_config.get("default_threshold", 0.1)
             clusterer._default_metric = assignment_config.get(
                 "default_metric", "cosine"
             )
 
-        # Load centroids
-        centroids = np.array(data["centroids"])
-
-        # Create a minimal fitted model state for comparison operations
-        # We create dummy data to fit the model, then replace centroids
-        dummy_data = np.zeros((clusterer.n_clusters, centroids.shape[1]))
-        clusterer.model.fit(dummy_data)
-        clusterer.model.cluster_centers_ = centroids
-
-        # Mark as fitted by setting cluster_labels (required for _check_fitted)
-        # Note: These labels are dummy since we don't have original keywords
-        clusterer.cluster_labels = np.zeros(clusterer.n_clusters, dtype=int)
+        # Load centroids directly (no sklearn model needed for assignment)
+        clusterer._centroids = np.array(data["centroids"])
+        clusterer._is_fitted = True
 
         # Get cluster info if available
         if "cluster_stats" in data:
@@ -899,11 +950,8 @@ class KeywordClusterer:
                     clusterer.topics[label] = stats["topic_descriptors"]
 
         LOGGER.info(
-            f"Loaded clustering results with {len(centroids)} centroids from {clustering_results_path}"
-        )
-        LOGGER.warning(
-            "Clusterer loaded from results is in a partially initialized state. "
-            "It can be used for assignment operations but should not be re-fitted."
+            f"Loaded clustering results with {len(clusterer._centroids)} centroids "
+            f"from {clustering_results_path}"
         )
 
         return clusterer
