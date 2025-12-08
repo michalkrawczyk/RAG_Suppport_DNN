@@ -1,17 +1,101 @@
 """
 Keyword clustering using KMeans and Bisecting KMeans algorithms.
 
-This module provides clustering capabilities for keyword embeddings:
-- KMeans and Bisecting KMeans clustering algorithms
-- Cluster assignment and grouping utilities
-- Centroid-based similarity search and comparison
-- Results saving and loading
+This module provides a unified clustering solution for keyword/suggestion embeddings
+with integrated Phase 1 (clustering) and Phase 2 (assignment) functionality for the
+subspace/cluster steering roadmap.
 
-TODO: Future extensions could include:
-- Additional clustering algorithms (DBSCAN, hierarchical, Reinforcment)
+Main Components
+---------------
+KeywordClusterer : class
+    Unified clustering class that handles:
+    - Clustering keyword/suggestion embeddings (Phase 1)
+    - Extracting topic descriptors from clusters
+    - Assigning new items to clusters (Phase 2)
+    - Saving and loading clustering configurations
+
+cluster_keywords_from_embeddings : function
+    Convenience function for the complete clustering workflow
+
+Features
+--------
+Phase 1: Clustering Foundation
+    - KMeans and Bisecting KMeans algorithms
+    - Topic descriptor extraction (n closest keywords to centroids)
+    - Cluster quality metrics and statistics
+    - Persistent storage of results with metadata
+
+Phase 2: Source Assignment
+    - Hard (one-hot) and soft (multi-subspace) assignment modes
+    - Temperature-scaled softmax probability distributions
+    - Configurable threshold filtering
+    - Batch processing support
+    - State management and fitted model validation
+
+Distance Metrics
+    - Euclidean distance
+    - Cosine similarity/distance
+
+Examples
+--------
+Basic clustering workflow:
+
+>>> from RAG_supporters.embeddings import KeywordEmbedder
+>>> from RAG_supporters.clustering import cluster_keywords_from_embeddings
+>>>
+>>> # Create embeddings
+>>> embedder = KeywordEmbedder()
+>>> keywords = ["machine learning", "deep learning", "AI"]
+>>> embeddings = embedder.create_embeddings(keywords)
+>>>
+>>> # Cluster and extract topics
+>>> clusterer, topics = cluster_keywords_from_embeddings(
+...     embeddings,
+...     n_clusters=2,
+...     n_descriptors=5,
+...     output_path="clusters.json"
+... )
+
+Assignment workflow:
+
+>>> # Load saved clustering
+>>> from RAG_supporters.clustering import KeywordClusterer
+>>> clusterer = KeywordClusterer.from_results("clusters.json")
+>>>
+>>> # Configure assignment
+>>> clusterer.configure_assignment(
+...     assignment_mode="soft",
+...     threshold=0.15,
+...     temperature=1.0,
+...     metric="cosine"
+... )
+>>>
+>>> # Assign new items
+>>> new_embedding = embedder.create_embeddings(["neural networks"])
+>>> result = clusterer.assign(new_embedding["neural networks"])
+>>> print(result['primary_cluster'])
+0
+
+Notes
+-----
+- Models loaded via `from_results()` are in a partially initialized state
+  suitable for assignment operations but should not be re-fitted
+- Assignment configuration (mode, threshold, temperature, metric) is
+  persisted in save/load operations
+- All assignment methods validate fitted state before operating
+
+See Also
+--------
+RAG_supporters.embeddings.KeywordEmbedder : For creating embeddings
+docs/CLUSTERING_AND_ASSIGNMENT.md : Complete usage guide
+
+TODO: Future extensions
+-----------------------
+- Additional clustering algorithms (DBSCAN, hierarchical, Agglomerative)
 - Automatic optimal cluster number detection (elbow method, silhouette score)
-- Cluster quality metrics and visualization
+- Cluster quality metrics and visualization tools
 - Additional distance metrics (Manhattan, Mahalanobis)
+- Online/incremental clustering support
 """
 
 import json
@@ -305,9 +389,7 @@ class KeywordClusterer:
             )
 
         if not 0.0 <= threshold <= 1.0:
-            raise ValueError(
-                f"Threshold must be between 0 and 1, got {threshold}"
-            )
+            raise ValueError(f"Threshold must be between 0 and 1, got {threshold}")
 
         if metric not in ["euclidean", "cosine"]:
             raise ValueError(
@@ -328,9 +410,7 @@ class KeywordClusterer:
     def _check_fitted(self):
         """Check if the model has been fitted."""
         if not self._is_fitted:
-            raise ValueError(
-                "Model not fitted. Call fit() or load from results first."
-            )
+            raise ValueError("Model not fitted. Call fit() or load from results first.")
 
     def _compute_probabilities(
         self,
@@ -441,8 +521,7 @@ class KeywordClusterer:
 
         # Filter clusters by threshold
         assigned_clusters = [
-            i for i, prob in enumerate(probabilities)
-            if prob >= threshold
+            i for i, prob in enumerate(probabilities) if prob >= threshold
         ]
 
         if not assigned_clusters:
@@ -931,7 +1010,9 @@ class KeywordClusterer:
             clusterer._default_assignment_mode = assignment_config.get(
                 "default_mode", "soft"
             )
-            clusterer._default_threshold = assignment_config.get("default_threshold", 0.1)
+            clusterer._default_threshold = assignment_config.get(
+                "default_threshold", 0.1
+            )
             clusterer._default_metric = assignment_config.get(
                 "default_metric", "cosine"
             )
