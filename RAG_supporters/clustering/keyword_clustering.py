@@ -759,7 +759,7 @@ class KeywordClusterer:
         self,
         embedding: np.ndarray,
         metric: str = "euclidean",
-        sorted: bool = True,
+        sort_by_dist: bool = True,
     ) -> Dict[int, float]:
         """
         Get distances to all clusters.
@@ -770,7 +770,7 @@ class KeywordClusterer:
             Query embedding vector
         metric : str
             Distance metric
-        sorted : bool
+        sort_by_dist : bool
             Whether to sort by distance (ascending)
 
         Returns
@@ -785,8 +785,8 @@ class KeywordClusterer:
             label: float(dist) for label, dist in zip(cluster_labels_list, distances)
         }
 
-        if sorted:
-            distance_dict = dict(sorted(distance_dict.items(), key=lambda x: x[1]))
+        if sort_by_dist:
+            distance_dict = dict(sort_by_dist(distance_dict.items(), key=lambda x: x[1]))
 
         return distance_dict
 
@@ -822,7 +822,7 @@ class KeywordClusterer:
         embedding = keyword_embeddings[keyword]
 
         top_clusters = self.find_nearest_cluster(embedding, metric, top_k)
-        all_distances = self.get_all_distances(embedding, metric, sorted=True)
+        all_distances = self.get_all_distances(embedding, metric, sort_by_dist=True)
 
         return {
             "keyword": keyword,
@@ -861,7 +861,7 @@ class KeywordClusterer:
         embedding = embedding_model.encode([text], convert_to_numpy=True)[0]
 
         top_clusters = self.find_nearest_cluster(embedding, metric, top_k)
-        all_distances = self.get_all_distances(embedding, metric, sorted=True)
+        all_distances = self.get_all_distances(embedding, metric, sort_by_dist=True)
 
         return {
             "text": text,
