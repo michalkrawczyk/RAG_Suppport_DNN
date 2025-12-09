@@ -16,8 +16,7 @@ supporting both hard (one-hot) and soft (multi-subspace) assignment modes
 with configurable temperature scaling and thresholds.
 """
 
-from .keyword_clustering import (KeywordClusterer,
-                                 cluster_keywords_from_embeddings)
+from .keyword_clustering import KeywordClusterer, cluster_keywords_from_embeddings
 
 __all__ = [
     "KeywordClusterer",

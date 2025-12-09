@@ -652,13 +652,13 @@ try:
             )
 
         def _batch_process(
-                self,
-                mode: OperationMode,
-                text_sources: Optional[List[str]] = None,
-                questions: Optional[List[str]] = None,
-                available_terms: Optional[List[str]] = None,
-                batch_size: Optional[int] = None,
-                show_progress: bool = True,
+            self,
+            mode: OperationMode,
+            text_sources: Optional[List[str]] = None,
+            questions: Optional[List[str]] = None,
+            available_terms: Optional[List[str]] = None,
+            batch_size: Optional[int] = None,
+            show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Internal method for batch processing with proper chunking.
@@ -729,7 +729,9 @@ try:
                         batch_terms = available_terms[batch_start:batch_end]
                         for question, terms in zip(batch_questions, batch_terms):
                             prompts.append(
-                                template.format(question=question, available_terms=terms)
+                                template.format(
+                                    question=question, available_terms=terms
+                                )
                             )
 
                     try:
@@ -748,12 +750,16 @@ try:
                                 # Try fixing parser first
                                 try:
                                     result = fixing_parser.parse(content)
-                                    all_results.append(self._extract_result_dict(result))
+                                    all_results.append(
+                                        self._extract_result_dict(result)
+                                    )
                                     successful_parses += 1
                                 except Exception:
                                     # Fallback to regular parser
                                     result = parser.parse(content)
-                                    all_results.append(self._extract_result_dict(result))
+                                    all_results.append(
+                                        self._extract_result_dict(result)
+                                    )
                                     successful_parses += 1
 
                             except Exception as e:
@@ -885,7 +891,11 @@ try:
                 result_columns = [
                     f"{prefix}_suggestions",
                     f"{prefix}_total_suggestions",
-                    f"{prefix}_primary_theme" if mode == OperationMode.EXTRACT else f"{prefix}_question_category",
+                    (
+                        f"{prefix}_primary_theme"
+                        if mode == OperationMode.EXTRACT
+                        else f"{prefix}_question_category"
+                    ),
                     f"{prefix}_error",
                 ]
             else:  # ASSESS
@@ -904,7 +914,9 @@ try:
                     result_df[col] = None
 
             # Check if we should use source_id grouping (EXTRACT mode only)
-            use_source_grouping = mode == OperationMode.EXTRACT and "source_id" in existing_cols
+            use_source_grouping = (
+                mode == OperationMode.EXTRACT and "source_id" in existing_cols
+            )
 
             if use_source_grouping:
                 LOGGER.info(
@@ -1067,25 +1079,45 @@ try:
                 for idx, result in iterator:
                     if result is not None:
                         if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
-                            result_df.at[idx, f"{prefix}_suggestions"] = str(result["suggestions"])
-                            result_df.at[idx, f"{prefix}_total_suggestions"] = result["total_suggestions"]
+                            result_df.at[idx, f"{prefix}_suggestions"] = str(
+                                result["suggestions"]
+                            )
+                            result_df.at[idx, f"{prefix}_total_suggestions"] = result[
+                                "total_suggestions"
+                            ]
 
                             if mode == OperationMode.EXTRACT:
-                                result_df.at[idx, f"{prefix}_primary_theme"] = result.get("primary_theme")
+                                result_df.at[idx, f"{prefix}_primary_theme"] = (
+                                    result.get("primary_theme")
+                                )
                             else:  # GUESS
-                                result_df.at[idx, f"{prefix}_question_category"] = result.get("question_category")
+                                result_df.at[idx, f"{prefix}_question_category"] = (
+                                    result.get("question_category")
+                                )
                         else:  # ASSESS
-                            result_df.at[idx, f"{prefix}_selected_terms"] = str(result["selected_terms"])
-                            result_df.at[idx, f"{prefix}_total_selected"] = result["total_selected"]
-                            result_df.at[idx, f"{prefix}_question_intent"] = result["question_intent"]
-                            result_df.at[idx, f"{prefix}_primary_topics"] = str(result["primary_topics"])
+                            result_df.at[idx, f"{prefix}_selected_terms"] = str(
+                                result["selected_terms"]
+                            )
+                            result_df.at[idx, f"{prefix}_total_selected"] = result[
+                                "total_selected"
+                            ]
+                            result_df.at[idx, f"{prefix}_question_intent"] = result[
+                                "question_intent"
+                            ]
+                            result_df.at[idx, f"{prefix}_primary_topics"] = str(
+                                result["primary_topics"]
+                            )
                         processed += 1
                     else:
                         result_df.at[idx, f"{prefix}_error"] = "Analysis failed"
                         errors += 1
 
                     # Checkpoint
-                    if save_path and checkpoint_size and processed % checkpoint_size == 0:
+                    if (
+                        save_path
+                        and checkpoint_size
+                        and processed % checkpoint_size == 0
+                    ):
                         result_df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
@@ -1141,25 +1173,45 @@ try:
 
                     if result is not None:
                         if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
-                            result_df.at[idx, f"{prefix}_suggestions"] = str(result["suggestions"])
-                            result_df.at[idx, f"{prefix}_total_suggestions"] = result["total_suggestions"]
+                            result_df.at[idx, f"{prefix}_suggestions"] = str(
+                                result["suggestions"]
+                            )
+                            result_df.at[idx, f"{prefix}_total_suggestions"] = result[
+                                "total_suggestions"
+                            ]
 
                             if mode == OperationMode.EXTRACT:
-                                result_df.at[idx, f"{prefix}_primary_theme"] = result.get("primary_theme")
+                                result_df.at[idx, f"{prefix}_primary_theme"] = (
+                                    result.get("primary_theme")
+                                )
                             else:  # GUESS
-                                result_df.at[idx, f"{prefix}_question_category"] = result.get("question_category")
+                                result_df.at[idx, f"{prefix}_question_category"] = (
+                                    result.get("question_category")
+                                )
                         else:  # ASSESS
-                            result_df.at[idx, f"{prefix}_selected_terms"] = str(result["selected_terms"])
-                            result_df.at[idx, f"{prefix}_total_selected"] = result["total_selected"]
-                            result_df.at[idx, f"{prefix}_question_intent"] = result["question_intent"]
-                            result_df.at[idx, f"{prefix}_primary_topics"] = str(result["primary_topics"])
+                            result_df.at[idx, f"{prefix}_selected_terms"] = str(
+                                result["selected_terms"]
+                            )
+                            result_df.at[idx, f"{prefix}_total_selected"] = result[
+                                "total_selected"
+                            ]
+                            result_df.at[idx, f"{prefix}_question_intent"] = result[
+                                "question_intent"
+                            ]
+                            result_df.at[idx, f"{prefix}_primary_topics"] = str(
+                                result["primary_topics"]
+                            )
                         processed += 1
                     else:
                         result_df.at[idx, f"{prefix}_error"] = "Analysis failed"
                         errors += 1
 
                     # Checkpoint
-                    if save_path and checkpoint_size and processed % checkpoint_size == 0:
+                    if (
+                        save_path
+                        and checkpoint_size
+                        and processed % checkpoint_size == 0
+                    ):
                         result_df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
@@ -1183,16 +1235,16 @@ try:
             return result_df
 
         def _process_dataframe_with_source_grouping(
-                self,
-                result_df,
-                text_source_col,
-                prefix,
-                skip_existing,
-                progress_bar,
-                save_path,
-                checkpoint_batch_size,
-                should_batch,
-                batch_size,
+            self,
+            result_df,
+            text_source_col,
+            prefix,
+            skip_existing,
+            progress_bar,
+            save_path,
+            checkpoint_batch_size,
+            should_batch,
+            batch_size,
         ):
             """
             Process DataFrame by grouping rows with same source_id.
@@ -1230,12 +1282,12 @@ try:
 
             # Statistics tracking
             stats = {
-                'total_rows': 0,
-                'skipped_rows': 0,
-                'copied_rows': 0,
-                'processed_rows': 0,
-                'error_rows': 0,
-                'interrupted': False
+                "total_rows": 0,
+                "skipped_rows": 0,
+                "copied_rows": 0,
+                "processed_rows": 0,
+                "error_rows": 0,
+                "interrupted": False,
             }
 
             # ============================================================
@@ -1244,10 +1296,16 @@ try:
             try:
                 LOGGER.info("Phase 1: Building source_id mapping...")
 
-                source_id_mapping = {}  # source_id -> [(row_idx, has_results_bool), ...]
+                source_id_mapping = (
+                    {}
+                )  # source_id -> [(row_idx, has_results_bool), ...]
 
                 iterator = (
-                    tqdm(result_df.iterrows(), total=len(result_df), desc="Mapping sources")
+                    tqdm(
+                        result_df.iterrows(),
+                        total=len(result_df),
+                        desc="Mapping sources",
+                    )
                     if progress_bar
                     else result_df.iterrows()
                 )
@@ -1258,13 +1316,17 @@ try:
                     # Skip rows without source_id
                     if pd.isna(source_id):
                         result_df.at[idx, f"{prefix}_error"] = "Missing source_id"
-                        stats['error_rows'] += 1
+                        stats["error_rows"] += 1
                         continue
 
                     # Skip rows with empty text
-                    if pd.isna(row[text_source_col]) or is_empty_text(row[text_source_col]):
-                        result_df.at[idx, f"{prefix}_error"] = "Missing or empty text source"
-                        stats['error_rows'] += 1
+                    if pd.isna(row[text_source_col]) or is_empty_text(
+                        row[text_source_col]
+                    ):
+                        result_df.at[idx, f"{prefix}_error"] = (
+                            "Missing or empty text source"
+                        )
+                        stats["error_rows"] += 1
                         continue
 
                     # Check if this row has results (boolean only)
@@ -1274,7 +1336,7 @@ try:
                     if source_id not in source_id_mapping:
                         source_id_mapping[source_id] = []
                     source_id_mapping[source_id].append((idx, has_results))
-                    stats['total_rows'] += 1
+                    stats["total_rows"] += 1
 
                 if not source_id_mapping:
                     LOGGER.info("No valid rows to process")
@@ -1287,7 +1349,7 @@ try:
 
             except KeyboardInterrupt:
                 LOGGER.warning("Interrupted during Phase 1 (mapping)")
-                stats['interrupted'] = True
+                stats["interrupted"] = True
                 self._save_and_log_stats(result_df, save_path, stats)
                 return result_df
 
@@ -1309,7 +1371,7 @@ try:
                     if skip_existing and all_have_results:
                         # All rows for this source already have results
                         sources_to_skip.append(source_id)
-                        stats['skipped_rows'] += len(row_list)
+                        stats["skipped_rows"] += len(row_list)
 
                     elif skip_existing and any_has_results:
                         # Some rows have results, need to copy to others
@@ -1329,7 +1391,7 @@ try:
 
             except KeyboardInterrupt:
                 LOGGER.warning("Interrupted during Phase 2 (categorization)")
-                stats['interrupted'] = True
+                stats["interrupted"] = True
                 self._save_and_log_stats(result_df, save_path, stats)
                 return result_df
 
@@ -1338,7 +1400,9 @@ try:
             # ============================================================
             try:
                 if sources_to_copy:
-                    LOGGER.info(f"Phase 3: Copying results for {len(sources_to_copy)} sources...")
+                    LOGGER.info(
+                        f"Phase 3: Copying results for {len(sources_to_copy)} sources..."
+                    )
 
                     iterator = (
                         tqdm(sources_to_copy, desc="Copying results")
@@ -1371,15 +1435,20 @@ try:
                         for idx, has_results in row_list:
                             if not has_results:
                                 # Copy result columns
-                                result_df.at[idx, f"{prefix}_suggestions"] = source_row[f"{prefix}_suggestions"]
-                                result_df.at[idx, f"{prefix}_total_suggestions"] = source_row[
-                                    f"{prefix}_total_suggestions"]
-                                result_df.at[idx, f"{prefix}_primary_theme"] = source_row[f"{prefix}_primary_theme"]
+                                result_df.at[idx, f"{prefix}_suggestions"] = source_row[
+                                    f"{prefix}_suggestions"
+                                ]
+                                result_df.at[idx, f"{prefix}_total_suggestions"] = (
+                                    source_row[f"{prefix}_total_suggestions"]
+                                )
+                                result_df.at[idx, f"{prefix}_primary_theme"] = (
+                                    source_row[f"{prefix}_primary_theme"]
+                                )
 
                                 # Clear any existing error
                                 result_df.at[idx, f"{prefix}_error"] = None
 
-                                stats['copied_rows'] += 1
+                                stats["copied_rows"] += 1
 
                     LOGGER.info(f"Copied results to {stats['copied_rows']} rows")
 
@@ -1393,7 +1462,7 @@ try:
                     f"Interrupted during Phase 3 (copying). "
                     f"Copied {stats['copied_rows']} rows so far."
                 )
-                stats['interrupted'] = True
+                stats["interrupted"] = True
                 self._save_and_log_stats(result_df, save_path, stats)
                 return result_df
 
@@ -1413,7 +1482,9 @@ try:
             extraction_results = []  # Initialize to handle interrupts
 
             try:
-                LOGGER.info(f"Phase 4: Processing {len(sources_to_process)} unique sources...")
+                LOGGER.info(
+                    f"Phase 4: Processing {len(sources_to_process)} unique sources..."
+                )
 
                 # Prepare inputs: maintain order for mapping back
                 source_ids_ordered = list(sources_to_process.keys())
@@ -1428,11 +1499,11 @@ try:
                     extraction_results = self.extract_domains_batch(
                         texts_to_process,
                         batch_size=batch_size,
-                        show_progress=progress_bar
+                        show_progress=progress_bar,
                     )
                     # Check if batch processing was interrupted
                     if any(r is None for r in extraction_results):
-                        stats['interrupted'] = True
+                        stats["interrupted"] = True
                 else:
                     LOGGER.info("Using sequential processing")
 
@@ -1454,7 +1525,7 @@ try:
                             # Pad remaining with None to maintain alignment
                             remaining = len(texts_to_process) - len(extraction_results)
                             extraction_results.extend([None] * remaining)
-                            stats['interrupted'] = True
+                            stats["interrupted"] = True
                             break
                         except Exception as e:
                             LOGGER.error(f"Error extracting domains: {e}")
@@ -1467,7 +1538,7 @@ try:
 
             except KeyboardInterrupt:
                 LOGGER.warning("Interrupted during Phase 4 (processing)")
-                stats['interrupted'] = True
+                stats["interrupted"] = True
                 # Pad extraction_results if incomplete
                 if len(extraction_results) < len(sources_to_process):
                     remaining = len(sources_to_process) - len(extraction_results)
@@ -1486,7 +1557,7 @@ try:
                         tqdm(
                             zip(source_ids_ordered, extraction_results),
                             total=len(source_ids_ordered),
-                            desc="Applying results"
+                            desc="Applying results",
                         )
                         if progress_bar
                         else zip(source_ids_ordered, extraction_results)
@@ -1501,29 +1572,41 @@ try:
                         if result is not None:
                             # Apply successful result to all rows with this source_id
                             for idx in row_indices:
-                                result_df.at[idx, f"{prefix}_suggestions"] = str(result["suggestions"])
-                                result_df.at[idx, f"{prefix}_total_suggestions"] = result["total_suggestions"]
-                                result_df.at[idx, f"{prefix}_primary_theme"] = result.get("primary_theme")
+                                result_df.at[idx, f"{prefix}_suggestions"] = str(
+                                    result["suggestions"]
+                                )
+                                result_df.at[idx, f"{prefix}_total_suggestions"] = (
+                                    result["total_suggestions"]
+                                )
+                                result_df.at[idx, f"{prefix}_primary_theme"] = (
+                                    result.get("primary_theme")
+                                )
 
                                 # Clear any existing error
                                 result_df.at[idx, f"{prefix}_error"] = None
 
-                                stats['processed_rows'] += 1
+                                stats["processed_rows"] += 1
                                 rows_updated_since_checkpoint += 1
                         else:
                             # Mark as failed (either processing failed or interrupted before this source)
-                            error_msg = "Processing interrupted" if stats['interrupted'] else "Analysis failed"
+                            error_msg = (
+                                "Processing interrupted"
+                                if stats["interrupted"]
+                                else "Analysis failed"
+                            )
                             for idx in row_indices:
                                 # Only set error if row doesn't already have results
-                                if pd.isna(result_df.at[idx, f"{prefix}_total_suggestions"]):
+                                if pd.isna(
+                                    result_df.at[idx, f"{prefix}_total_suggestions"]
+                                ):
                                     result_df.at[idx, f"{prefix}_error"] = error_msg
-                                    stats['error_rows'] += 1
+                                    stats["error_rows"] += 1
 
                         # Checkpoint based on rows updated
                         if (
-                                save_path
-                                and checkpoint_batch_size
-                                and rows_updated_since_checkpoint >= checkpoint_batch_size
+                            save_path
+                            and checkpoint_batch_size
+                            and rows_updated_since_checkpoint >= checkpoint_batch_size
                         ):
                             result_df.to_csv(save_path, index=False)
                             LOGGER.info(
@@ -1536,14 +1619,13 @@ try:
                     f"Interrupted during Phase 5 (applying results). "
                     f"Applied results to {stats['processed_rows']} rows."
                 )
-                stats['interrupted'] = True
+                stats["interrupted"] = True
 
             # ============================================================
             # PHASE 6: Save and return
             # ============================================================
             self._save_and_log_stats(result_df, save_path, stats)
             return result_df
-
 
         def _save_and_log_stats(self, result_df, save_path, stats):
             """
@@ -1560,7 +1642,7 @@ try:
             """
 
             # Log summary
-            status = "INTERRUPTED" if stats['interrupted'] else "COMPLETE"
+            status = "INTERRUPTED" if stats["interrupted"] else "COMPLETE"
             LOGGER.info("=" * 60)
             LOGGER.info(f"Source grouping processing {status}")
             LOGGER.info(f"  Total valid rows:     {stats['total_rows']}")
@@ -1574,7 +1656,6 @@ try:
             if save_path:
                 result_df.to_csv(save_path, index=False)
                 LOGGER.info(f"Results saved to {save_path}")
-
 
 except ImportError as e:
     _DEPENDENCIES_AVAILABLE = False

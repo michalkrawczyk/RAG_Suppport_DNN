@@ -786,7 +786,9 @@ class KeywordClusterer:
         }
 
         if sort_by_dist:
-            distance_dict = dict(sort_by_dist(distance_dict.items(), key=lambda x: x[1]))
+            distance_dict = dict(
+                sort_by_dist(distance_dict.items(), key=lambda x: x[1])
+            )
 
         return distance_dict
 

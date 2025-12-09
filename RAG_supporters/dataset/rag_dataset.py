@@ -685,8 +685,6 @@ class BaseRAGDatasetGenerator(ABC):
 
         return results
 
-
-
     def save_triplets_to_csv(
         self,
         triplets: List[SampleTripletRAGChroma],
