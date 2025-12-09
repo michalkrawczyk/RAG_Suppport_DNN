@@ -60,8 +60,9 @@ def load_suggestions_from_csv(
             # Quick count of lines
             with open(csv_path, "r", encoding="utf-8") as f:
                 total_rows = sum(1 for _ in f) - 1  # Exclude header
-        except Exception:
-            pass
+        except Exception as e:
+            # If counting rows fails, skip progress tracking (non-critical).
+            LOGGER.debug(f"Failed to count rows for progress tracking: {e}")
 
     all_suggestions = []
 
