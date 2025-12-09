@@ -222,7 +222,7 @@ assignments = clusterer.assign_batch(source_embeddings)
 for source_id, assignment in assignments.items():
     print(f"\n{source_id}:")
     print(f"  Primary cluster: {assignment['primary_cluster']}")
-    print(f"  All clusters: {assignment['clusters']}")
+    print(f"  Assigned clusters: {assignment['assigned_clusters']}")
     if 'probabilities' in assignment:
         top_clusters = sorted(
             assignment['probabilities'].items(),
@@ -242,7 +242,7 @@ Assigns each source to exactly one cluster:
 # Configure for hard assignment
 clusterer.configure_assignment(
     assignment_mode="hard",
-    threshold=0.3,  # Optional: minimum probability required
+    threshold=0.3,  # Required: minimum probability required
     metric="cosine"
 )
 
@@ -291,57 +291,47 @@ custom_assignment = clusterer.assign(
     embedding,
     mode="hard",           # Override mode
     threshold=0.5,         # Override threshold  
-    temperature=0.8,       # Override temperature
     metric="euclidean"     # Override metric
 )
 
 # Assign a single source
 source_embedding = embedder.create_embeddings(["example source text"])["example source text"]
-assignment = assigner.assign_source(
+assignment = clusterer.assign(
     source_embedding,
-    return_probabilities=True,
 )
 
 print(f"Primary cluster: {assignment['primary_cluster']}")
-print(f"All assigned clusters: {assignment['clusters']}")
+print(f"All assigned clusters: {assignment['assigned_clusters']}")
 print(f"Probabilities: {assignment['probabilities']}")
 
 # Assign multiple sources
-assignments = assigner.assign_sources_batch(source_embeddings)
+assignments = clusterer.assign_batch(source_embeddings)
 
-# Save results with custom metadata
-metadata = {
-    "dataset": "my_dataset",
-    "date": "2025-12-06",
-}
-assigner.save_assignments(
-    assignments,
+# Save results
+clusterer.save_results(
     "results/source_assignments.json",
-    metadata=metadata,
+    include_embeddings=True,
+    include_topics=True,
 )
 ```
 
-### Temperature Parameter
+### Assignment Modes
 
-The temperature parameter controls the sharpness of the probability distribution:
+Choose between soft and hard assignment based on your use case:
 
 ```python
-# High temperature (e.g., 2.0) -> more uniform distribution
-# Sources assigned to more clusters
-assignments_uniform = clusterer.assign_batch(
+# Soft assignment - sources can belong to multiple clusters
+assignments_soft = clusterer.assign_batch(
     source_embeddings,
-    centroids,
-    assignment_mode="soft",
-    temperature=2.0,
+    mode="soft",
+    threshold=0.15,
 )
 
-# Low temperature (e.g., 0.5) -> peaked distribution
-# Sources concentrated on fewer clusters
-assignments_peaked = clusterer.assign_batch(
+# Hard assignment - each source assigned to at most one cluster
+assignments_hard = clusterer.assign_batch(
     source_embeddings,
-    centroids,
-    assignment_mode="soft",
-    temperature=0.5,
+    mode="hard",
+    threshold=0.3,
 )
 ```
 
@@ -372,7 +362,7 @@ The assignment results JSON includes:
     "source_1": {
       "mode": "soft",
       "primary_cluster": 0,
-      "clusters": [0, 2, 3],
+      "assigned_clusters": [0, 2, 3],
       "probabilities": {
         "0": 0.45,
         "1": 0.05,
@@ -432,7 +422,7 @@ for topic_id, descriptors in topics.items():
 
 # Load clustering results (reloading to demonstrate persistence)
 loaded_clusterer = KeywordClusterer.from_results("results/keyword_clusters.json")
-centroids = loaded_clusterer.clusterer.get_centroids()
+centroids = loaded_clusterer.get_centroids()
 
 # Load and embed sources
 import pandas as pd
@@ -450,11 +440,15 @@ for idx, row in sources_df.iterrows():
 # Assign sources to topics with soft assignment
 assignments = clusterer.assign_batch(
     source_embeddings,
-    centroids,
-    assignment_mode="soft",
+    mode="soft",
     threshold=0.15,
-    temperature=1.0,
-    output_path="results/source_assignments.json",
+)
+
+# Save assignments
+clusterer.save_results(
+    "results/source_assignments.json",
+    include_embeddings=True,
+    include_topics=True,
 )
 
 # Analyze assignments
@@ -462,7 +456,7 @@ print("\n=== Source Assignments ===")
 for source_id, assignment in list(assignments.items())[:5]:
     print(f"\n{source_id}:")
     print(f"  Primary topic: {assignment['primary_cluster']}")
-    print(f"  Member of topics: {assignment['clusters']}")
+    print(f"  Member of topics: {assignment['assigned_clusters']}")
     
     # Show top probabilities
     probs = assignment['probabilities']
