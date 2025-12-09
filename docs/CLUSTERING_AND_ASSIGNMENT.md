@@ -484,21 +484,6 @@ print("  - results/source_assignments.json")
 class KeywordClusterer(algorithm='kmeans', n_clusters=8, random_state=42, **kwargs)
 ```
 
-**Methods:**
-- `fit(suggestion_embeddings)` - Fit clustering model
-- `extract_topic_descriptors(n_descriptors=10, metric='euclidean')` - Extract topic descriptors
-- `get_cluster_assignments()` - Get suggestion-to-cluster mapping
-- `get_clusters()` - Get clusters with suggestions
-- `save_results(output_path, include_embeddings=False, include_topics=True)` - Save results
-- `load_results(input_path)` - Load results (static method)
-- `from_results(clustering_results_path)` - Create from saved results (class method)
-
-### KeywordClusterer
-
-```python
-class KeywordClusterer(algorithm='kmeans', n_clusters=8, random_state=42, **kwargs)
-```
-
 **Key Methods:**
 
 *Clustering (Phase 1):*
