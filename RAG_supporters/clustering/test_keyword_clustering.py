@@ -480,7 +480,7 @@ class TestConvenienceFunction:
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "clusters.json"
 
-            clusterer, topics = cluster_keywords_from_embeddings(
+            clusterer, _ = cluster_keywords_from_embeddings(
                 sample_embeddings,
                 n_clusters=3,
                 n_descriptors=5,

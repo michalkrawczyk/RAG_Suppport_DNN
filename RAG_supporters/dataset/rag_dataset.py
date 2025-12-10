@@ -1,3 +1,5 @@
+"""RAG dataset utilities for managing and evaluating RAG systems."""
+
 import csv
 import json
 import logging
@@ -345,8 +347,8 @@ class BaseRAGDatasetGenerator(ABC):
     def get_text_corpus_db_data(
         self, include: Iterable[str] = ("documents", "metadatas", "embeddings")
     ):
-        """
-        Retrieve data from the text corpus database.
+        """Retrieve data from the text corpus database.
+
         Parameters
         ----------
         include : Iterable[str], optional
@@ -439,8 +441,7 @@ class BaseRAGDatasetGenerator(ABC):
         evaluation_prompt: str = SINGLE_SRC_SCORE_PROMPT,
         checkpoint_batch_size: Optional[int] = None,
     ) -> pd.DataFrame:
-        """
-        Evaluate pair samples using LLM-based source evaluation.
+        """Evaluate pair samples using LLM-based source evaluation.
 
         This method uses the SourceEvaluationAgent to evaluate question-source pairs
         and assign comprehensive scores across multiple dimensions.
@@ -474,7 +475,6 @@ class BaseRAGDatasetGenerator(ABC):
         ValueError
             If neither pairs_df nor question_db_ids are provided and no questions exist
         """
-
         if pairs_df.empty:
             raise ValueError("No pair samples generated for validation")
 
@@ -691,8 +691,7 @@ class BaseRAGDatasetGenerator(ABC):
         output_file: str,
         include_embeddings: bool = False,
     ) -> None:
-        """
-        Save triplet samples to CSV with both IDs and corresponding text content.
+        """Save triplet samples to CSV with both IDs and corresponding text content.
 
         Parameters
         ----------
@@ -707,7 +706,6 @@ class BaseRAGDatasetGenerator(ABC):
         -------
         None
         """
-
         # Create directory if it doesn't exist
         Path(os.path.dirname(output_file)).mkdir(parents=True, exist_ok=True)
 

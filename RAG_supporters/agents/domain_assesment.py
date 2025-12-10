@@ -1,5 +1,5 @@
-"""
-domain_analysis_agent.py
+"""Domain analysis agent for domain extraction, guessing, and assessment tasks.
+
 Agent for domain extraction, guessing, and assessment tasks.
 """
 
@@ -27,7 +27,7 @@ try:
     from utils.text_utils import is_empty_text
 
     class OperationMode(str, Enum):
-        """Operation modes for domain analysis"""
+        """Operation modes for domain analysis."""
 
         EXTRACT = "extract"  # Extract domains from source text
         GUESS = "guess"  # Guess domains needed for question
@@ -35,7 +35,7 @@ try:
 
     # Pydantic Models
     class DomainSuggestion(BaseModel):
-        """Model for a single domain/subdomain/keyword suggestion"""
+        """Model for a single domain/subdomain/keyword suggestion."""
 
         term: str = Field(..., description="The domain, subdomain, or keyword term")
         type: str = Field(..., description="Type: domain, subdomain, or keyword")
@@ -45,7 +45,7 @@ try:
         reason: str = Field(..., description="Explanation for this suggestion")
 
     class DomainExtractionResult(BaseModel):
-        """Result for source domain extraction"""
+        """Result for source domain extraction."""
 
         suggestions: List[DomainSuggestion] = Field(
             ..., description="List of domain suggestions"
@@ -57,7 +57,7 @@ try:
 
         @model_validator(mode="after")
         def validate_total_matches_length(self):
-            """Ensure total_suggestions matches the length of suggestions list"""
+            """Ensure total_suggestions matches the length of suggestions list."""
             if self.total_suggestions != len(self.suggestions):
                 LOGGER.warning(
                     f"total_suggestions mismatch: {self.total_suggestions} vs {len(self.suggestions)}, correcting"
@@ -66,7 +66,7 @@ try:
             return self
 
     class DomainGuessResult(BaseModel):
-        """Result for question domain guessing"""
+        """Result for question domain guessing."""
 
         suggestions: List[DomainSuggestion] = Field(
             ..., description="List of domain suggestions"
@@ -80,7 +80,7 @@ try:
 
         @model_validator(mode="after")
         def validate_total_matches_length(self):
-            """Ensure total_suggestions matches the length of suggestions list"""
+            """Ensure total_suggestions matches the length of suggestions list."""
             if self.total_suggestions != len(self.suggestions):
                 LOGGER.warning(
                     f"total_suggestions mismatch: {self.total_suggestions} vs {len(self.suggestions)}, correcting"
@@ -89,7 +89,7 @@ try:
             return self
 
     class SelectedTerm(BaseModel):
-        """Model for a selected term with relevance score"""
+        """Model for a selected term with relevance score."""
 
         term: str = Field(..., description="The selected term")
         type: str = Field(..., description="Type: domain, subdomain, or keyword")
@@ -99,7 +99,7 @@ try:
         reason: str = Field(..., description="Explanation of relevance")
 
     class DomainAssessmentResult(BaseModel):
-        """Result for domain assessment against available terms"""
+        """Result for domain assessment against available terms."""
 
         selected_terms: List[SelectedTerm] = Field(
             ..., description="List of selected terms"
@@ -114,7 +114,7 @@ try:
 
         @model_validator(mode="after")
         def validate_total_matches_length(self):
-            """Ensure total_selected matches the length of selected_terms list"""
+            """Ensure total_selected matches the length of selected_terms list."""
             if self.total_selected != len(self.selected_terms):
                 LOGGER.warning(
                     f"total_selected mismatch: {self.total_selected} vs {len(self.selected_terms)}, correcting"
@@ -123,7 +123,7 @@ try:
             return self
 
     class AgentState(BaseModel):
-        """State for the LangGraph domain analysis agent"""
+        """State for the LangGraph domain analysis agent."""
 
         mode: OperationMode
         text_source: Optional[str] = None
@@ -137,8 +137,8 @@ try:
         max_retries: int = 3
 
     class DomainAnalysisAgent:
-        """
-        Unified LangGraph agent for domain analysis tasks:
+        """Unified LangGraph agent for domain analysis tasks.
+
         - Extract domains from text sources
         - Guess domains needed to answer questions
         - Assess questions against available domain terms
@@ -206,7 +206,7 @@ try:
             self._is_openai_llm = self._check_openai_llm()
 
         def _check_openai_llm(self) -> bool:
-            """Check if the LLM is from OpenAI for batch processing"""
+            """Check if the LLM is from OpenAI for batch processing."""
             try:
                 from langchain_openai import AzureChatOpenAI, ChatOpenAI
 
@@ -223,7 +223,7 @@ try:
         def _create_prompt_template(
             self, template: str, input_vars: List[str], parser: PydanticOutputParser
         ) -> PromptTemplate:
-            """Create a prompt template with format instructions"""
+            """Create a prompt template with format instructions."""
             return PromptTemplate(
                 template=template,
                 input_variables=input_vars,
@@ -233,7 +233,7 @@ try:
             )
 
         def _get_parser_for_mode(self, mode: OperationMode) -> tuple:
-            """Get the appropriate parser and fixing parser for the operation mode"""
+            """Get the appropriate parser and fixing parser for the operation mode."""
             if mode == OperationMode.EXTRACT:
                 return self.extraction_parser, self.extraction_fixing_parser
             elif mode == OperationMode.GUESS:
@@ -244,7 +244,7 @@ try:
                 raise ValueError(f"Unknown operation mode: {mode}")
 
         def _get_template_for_mode(self, mode: OperationMode) -> PromptTemplate:
-            """Get the appropriate prompt template for the operation mode"""
+            """Get the appropriate prompt template for the operation mode."""
             if mode == OperationMode.EXTRACT:
                 return self.extraction_template
             elif mode == OperationMode.GUESS:
@@ -255,11 +255,11 @@ try:
                 raise ValueError(f"Unknown operation mode: {mode}")
 
         def _get_column_prefix(self, mode: OperationMode) -> str:
-            """Get column prefix for mode to avoid overwrites"""
+            """Get column prefix for mode to avoid overwrites."""
             return mode.value  # Returns 'extract', 'guess', or 'assess'
 
         def _build_graph(self) -> StateGraph:
-            """Build the LangGraph workflow"""
+            """Build the LangGraph workflow."""
             workflow = StateGraph(AgentState)
 
             # Add nodes
@@ -282,7 +282,7 @@ try:
             return workflow.compile()
 
         def _analyze(self, state: AgentState) -> Dict[str, Any]:
-            """Analyze based on the operation mode"""
+            """Analyze based on the operation mode."""
             try:
                 # Get the appropriate template
                 template = self._get_template_for_mode(state.mode)
@@ -338,7 +338,7 @@ try:
                 return {"result": None, "error": str(e)}
 
         def _validate_response(self, state: AgentState) -> Dict[str, Any]:
-            """Validate the response"""
+            """Validate the response."""
             if state.result is None:
                 error = state.error or "No result generated"
                 return {"error": error}
@@ -369,7 +369,7 @@ try:
                 return {"result": None, "error": f"Validation error: {str(e)}"}
 
         def _should_retry(self, state: AgentState) -> str:
-            """Determine if we should retry or end"""
+            """Determine if we should retry or end."""
             if state.error is None and state.result is not None:
                 return "end"
             elif state.retry_count < state.max_retries:
@@ -379,7 +379,7 @@ try:
                 return "end"
 
         def _handle_retry(self, state: AgentState) -> Dict[str, Any]:
-            """Handle retry logic"""
+            """Handle retry logic."""
             new_retry_count = state.retry_count + 1
             LOGGER.info(f"Retrying... Attempt {new_retry_count}/{state.max_retries}")
             LOGGER.info(f"Previous error: {state.error}")
@@ -387,7 +387,18 @@ try:
             return {"retry_count": new_retry_count, "result": None, "error": None}
 
         def _extract_result_dict(self, result: Any) -> Optional[Dict[str, Any]]:
-            """Helper method to safely extract result as dictionary"""
+            """Extract result as dictionary.
+
+            Parameters
+            ----------
+            result : Any
+                Result object to extract
+
+            Returns
+            -------
+            Optional[Dict[str, Any]]
+                Result as dictionary or None
+            """
             if result is None:
                 return None
             if isinstance(result, dict):
@@ -660,13 +671,32 @@ try:
             batch_size: Optional[int] = None,
             show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
-            """
-            Internal method for batch processing with proper chunking.
+            """Process inputs in batches for efficiency.
 
             This method properly splits input into chunks and processes each chunk
             separately using the LLM's batch API.
 
             Handles KeyboardInterrupt gracefully by returning partial results.
+
+            Parameters
+            ----------
+            mode : OperationMode
+                Operation mode (extract, guess, or assess)
+            text_sources : Optional[List[str]]
+                List of text sources for extraction mode
+            questions : Optional[List[str]]
+                List of questions for guess/assess modes
+            available_terms : Optional[List[str]]
+                Available terms for assess mode
+            batch_size : Optional[int]
+                Number of items to process in each batch
+            show_progress : bool
+                Whether to show progress bar
+
+            Returns
+            -------
+            List[Optional[Dict[str, Any]]]
+                List of results, one per input
             """
             batch_size = batch_size or self.batch_size
             template = self._get_template_for_mode(mode)
@@ -1151,7 +1181,7 @@ try:
             save_path,
             checkpoint_size,
         ):
-            """Process DataFrame sequentially"""
+            """Process DataFrame sequentially."""
             iterator = (
                 tqdm(zip(indices, rows), total=len(rows), desc="Processing rows")
                 if progress_bar
@@ -1246,8 +1276,8 @@ try:
             should_batch,
             batch_size,
         ):
-            """
-            Process DataFrame by grouping rows with same source_id.
+            """Process DataFrame by grouping rows with same source_id.
+
             Only processes each unique source once and applies results to all rows with that source_id.
             Handles interrupts gracefully at any stage.
 
@@ -1277,7 +1307,6 @@ try:
             pd.DataFrame
                 Processed DataFrame with results
             """
-
             LOGGER.info("Starting source grouping optimization for EXTRACT mode")
 
             # Statistics tracking
@@ -1628,8 +1657,7 @@ try:
             return result_df
 
         def _save_and_log_stats(self, result_df, save_path, stats):
-            """
-            Helper to save results and log statistics.
+            """Save results and log statistics.
 
             Parameters
             ----------
@@ -1640,7 +1668,6 @@ try:
             stats : dict
                 Statistics dictionary with processing metrics
             """
-
             # Log summary
             status = "INTERRUPTED" if stats["interrupted"] else "COMPLETE"
             LOGGER.info("=" * 60)
@@ -1668,7 +1695,7 @@ except ImportError as e:
 
     # Minimal stubs for type checking
     class OperationMode(str, Enum):
-        """Operation modes for domain analysis"""
+        """Operation modes for domain analysis."""
 
         EXTRACT = "extract"
         GUESS = "guess"
@@ -1683,6 +1710,7 @@ except ImportError as e:
         """
 
         def __init__(self, *args, **kwargs):
+            """Initialize placeholder that raises ImportError."""
             raise ImportError(
                 f"DomainAnalysisAgent requires langgraph, langchain, and pydantic to be installed.\n"
                 f"Original import error: {_IMPORT_ERROR}\n"
@@ -1690,6 +1718,7 @@ except ImportError as e:
             )
 
         def __getattr__(self, name):
+            """Raise ImportError for any attribute access."""
             raise ImportError(
                 f"DomainAnalysisAgent not available due to missing dependencies: {_IMPORT_ERROR}"
             )
