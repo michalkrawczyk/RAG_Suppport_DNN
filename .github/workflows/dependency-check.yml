@@ -28,9 +28,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ -f "RAG_supporters/requirements.txt" ]; then
-            # Install torch CPU version first to avoid CUDA installation
-            pip install torch --index-url https://download.pytorch.org/whl/cpu
-            # Install remaining dependencies
+            # Install torch CPU version to avoid slow CUDA installation
+            pip install 'torch>=2.3.0' --index-url https://download.pytorch.org/whl/cpu
+            # Install remaining dependencies (torch will be skipped as already satisfied)
             pip install -r RAG_supporters/requirements.txt
           else
             echo "Error: RAG_supporters/requirements.txt not found."
