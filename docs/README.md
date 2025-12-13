@@ -7,31 +7,31 @@ This directory contains comprehensive documentation for all RAG Supporters compo
 The RAG Supporters library provides specialized LLM-powered agents for RAG dataset creation and curation.
 
 ### Overview
-- **[AGENTS_OVERVIEW.md](AGENTS_OVERVIEW.md)** - Complete overview of all agents with comparison matrix, workflows, and best practices
+- **[AGENTS_OVERVIEW.md](agents/AGENTS_OVERVIEW.md)** - Complete overview of all agents with comparison matrix, workflows, and best practices
 
 ### Individual Agent Documentation
 
-1. **[QuestionAugmentationAgent](CSV_QUESTION_AGENT.md)** - Question generation and rephrasing
+1. **[QuestionAugmentationAgent](agents/CSV_QUESTION_AGENT.md)** - Question generation and rephrasing
    - Rephrase questions to align with sources or domains
    - Generate alternative questions from sources
    - Batch CSV/DataFrame processing
 
-2. **[TextAugmentationAgent](TEXT_AUGMENTATION.md)** - Text augmentation while preserving meaning
+2. **[TextAugmentationAgent](agents/TEXT_AUGMENTATION.md)** - Text augmentation while preserving meaning
    - Full text and sentence-level rephrasing
    - Dataset augmentation for training data
    - Configurable augmentation modes
 
-3. **[DatasetCheckAgent](DATASET_CHECK_AGENT.md)** - Source comparison and selection
+3. **[DatasetCheckAgent](agents/DATASET_CHECK_AGENT.md)** - Source comparison and selection
    - Compare two sources for a question
    - Duplicate detection
    - Quality control workflows
 
-4. **[DomainAnalysisAgent](DOMAIN_ANALYSIS_AGENT.md)** - Domain extraction and assessment
+4. **[DomainAnalysisAgent](agents/DOMAIN_ANALYSIS_AGENT.md)** - Domain extraction and assessment
    - Extract domains from text (EXTRACT mode)
    - Guess domains needed for questions (GUESS mode)
    - Assess question relevance to domains (ASSESS mode)
 
-5. **[SourceEvaluationAgent](SOURCE_EVALUATION_AGENT.md)** - Multi-dimensional source quality scoring
+5. **[SourceEvaluationAgent](agents/SOURCE_EVALUATION_AGENT.md)** - Multi-dimensional source quality scoring
    - 6-dimensional evaluation (relevance, expertise, depth, clarity, objectivity, completeness)
    - Source ranking and quality control
    - Batch processing support
@@ -88,11 +88,11 @@ When adding new agents or features:
 2. Include practical examples
 3. Document all public methods
 4. Add cross-references to related agents
-5. Update this README and AGENTS_OVERVIEW.md
+5. Update this README and `agents/AGENTS_OVERVIEW.md`
 
 ## Support
 
 For questions or issues:
-- Check the specific agent documentation
+- Check the specific agent documentation in `agents/`
 - Review the troubleshooting sections
-- Consult AGENTS_OVERVIEW.md for workflows and patterns
+- Consult `agents/AGENTS_OVERVIEW.md` for workflows and patterns

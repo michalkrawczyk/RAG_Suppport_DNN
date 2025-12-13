@@ -66,14 +66,14 @@ from RAG_supporters.agents import SourceEvaluationAgent
 
 ## Documentation
 
-**📚 Complete documentation is available in the [docs](../../docs/) folder:**
+**📚 Complete documentation is available in the [docs/agents](../../docs/agents/) folder:**
 
-- **[AGENTS_OVERVIEW.md](../../docs/AGENTS_OVERVIEW.md)** - Overview with workflows and patterns
-- **[CSV_QUESTION_AGENT.md](../../docs/CSV_QUESTION_AGENT.md)** - QuestionAugmentationAgent
-- **[TEXT_AUGMENTATION.md](../../docs/TEXT_AUGMENTATION.md)** - TextAugmentationAgent
-- **[DATASET_CHECK_AGENT.md](../../docs/DATASET_CHECK_AGENT.md)** - DatasetCheckAgent
-- **[DOMAIN_ANALYSIS_AGENT.md](../../docs/DOMAIN_ANALYSIS_AGENT.md)** - DomainAnalysisAgent
-- **[SOURCE_EVALUATION_AGENT.md](../../docs/SOURCE_EVALUATION_AGENT.md)** - SourceEvaluationAgent
+- **[AGENTS_OVERVIEW.md](../../docs/agents/AGENTS_OVERVIEW.md)** - Overview with workflows and patterns
+- **[CSV_QUESTION_AGENT.md](../../docs/agents/CSV_QUESTION_AGENT.md)** - QuestionAugmentationAgent
+- **[TEXT_AUGMENTATION.md](../../docs/agents/TEXT_AUGMENTATION.md)** - TextAugmentationAgent
+- **[DATASET_CHECK_AGENT.md](../../docs/agents/DATASET_CHECK_AGENT.md)** - DatasetCheckAgent
+- **[DOMAIN_ANALYSIS_AGENT.md](../../docs/agents/DOMAIN_ANALYSIS_AGENT.md)** - DomainAnalysisAgent
+- **[SOURCE_EVALUATION_AGENT.md](../../docs/agents/SOURCE_EVALUATION_AGENT.md)** - SourceEvaluationAgent
 
 ## Quick Start
 
