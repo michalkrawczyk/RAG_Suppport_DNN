@@ -34,14 +34,36 @@ class MockEmbeddingModel:
         np.random.seed(42)
 
     def embed_query(self, text: str) -> list:
-        """Generate deterministic embedding based on text hash."""
+        """
+        Generate deterministic embedding based on text hash.
+        
+        Uses hash-based seeding to ensure same text always produces
+        same embedding, making tests reproducible.
+        
+        Args:
+            text: Input text to embed
+            
+        Returns:
+            List of floats representing the embedding
+        """
         # Use hash for deterministic results
         seed = hash(text) % (2**32)
         np.random.seed(seed)
         return np.random.randn(self.dim).tolist()
 
     def embed_documents(self, texts: list) -> list:
-        """Generate embeddings for multiple texts."""
+        """
+        Generate embeddings for multiple texts.
+        
+        Delegates to embed_query for batch processing, ensuring
+        consistent behavior between single and batch operations.
+        
+        Args:
+            texts: List of texts to embed
+            
+        Returns:
+            List of embeddings (each is a list of floats)
+        """
         return [self.embed_query(text) for text in texts]
 
 

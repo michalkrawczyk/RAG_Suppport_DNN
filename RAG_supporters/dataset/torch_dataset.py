@@ -355,18 +355,42 @@ class BaseDomainAssignDataset(Dataset):
         if self.multi_label_mode == "hard":
             # Return cluster index
             if isinstance(assignment, int):
+                # Validate assignment is within bounds
+                n_clusters = self._get_num_clusters()
+                if assignment < 0 or assignment >= n_clusters:
+                    logging.warning(
+                        f"Assignment {assignment} out of bounds [0, {n_clusters}), "
+                        f"clipping to valid range"
+                    )
+                    assignment = max(0, min(assignment, n_clusters - 1))
                 return assignment
             elif isinstance(assignment, list):
+                # Check for empty list
+                if not assignment:
+                    logging.warning(f"Empty assignment list for sample {idx}")
+                    return 0  # Default to first cluster
                 # Return primary cluster (argmax)
                 return int(np.argmax(assignment))
 
         elif self.multi_label_mode == "soft":
             # Return probability distribution
             if isinstance(assignment, list):
+                if not assignment:
+                    logging.warning(f"Empty assignment list for sample {idx}")
+                    # Return uniform distribution as fallback
+                    n_clusters = self._get_num_clusters()
+                    return np.ones(n_clusters, dtype=np.float32) / n_clusters
                 return np.array(assignment, dtype=np.float32)
             elif isinstance(assignment, int):
                 # Convert int to one-hot distribution
                 n_clusters = self._get_num_clusters()
+                # Validate bounds
+                if assignment < 0 or assignment >= n_clusters:
+                    logging.warning(
+                        f"Assignment {assignment} out of bounds [0, {n_clusters}), "
+                        f"clipping to valid range"
+                    )
+                    assignment = max(0, min(assignment, n_clusters - 1))
                 one_hot = np.zeros(n_clusters, dtype=np.float32)
                 one_hot[assignment] = 1.0
                 return one_hot
