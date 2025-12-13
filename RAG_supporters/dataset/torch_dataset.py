@@ -315,6 +315,28 @@ class BaseDomainAssignDataset(Dataset):
             return int(np.argmax(assignment))
         return None
 
+    def _get_num_clusters(self) -> int:
+        """
+        Determine the number of clusters from cluster_labels.
+        
+        Returns:
+            Number of clusters
+        """
+        if not self.cluster_labels:
+            raise ValueError("No cluster labels available")
+        
+        # Get first assignment to check format
+        first_assignment = next(iter(self.cluster_labels.values()))
+        
+        if isinstance(first_assignment, int):
+            # For int labels, find max + 1
+            return max(self.cluster_labels.values()) + 1
+        elif isinstance(first_assignment, list):
+            # For probability distributions, use length
+            return len(first_assignment)
+        else:
+            raise ValueError(f"Unexpected cluster label type: {type(first_assignment)}")
+
     def _generate_target(self, idx: int) -> Optional[Union[int, np.ndarray]]:
         """
         Generate target (cluster/subspace assignment) for a sample.
@@ -331,20 +353,20 @@ class BaseDomainAssignDataset(Dataset):
         assignment = self.cluster_labels[idx]
 
         if self.multi_label_mode == "hard":
-            # One-hot encoding
+            # Return cluster index
             if isinstance(assignment, int):
                 return assignment
             elif isinstance(assignment, list):
-                # Return primary cluster
+                # Return primary cluster (argmax)
                 return int(np.argmax(assignment))
 
         elif self.multi_label_mode == "soft":
-            # Probability distribution
+            # Return probability distribution
             if isinstance(assignment, list):
                 return np.array(assignment, dtype=np.float32)
             elif isinstance(assignment, int):
-                # Convert to one-hot
-                n_clusters = max(self.cluster_labels.values()) + 1 if isinstance(next(iter(self.cluster_labels.values())), int) else len(assignment)
+                # Convert int to one-hot distribution
+                n_clusters = self._get_num_clusters()
                 one_hot = np.zeros(n_clusters, dtype=np.float32)
                 one_hot[assignment] = 1.0
                 return one_hot
