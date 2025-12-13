@@ -36,7 +36,6 @@ This repository contains **RAG Support DNN** - a Python library for supporting R
 ```python
 """Module docstring describing the module purpose."""
 
-import typing
 from typing import Optional, List, Dict
 
 import pandas as pd
