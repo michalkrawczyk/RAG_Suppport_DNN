@@ -219,10 +219,15 @@ import pandas as pd
 
 
 def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """Process DataFrame with progress indication."""
+    """Process DataFrame with progress indication.
+    
+    Note: Using iterrows() is acceptable for LLM-based processing where
+    each row requires an API call. For pure Python operations, consider
+    vectorized operations or df.apply() for better performance.
+    """
     results = []
     for idx, row in tqdm(df.iterrows(), total=len(df), desc="Processing"):
-        # Process row
+        # Process row (e.g., LLM call, complex logic)
         result = process_row(row)
         results.append(result)
     return pd.DataFrame(results)
@@ -257,6 +262,11 @@ def process_csv(
 Implement retry logic with graceful degradation:
 
 ```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 def call_llm_with_retry(self, prompt: str) -> Optional[str]:
     """Call LLM with retry logic."""
     for attempt in range(self.max_retries):
@@ -265,9 +275,9 @@ def call_llm_with_retry(self, prompt: str) -> Optional[str]:
             return response.content
         except Exception as e:
             if attempt == self.max_retries - 1:
-                print(f"Failed after {self.max_retries} attempts: {e}")
+                logger.error(f"Failed after {self.max_retries} attempts: {e}")
                 return None
-            print(f"Attempt {attempt + 1} failed, retrying...")
+            logger.warning(f"Attempt {attempt + 1} failed, retrying...")
 ```
 
 ### 4. Save and Load Results
