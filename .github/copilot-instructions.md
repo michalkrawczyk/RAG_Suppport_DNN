@@ -394,19 +394,145 @@ Runs when dependency files change:
 7. **Consider memory usage** - Optimize for large datasets
 8. **Provide examples** - Include usage examples in docstrings or docs
 
-## Issue #43 Considerations
+## Development Roadmap and Architecture Plan
 
-When working on features or changes, consider:
+This section outlines the project's architecture plan and implementation phases to guide development consistency.
 
-- **Dataset augmentation workflows** - Support for CSV-based question/answer generation
-- **LangChain agent integration** - Consistent patterns across all agents
-- **Batch processing efficiency** - Memory-optimized operations for large datasets
-- **Flexible configuration** - Support for custom column mappings and parameters
-- **Reproducibility** - Save/load functionality for intermediate results
+### Phase 1 & 2: Clustering and Assignment (Implemented)
+
+**Phase 1: Clustering Foundation**
+- Keyword/topic clustering using K-means and bisecting K-means
+- Topic descriptor extraction from cluster centroids
+- Results persistence with JSON serialization
+- See: `RAG_supporters/clustering/` and `docs/CLUSTERING_AND_ASSIGNMENT.md`
+
+**Phase 2: Source Assignment**
+- Hard (one-hot) and soft (probabilistic) cluster assignment
+- Multi-subspace membership support
+- Configurable thresholds and temperature-scaled softmax
+- Cosine similarity metrics for text embeddings
+
+### Agent Generator for CSV Workflows
+
+The "Agent Generator for CSV" pattern is a core architectural principle for batch processing:
+
+**Text Augmentation Agent** (`RAG_supporters/agents/text_augmentation.py`)
+- Random rephrasing of full questions/sources
+- Sentence-level selective rephrasing
+- Meaning preservation with optional verification
+- CSV/DataFrame batch processing with progress bars
+
+**Question Augmentation Agent** (`RAG_supporters/agents/question_augmentation_agent.py`)
+- Question rephrasing with source context alignment
+- Domain-aware question adaptation
+- Alternative question generation from sources
+- Batch CSV processing with flexible column mapping
+
+**Domain Assessment Agent** (`RAG_supporters/agents/domain_assesment.py`)
+- Domain theme extraction
+- Question categorization
+- Topic analysis
+- Multi-phase processing with interruption recovery
+
+**Source Assessment Agent** (`RAG_supporters/agents/source_assesment.py`)
+- Source quality evaluation
+- Relevance scoring
+- Batch processing support
+
+**Dataset Validation Agent** (`RAG_supporters/agents/dataset_check.py`)
+- Dataset integrity checks
+- Quality validation
+
+### Sample Generation Pipeline
+
+The dataset module provides comprehensive sample generation for RAG model training:
+
+**Pair Samples** (`generate_samples("pairs_*")`)
+- `pairs_relevant` - Known relevant question-passage pairs
+- `pairs_all_existing` - All possible combinations (memory-optimized with batching)
+- `pairs_embedding_similarity` - Top-k similar passages by embedding
+
+**Triplet Samples** (`generate_samples("positive"|"contrastive"|"similar")`)
+- `positive` - Two relevant passages per question
+- `contrastive` - One relevant + one non-relevant passage
+- `similar` - One relevant + one similar passage (by embedding distance)
+
+See: `RAG_supporters/dataset/SAMPLE_GENERATION_GUIDE.md` and `QUICK_REFERENCE.md`
+
+### Future Development Considerations
+
+When adding new features or agents:
+
+1. **CSV-First Design** - All agents should support CSV/DataFrame batch processing
+2. **Progress Indication** - Use `tqdm` for long-running operations
+3. **Flexible Column Mapping** - Support custom column names via `columns_mapping` parameter
+4. **Error Resilience** - Implement retry logic for LLM calls with configurable `max_retries`
+5. **Memory Optimization** - Provide `batch_size` parameters for large dataset operations
+6. **Result Persistence** - Save/load intermediate results (JSON format preferred)
+7. **Logging** - Use Python `logging` module (not print statements) for error handling
+8. **Reproducibility** - Support `random_state` parameters for deterministic operations
+
+### Key Implementation Patterns
+
+**Agent Pattern Structure:**
+```python
+class MyAgent:
+    def __init__(self, llm: BaseChatModel, max_retries: int = 3):
+        """Initialize with LLM and configuration."""
+        pass
+    
+    def process_single(self, text: str) -> Optional[str]:
+        """Process single item with retry logic."""
+        pass
+    
+    def process_dataframe(self, df: pd.DataFrame, 
+                         columns_mapping: Optional[dict] = None) -> pd.DataFrame:
+        """Batch process DataFrame with progress bar."""
+        pass
+    
+    def process_csv(self, input_path: str, output_path: str,
+                   columns_mapping: Optional[dict] = None):
+        """Convenience wrapper for CSV processing."""
+        pass
+```
+
+**Dataset Pattern Structure:**
+```python
+class MyDatasetTemplate:
+    def generate_samples(self, sample_type: str, **kwargs) -> pd.DataFrame:
+        """Generate training samples of specified type."""
+        pass
+    
+    def save_samples(self, df: pd.DataFrame, output_path: str):
+        """Save samples to CSV."""
+        pass
+```
+
+**Clustering Pattern Structure:**
+```python
+class MyClusterer:
+    def fit(self, embeddings: dict) -> None:
+        """Fit clustering model."""
+        pass
+    
+    def assign(self, embedding: np.ndarray, mode: str = "soft") -> dict:
+        """Assign embedding to clusters."""
+        pass
+    
+    def save_results(self, output_path: str):
+        """Persist clustering results."""
+        pass
+    
+    @classmethod
+    def from_results(cls, results_path: str):
+        """Load from saved results."""
+        pass
+```
 
 ## Need Help?
 
 - Review existing agent implementations in `RAG_supporters/agents/`
-- Check documentation in `docs/` for usage patterns
+- Check comprehensive guides in `docs/` (CSV_QUESTION_AGENT.md, TEXT_AUGMENTATION.md, CLUSTERING_AND_ASSIGNMENT.md)
+- Refer to quick references in `RAG_supporters/dataset/` (QUICK_REFERENCE.md, SAMPLE_GENERATION_GUIDE.md)
 - Look at test files for examples of expected behavior
 - Refer to CI workflows for quality standards
