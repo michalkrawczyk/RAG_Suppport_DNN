@@ -172,7 +172,7 @@ print(f"Steering shape: {sample['steering_embedding'].shape}")
 
 ## Example 6: Random Steering Mode Selection
 
-Allow the dataset to randomly select steering modes per sample.
+Allow the dataset to randomly select steering modes per sample. This is useful for data augmentation and exploring different steering strategies.
 
 ```python
 # Define multiple steering modes with probabilities
@@ -181,6 +181,9 @@ steering_modes = [
     (SteeringMode.CLUSTER_DESCRIPTOR, 0.4),
     (SteeringMode.ZERO, 0.2)
 ]
+
+# Note: Probabilities will be automatically normalized if they don't sum to 1.0
+# For example, [(mode1, 0.3), (mode2, 0.5)] will be normalized to [(mode1, 0.375), (mode2, 0.625)]
 
 dataset = BaseDomainAssignDataset(
     df=df,
@@ -193,6 +196,7 @@ dataset = BaseDomainAssignDataset(
 dataset.build()
 
 # Each sample will use a randomly selected mode based on probabilities
+# Selection is deterministic per sample index for reproducibility
 ```
 
 ## Example 7: Loading from Clustering JSON

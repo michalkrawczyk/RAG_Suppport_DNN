@@ -1,6 +1,7 @@
 import json
 import logging
 import pickle
+import random
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -113,17 +114,24 @@ class BaseDomainAssignDataset(Dataset):
             self.steering_mode_list = [(steering_mode, 1.0)]
         elif isinstance(steering_mode, list):
             # List of (mode, probability) tuples
+            # Helper to convert to SteeringMode
+            def to_steering_mode(m):
+                return m if isinstance(m, SteeringMode) else SteeringMode(m)
+            
             total_prob = sum(prob for _, prob in steering_mode)
             if abs(total_prob - 1.0) > 1e-6:
                 logging.warning(f"Steering mode probabilities sum to {total_prob}, normalizing to 1.0")
-                self.steering_mode_list = [(mode if isinstance(mode, SteeringMode) else SteeringMode(mode), prob/total_prob) 
+                self.steering_mode_list = [(to_steering_mode(mode), prob/total_prob) 
                                            for mode, prob in steering_mode]
             else:
-                self.steering_mode_list = [(mode if isinstance(mode, SteeringMode) else SteeringMode(mode), prob) 
+                self.steering_mode_list = [(to_steering_mode(mode), prob) 
                                            for mode, prob in steering_mode]
         
         # For backward compatibility, keep single steering_mode
         self.steering_mode = self.steering_mode_list[0][0] if self.steering_mode_list else None
+        
+        # Create a Random instance for reproducible mode selection
+        self._random_gen = random.Random(42)
 
         # Load clustering results if provided
         self.clustering_results_path = clustering_results_path
@@ -308,13 +316,11 @@ class BaseDomainAssignDataset(Dataset):
         if len(self.steering_mode_list) == 1:
             return self.steering_mode_list[0][0]
         
-        # Sample based on probabilities
-        import random
+        # Sample based on probabilities using local Random instance
         modes, probs = zip(*self.steering_mode_list)
         # Use sample index as seed for reproducibility
-        random.seed(idx)
-        selected_mode = random.choices(modes, weights=probs, k=1)[0]
-        random.seed()  # Reset seed
+        rng = random.Random(idx)
+        selected_mode = rng.choices(modes, weights=probs, k=1)[0]
         return selected_mode
 
     def _generate_steering_embedding(
@@ -363,9 +369,9 @@ class BaseDomainAssignDataset(Dataset):
             if self._steering_embeddings_cache is not None:
                 return self._steering_embeddings_cache[idx]
             
-            # Pick a random suggestion from available ones
-            import random
-            selected_suggestion = random.choice(suggestions)
+            # Pick a random suggestion from available ones (reproducible per sample)
+            rng = random.Random(idx)
+            selected_suggestion = rng.choice(suggestions)
             
             # Compute on-the-fly
             if self._suggestion_embeddings_cache and selected_suggestion in self._suggestion_embeddings_cache:
@@ -642,8 +648,10 @@ class BaseDomainAssignDataset(Dataset):
             target = self._generate_target(idx)
             
             # Build metadata
+            # Determine which steering mode was actually used
+            actual_steering_mode = self._select_steering_mode_for_sample(idx) if len(self.steering_mode_list) > 1 else self.steering_mode
             metadata = {
-                "steering_mode": self.steering_mode.value if self.steering_mode else None,
+                "steering_mode": actual_steering_mode.value if actual_steering_mode else None,
                 "suggestion_texts": suggestions,
                 "source_text": str(row[self.source_col]),
                 "question_text": str(row[self.question_col]),

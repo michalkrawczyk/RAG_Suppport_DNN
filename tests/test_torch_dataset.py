@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 import torch
 
-from .torch_dataset import (
+from RAG_supporters.dataset import (
     BaseDomainAssignDataset,
     CachedDomainAssignDataset,
     SteeringMode,
