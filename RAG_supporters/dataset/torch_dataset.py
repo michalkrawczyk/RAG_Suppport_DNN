@@ -80,13 +80,18 @@ class BaseDomainAssignDataset(Dataset):
         chunksize: int = 10000,
         embedding_model_name: Optional[str] = None,
         # Cluster steering parameters
-        steering_mode: Optional[Union[SteeringMode, str]] = None,
+        steering_mode: Optional[Union[SteeringMode, str, List[tuple]]] = None,
+        clustering_results_path: Optional[Union[str, Path]] = None,
         cluster_labels: Optional[Union[Dict[int, int], Dict[int, List[float]]]] = None,
         cluster_descriptors: Optional[Dict[int, List[str]]] = None,
         llm_steering_texts: Optional[Dict[int, str]] = None,
         return_triplets: bool = False,
         multi_label_mode: str = "hard",  # "hard" or "soft"
         steering_weights: Optional[Dict[str, float]] = None,
+        # Sample weighting parameters
+        sample_weights: Optional[Dict[int, float]] = None,
+        balance_clusters: bool = False,
+        read_csv_chunksize: Optional[int] = None,
     ):
         self.source_col = source_col
         self.question_col = question_col
@@ -97,11 +102,41 @@ class BaseDomainAssignDataset(Dataset):
         self.return_embeddings = return_embeddings and embedding_model is not None
         self.chunksize = chunksize
         self.embedding_model_name = embedding_model_name or "unknown"
+        self.read_csv_chunksize = read_csv_chunksize
 
-        # Cluster steering parameters
+        # Process steering mode (can be single mode, or list of (mode, probability))
+        self.steering_mode_list = []
         if isinstance(steering_mode, str):
             steering_mode = SteeringMode(steering_mode)
-        self.steering_mode = steering_mode
+            self.steering_mode_list = [(steering_mode, 1.0)]
+        elif isinstance(steering_mode, SteeringMode):
+            self.steering_mode_list = [(steering_mode, 1.0)]
+        elif isinstance(steering_mode, list):
+            # List of (mode, probability) tuples
+            total_prob = sum(prob for _, prob in steering_mode)
+            if abs(total_prob - 1.0) > 1e-6:
+                logging.warning(f"Steering mode probabilities sum to {total_prob}, normalizing to 1.0")
+                self.steering_mode_list = [(mode if isinstance(mode, SteeringMode) else SteeringMode(mode), prob/total_prob) 
+                                           for mode, prob in steering_mode]
+            else:
+                self.steering_mode_list = [(mode if isinstance(mode, SteeringMode) else SteeringMode(mode), prob) 
+                                           for mode, prob in steering_mode]
+        
+        # For backward compatibility, keep single steering_mode
+        self.steering_mode = self.steering_mode_list[0][0] if self.steering_mode_list else None
+
+        # Load clustering results if provided
+        self.clustering_results_path = clustering_results_path
+        self.clustering_data = None
+        if clustering_results_path:
+            self.clustering_data = self._load_clustering_results(clustering_results_path)
+            # Extract cluster info from JSON
+            if not cluster_labels and self.clustering_data:
+                cluster_labels = self._extract_cluster_labels_from_json()
+            if not cluster_descriptors and self.clustering_data:
+                cluster_descriptors = self._extract_cluster_descriptors_from_json()
+
+        # Cluster steering parameters
         self.cluster_labels = cluster_labels
         self.cluster_descriptors = cluster_descriptors
         self.llm_steering_texts = llm_steering_texts
@@ -109,31 +144,34 @@ class BaseDomainAssignDataset(Dataset):
         self.multi_label_mode = multi_label_mode
         self.steering_weights = steering_weights or {}
 
-        # Validate
-        if self.return_embeddings and not embedding_model:
-            raise ValueError(
-                "embedding_model must be provided when return_embeddings=True"
-            )
-        
-        if self.return_triplets and not self.steering_mode:
-            raise ValueError(
-                "steering_mode must be specified when return_triplets=True"
-            )
+        # Sample weighting parameters
+        self.sample_weights = sample_weights or {}
+        self.balance_clusters = balance_clusters
 
         # Setup cache directory (optional)
         self.cache_dir = Path(cache_dir) if cache_dir else None
         if self.cache_dir:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load data
-        # TODO: Shoud'nt be read in chunks here?
+        # Load data with chunking support
         if isinstance(df, (str, Path)):
             logging.info(f"Loading CSV from {df}")
-            self.df = pd.read_csv(df)
+            if self.read_csv_chunksize:
+                # Load in chunks to avoid memory issues
+                logging.info(f"Reading CSV in chunks of {self.read_csv_chunksize}")
+                chunks = []
+                for chunk in pd.read_csv(df, chunksize=self.read_csv_chunksize):
+                    chunks.append(chunk)
+                self.df = pd.concat(chunks, ignore_index=True)
+            else:
+                self.df = pd.read_csv(df)
         else:
             self.df = df.reset_index(drop=True)
 
         logging.info(f"Loaded {len(self.df)} rows")
+
+        # Validate dataset
+        self._validate_dataset()
 
         # Compute version for cache validation
         self.version = compute_cache_version(
@@ -150,9 +188,134 @@ class BaseDomainAssignDataset(Dataset):
         self._cluster_descriptor_embeddings_cache: Optional[Dict[int, np.ndarray]] = None
         self._llm_steering_embeddings_cache: Optional[Dict[int, np.ndarray]] = None
         self._steering_embeddings_cache: Optional[List[np.ndarray]] = None
+        
+        # Statistics tracking
+        self._missing_suggestions_count = 0
+
+    def _load_clustering_results(self, path: Union[str, Path]) -> Dict[str, Any]:
+        """Load clustering results from JSON file."""
+        import json
+        path = Path(path)
+        if not path.exists():
+            raise ValueError(f"Clustering results file not found: {path}")
+        
+        with open(path, 'r') as f:
+            data = json.load(f)
+        
+        logging.info(f"Loaded clustering results from {path}")
+        logging.info(f"  - n_clusters: {data.get('metadata', {}).get('n_clusters')}")
+        logging.info(f"  - n_keywords: {data.get('metadata', {}).get('n_keywords')}")
+        
+        return data
+
+    def _extract_cluster_labels_from_json(self) -> Optional[Dict[int, int]]:
+        """Extract cluster labels from clustering JSON."""
+        if not self.clustering_data:
+            return None
+        
+        # This would need to be mapped to sample indices
+        # For now, return None as cluster assignments are typically done separately
+        logging.info("Cluster labels should be provided via assign_batch() results")
+        return None
+
+    def _extract_cluster_descriptors_from_json(self) -> Optional[Dict[int, List[str]]]:
+        """Extract cluster descriptors from clustering JSON."""
+        if not self.clustering_data:
+            return None
+        
+        cluster_stats = self.clustering_data.get('cluster_stats', {})
+        descriptors = {}
+        
+        for cluster_id_str, stats in cluster_stats.items():
+            cluster_id = int(cluster_id_str)
+            topic_descriptors = stats.get('topic_descriptors', [])
+            if topic_descriptors:
+                descriptors[cluster_id] = topic_descriptors
+        
+        logging.info(f"Extracted cluster descriptors for {len(descriptors)} clusters")
+        return descriptors
+
+    def _validate_dataset(self):
+        """
+        Validate dataset configuration and data.
+        
+        Checks:
+        - Dataset is non-empty
+        - DataFrame has required columns
+        - Embedding model works (if provided)
+        - Cluster IDs are valid
+        - Embeddings have consistent dimensions
+        """
+        # Check dataset is non-empty
+        if len(self.df) == 0:
+            raise ValueError("Dataset is empty")
+        
+        # Check required columns
+        required_cols = [self.source_col, self.question_col, self.suggestions_col]
+        missing_cols = [col for col in required_cols if col not in self.df.columns]
+        if missing_cols:
+            raise ValueError(f"Missing required columns: {missing_cols}")
+        
+        # Validate embedding model if provided
+        if self.embedding_model and self.return_embeddings:
+            try:
+                test_text = "test"
+                test_emb = self.embedding_model.embed_query(test_text)
+                embedding_dim = len(test_emb)
+                logging.info(f"Embedding model validated (dim={embedding_dim})")
+            except Exception as e:
+                raise ValueError(f"Embedding model validation failed: {e}")
+        
+        # Validate cluster IDs if provided
+        if self.cluster_labels:
+            cluster_ids = set()
+            for assignment in self.cluster_labels.values():
+                if isinstance(assignment, int):
+                    cluster_ids.add(assignment)
+                elif isinstance(assignment, list):
+                    cluster_ids.update(range(len(assignment)))
+            
+            if cluster_ids:
+                max_cluster = max(cluster_ids)
+                logging.info(f"Cluster IDs validated (max={max_cluster})")
+        
+        # Validate triplet mode requirements
+        if self.return_triplets and not self.steering_mode:
+            raise ValueError(
+                "steering_mode must be specified when return_triplets=True"
+            )
+        
+        if self.return_embeddings and not self.embedding_model:
+            raise ValueError(
+                "embedding_model must be provided when return_embeddings=True"
+            )
+        
+        logging.info("Dataset validation passed")
 
     def __len__(self) -> int:
         return len(self.df)
+
+    def _select_steering_mode_for_sample(self, idx: int) -> SteeringMode:
+        """
+        Select steering mode for a sample based on probabilities.
+        
+        Args:
+            idx: Sample index
+            
+        Returns:
+            Selected steering mode
+        """
+        if len(self.steering_mode_list) == 1:
+            return self.steering_mode_list[0][0]
+        
+        # Sample based on probabilities
+        import random
+        modes, probs = zip(*self.steering_mode_list)
+        # Use sample index as seed for reproducibility
+        random.seed(idx)
+        selected_mode = random.choices(modes, weights=probs, k=1)[0]
+        random.seed()  # Reset seed
+        return selected_mode
 
     def _generate_steering_embedding(
         self, idx: int, suggestions: List[str]
@@ -167,7 +330,13 @@ class BaseDomainAssignDataset(Dataset):
         Returns:
             Steering embedding as numpy array or None
         """
-        if not self.steering_mode:
+        # Select steering mode for this sample if multiple modes configured
+        if self.steering_mode_list:
+            steering_mode = self._select_steering_mode_for_sample(idx)
+        else:
+            steering_mode = self.steering_mode
+            
+        if not steering_mode:
             return None
 
         embedding_dim = (
@@ -176,16 +345,17 @@ class BaseDomainAssignDataset(Dataset):
             else None
         )
 
-        if self.steering_mode == SteeringMode.ZERO:
+        if steering_mode == SteeringMode.ZERO:
             # Zero baseline - return zero vector
             if embedding_dim is None:
                 raise ValueError("Cannot determine embedding dimension for zero vector")
             return np.zeros(embedding_dim, dtype=np.float32)
 
         elif self.steering_mode == SteeringMode.SUGGESTION:
-            # Use first suggestion embedding as steering
+            # Use random suggestion embedding as steering
             if not suggestions:
                 if embedding_dim:
+                    self._missing_suggestions_count += 1
                     return np.zeros(embedding_dim, dtype=np.float32)
                 return None
             
@@ -193,18 +363,27 @@ class BaseDomainAssignDataset(Dataset):
             if self._steering_embeddings_cache is not None:
                 return self._steering_embeddings_cache[idx]
             
+            # Pick a random suggestion from available ones
+            import random
+            selected_suggestion = random.choice(suggestions)
+            
             # Compute on-the-fly
-            if self._suggestion_embeddings_cache and suggestions[0] in self._suggestion_embeddings_cache:
-                return self._suggestion_embeddings_cache[suggestions[0]]
+            if self._suggestion_embeddings_cache and selected_suggestion in self._suggestion_embeddings_cache:
+                return self._suggestion_embeddings_cache[selected_suggestion]
+            
+            # Track if suggestion not found in cache
+            if self._suggestion_embeddings_cache and selected_suggestion not in self._suggestion_embeddings_cache:
+                self._missing_suggestions_count += 1
+                logging.debug(f"Suggestion '{selected_suggestion}' not found in cache for sample {idx}")
             
             if self.embedding_model:
                 emb = np.array(
-                    self.embedding_model.embed_query(suggestions[0]), dtype=np.float32
+                    self.embedding_model.embed_query(selected_suggestion), dtype=np.float32
                 )
                 return emb
             return None
 
-        elif self.steering_mode == SteeringMode.CLUSTER_DESCRIPTOR:
+        elif steering_mode == SteeringMode.CLUSTER_DESCRIPTOR:
             # Use cluster descriptor embedding
             if not self.cluster_labels or not self.cluster_descriptors:
                 if embedding_dim:
@@ -240,7 +419,7 @@ class BaseDomainAssignDataset(Dataset):
                 return np.zeros(embedding_dim, dtype=np.float32)
             return None
 
-        elif self.steering_mode == SteeringMode.LLM_GENERATED:
+        elif steering_mode == SteeringMode.LLM_GENERATED:
             # Use LLM-generated steering text
             if not self.llm_steering_texts:
                 if embedding_dim:
@@ -266,7 +445,7 @@ class BaseDomainAssignDataset(Dataset):
                 return np.zeros(embedding_dim, dtype=np.float32)
             return None
 
-        elif self.steering_mode == SteeringMode.MIXED:
+        elif steering_mode == SteeringMode.MIXED:
             # Weighted combination of multiple steering embeddings
             embeddings = []
             weights = []
@@ -317,13 +496,20 @@ class BaseDomainAssignDataset(Dataset):
 
     def _get_num_clusters(self) -> int:
         """
-        Determine the number of clusters from cluster_labels.
+        Determine the number of clusters from clustering JSON or cluster_labels.
         
         Returns:
             Number of clusters
         """
+        # First try to get from clustering JSON
+        if self.clustering_data:
+            n_clusters = self.clustering_data.get('metadata', {}).get('n_clusters')
+            if n_clusters:
+                return n_clusters
+        
+        # Fall back to inferring from cluster_labels
         if not self.cluster_labels:
-            raise ValueError("No cluster labels available")
+            raise ValueError("No cluster labels or clustering data available")
         
         # Get first assignment to check format
         first_assignment = next(iter(self.cluster_labels.values()))
@@ -492,6 +678,13 @@ class BaseDomainAssignDataset(Dataset):
             
             # Also include source for completeness
             result["source_embedding"] = torch.from_numpy(source_emb)
+            
+            # Add sample weight if available
+            if idx in self.sample_weights:
+                result["weight"] = torch.tensor(self.sample_weights[idx], dtype=torch.float32)
+            elif self.balance_clusters and target is not None:
+                # Auto-compute weight for cluster balancing
+                result["weight"] = self._compute_balanced_weight(idx)
             
             return result
 
@@ -920,6 +1113,68 @@ class BaseDomainAssignDataset(Dataset):
                 raise ValueError("Dataset was created without embeddings")
             self._suggestion_embeddings_cache = self._compute_suggestion_embeddings()
         return self._suggestion_embeddings_cache
+
+    def get_missing_suggestions_count(self) -> int:
+        """
+        Get count of samples where suggestions were not found.
+        
+        Returns:
+            Number of samples with missing suggestions
+        """
+        return self._missing_suggestions_count
+
+    def report_statistics(self):
+        """Report dataset statistics including missing suggestions."""
+        logging.info("=" * 60)
+        logging.info("Dataset Statistics")
+        logging.info("=" * 60)
+        logging.info(f"Total samples: {len(self)}")
+        if self._missing_suggestions_count > 0:
+            logging.warning(
+                f"Missing suggestions: {self._missing_suggestions_count} samples "
+                f"({100.0 * self._missing_suggestions_count / len(self):.2f}%)"
+            )
+        if self.cluster_labels:
+            n_assigned = len(self.cluster_labels)
+            logging.info(f"Samples with cluster assignments: {n_assigned}")
+        logging.info("=" * 60)
+
+    def _compute_balanced_weight(self, idx: int) -> torch.Tensor:
+        """
+        Compute balanced weight for a sample based on cluster distribution.
+        
+        Args:
+            idx: Sample index
+            
+        Returns:
+            Weight tensor (higher for rare clusters)
+        """
+        if not self.cluster_labels or idx not in self.cluster_labels:
+            return torch.tensor(1.0, dtype=torch.float32)
+        
+        # Count samples per cluster
+        cluster_counts = {}
+        for assignment in self.cluster_labels.values():
+            if isinstance(assignment, int):
+                cluster_counts[assignment] = cluster_counts.get(assignment, 0) + 1
+            elif isinstance(assignment, list):
+                # For soft labels, count primary cluster
+                primary = int(np.argmax(assignment))
+                cluster_counts[primary] = cluster_counts.get(primary, 0) + 1
+        
+        # Get primary cluster for this sample
+        assignment = self.cluster_labels[idx]
+        if isinstance(assignment, int):
+            cluster_id = assignment
+        else:
+            cluster_id = int(np.argmax(assignment))
+        
+        # Compute inverse frequency weight
+        total_samples = len(self.cluster_labels)
+        cluster_count = cluster_counts.get(cluster_id, 1)
+        weight = total_samples / (len(cluster_counts) * cluster_count)
+        
+        return torch.tensor(weight, dtype=torch.float32)
 
 
 # ============================================================================
