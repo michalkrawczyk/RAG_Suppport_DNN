@@ -85,8 +85,8 @@ class BaseDomainAssignDataset(Dataset):
         clustering_results_path: Optional[Union[str, Path]] = None,
         cluster_labels: Optional[Union[Dict[int, int], Dict[int, List[float]]]] = None,
         cluster_descriptors: Optional[Dict[int, List[str]]] = None,
-        llm_steering_texts: Optional[Dict[int, str]] = None,
-        return_triplets: bool = False,
+        llm_steering_texts: Optional[Union[Dict[int, str], str, Path]] = None,
+        return_triplets: bool = True,  # Always return triplets for steering dataset
         multi_label_mode: str = "hard",  # "hard" or "soft"
         steering_weights: Optional[Dict[str, float]] = None,
         # Sample weighting parameters
@@ -129,25 +129,27 @@ class BaseDomainAssignDataset(Dataset):
         
         # For backward compatibility, keep single steering_mode
         self.steering_mode = self.steering_mode_list[0][0] if self.steering_mode_list else None
-        
-        # Create a Random instance for reproducible mode selection
-        self._random_gen = random.Random(42)
 
         # Load clustering results if provided
         self.clustering_results_path = clustering_results_path
         self.clustering_data = None
         if clustering_results_path:
             self.clustering_data = self._load_clustering_results(clustering_results_path)
-            # Extract cluster info from JSON
-            if not cluster_labels and self.clustering_data:
+            # Extract cluster info from JSON if not explicitly provided
+            if cluster_labels is None and self.clustering_data:
                 cluster_labels = self._extract_cluster_labels_from_json()
-            if not cluster_descriptors and self.clustering_data:
+            if cluster_descriptors is None and self.clustering_data:
                 cluster_descriptors = self._extract_cluster_descriptors_from_json()
 
         # Cluster steering parameters
         self.cluster_labels = cluster_labels
         self.cluster_descriptors = cluster_descriptors
-        self.llm_steering_texts = llm_steering_texts
+        
+        # Load LLM steering texts from file if path is provided
+        if isinstance(llm_steering_texts, (str, Path)):
+            self.llm_steering_texts = self._load_llm_steering_texts(llm_steering_texts)
+        else:
+            self.llm_steering_texts = llm_steering_texts
         self.return_triplets = return_triplets
         self.multi_label_mode = multi_label_mode
         self.steering_weights = steering_weights or {}
@@ -242,6 +244,38 @@ class BaseDomainAssignDataset(Dataset):
         
         logging.info(f"Extracted cluster descriptors for {len(descriptors)} clusters")
         return descriptors
+
+    def _load_llm_steering_texts(self, path: Union[str, Path]) -> Dict[int, str]:
+        """
+        Load LLM steering texts from file.
+        
+        Supports JSON format with mapping of sample indices to steering texts.
+        
+        Args:
+            path: Path to JSON file containing steering texts
+            
+        Returns:
+            Dictionary mapping sample indices to steering texts
+        """
+        import json
+        path = Path(path)
+        if not path.exists():
+            raise ValueError(f"LLM steering texts file not found: {path}")
+        
+        with open(path, 'r') as f:
+            data = json.load(f)
+        
+        # Convert string keys to integers if necessary
+        steering_texts = {}
+        for key, value in data.items():
+            try:
+                idx = int(key)
+                steering_texts[idx] = str(value)
+            except (ValueError, TypeError):
+                logging.warning(f"Skipping invalid key in LLM steering texts: {key}")
+        
+        logging.info(f"Loaded LLM steering texts for {len(steering_texts)} samples from {path}")
+        return steering_texts
 
     def _validate_dataset(self):
         """
@@ -357,7 +391,7 @@ class BaseDomainAssignDataset(Dataset):
                 raise ValueError("Cannot determine embedding dimension for zero vector")
             return np.zeros(embedding_dim, dtype=np.float32)
 
-        elif self.steering_mode == SteeringMode.SUGGESTION:
+        elif steering_mode == SteeringMode.SUGGESTION:
             # Use random suggestion embedding as steering
             if not suggestions:
                 if embedding_dim:
