@@ -3,6 +3,7 @@ Clustering utilities for keyword and suggestion embeddings.
 
 This module provides clustering tools for working with embeddings:
 
+- ClusteringData: Data container for cluster information with JSON loader
 - KeywordClusterer: Unified clustering class with KMeans or Bisecting KMeans,
   integrated centroid comparison methods, similarity search, topic descriptor
   extraction (Phase 1), and source-to-cluster assignment (Phase 2)
@@ -16,9 +17,11 @@ supporting both hard (one-hot) and soft (multi-subspace) assignment modes
 with configurable temperature scaling and thresholds.
 """
 
+from .clustering_data import ClusteringData
 from .keyword_clustering import KeywordClusterer, cluster_keywords_from_embeddings
 
 __all__ = [
+    "ClusteringData",
     "KeywordClusterer",
     "cluster_keywords_from_embeddings",
 ]

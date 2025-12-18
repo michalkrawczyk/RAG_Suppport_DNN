@@ -1,25 +1,48 @@
-"""Cache management for steering datasets."""
+"""Cache management for steering datasets with integrity checks."""
 
+import hashlib
 import json
 import logging
 import pickle
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from ..utils.dataset_loader import compute_cache_version
 
 
+# Cache file constants
+METADATA_FILE = "metadata.json"
+TEXT_EMBEDDINGS_FILE = "text_embeddings.pkl"
+SUGGESTION_EMBEDDINGS_FILE = "suggestion_embeddings.pkl"
+CLUSTER_LABELS_FILE = "cluster_labels.pkl"
+CLUSTER_DESCRIPTORS_FILE = "cluster_descriptors.pkl"
+LLM_STEERING_TEXTS_FILE = "llm_steering_texts.pkl"
+CLUSTER_DESCRIPTOR_EMBEDDINGS_FILE = "cluster_descriptor_embeddings.pkl"
+LLM_STEERING_EMBEDDINGS_FILE = "llm_steering_embeddings.pkl"
+STEERING_EMBEDDINGS_FILE = "steering_embeddings.pkl"
+SUGGESTIONS_FILE = "suggestions.pkl"
+SAMPLE_WEIGHTS_FILE = "sample_weights.pkl"
+CHECKSUMS_FILE = "checksums.json"
+
+# Metadata keys
+KEY_VERSION = "version"
+KEY_HAS_EMBEDDINGS = "has_embeddings"
+KEY_N_SAMPLES = "n_samples"
+KEY_EMBEDDING_DIM = "embedding_dim"
+KEY_CHECKSUMS = "checksums"
+
+
 class CacheManager:
     """
-    Manages caching and loading of dataset components.
+    Manages caching and loading of dataset components with integrity verification.
     
-    Handles saving and loading of:
-    - Text embeddings
-    - Suggestion embeddings
-    - Steering embeddings
-    - Cluster data
-    - LLM steering texts
-    - Metadata
+    Features:
+    - Atomic writes with temporary files
+    - File checksum verification
+    - Comprehensive error handling
+    - Support for all steering data types
     """
     
     def __init__(self, cache_dir: Union[str, Path]):
@@ -33,16 +56,16 @@ class CacheManager:
     
     def exists(self) -> bool:
         """
-        Check if cache directory exists.
+        Check if cache directory exists with valid metadata.
         
         Returns:
-            True if cache directory exists
+            True if cache directory exists with metadata file
         """
-        return self.cache_dir.exists() and (self.cache_dir / "metadata.json").exists()
+        return self.cache_dir.exists() and (self.cache_dir / METADATA_FILE).exists()
     
     def compute_version(self, **kwargs) -> str:
         """
-        Compute cache version hash.
+        Compute cache version hash from parameters.
         
         Args:
             **kwargs: Parameters to include in version hash
@@ -66,40 +89,133 @@ class CacheManager:
             return False
         
         metadata = self.load_metadata()
-        return metadata.get("version") == expected_version
+        return metadata.get(KEY_VERSION) == expected_version
+    
+    def _compute_file_checksum(self, filepath: Path) -> str:
+        """
+        Compute SHA256 checksum of a file.
+        
+        Args:
+            filepath: Path to file
+            
+        Returns:
+            Hexadecimal checksum string
+        """
+        sha256 = hashlib.sha256()
+        with open(filepath, 'rb') as f:
+            for chunk in iter(lambda: f.read(8192), b''):
+                sha256.update(chunk)
+        return sha256.hexdigest()
+    
+    def _atomic_write(self, filepath: Path, write_func, *args, **kwargs):
+        """
+        Write file atomically using temporary file.
+        
+        If write fails midway, original file remains unchanged.
+        
+        Args:
+            filepath: Target file path
+            write_func: Function to write data (takes file object)
+            *args, **kwargs: Arguments passed to write_func
+        """
+        # Create temporary file in same directory for atomic rename
+        temp_fd, temp_path = tempfile.mkstemp(
+            dir=filepath.parent,
+            prefix=f".tmp_{filepath.name}_"
+        )
+        
+        try:
+            # Write to temporary file
+            with open(temp_fd, 'wb' if 'b' in str(write_func) else 'w') as f:
+                write_func(f, *args, **kwargs)
+            
+            # Atomic rename (POSIX guarantees atomicity)
+            shutil.move(temp_path, filepath)
+            
+        except Exception as e:
+            # Clean up temp file on failure
+            try:
+                Path(temp_path).unlink(missing_ok=True)
+            except:
+                pass
+            raise RuntimeError(f"Atomic write failed for {filepath}: {e}") from e
     
     def save(self, data: Dict[str, Any], metadata: Dict[str, Any]):
         """
-        Save all data to cache.
+        Save all data to cache with atomic writes and checksums.
         
         Args:
             data: Dictionary of data to save (filename -> data)
             metadata: Metadata dictionary
+            
+        Raises:
+            RuntimeError: If save operation fails
         """
         if not self.cache_dir.exists():
             self.cache_dir.mkdir(parents=True, exist_ok=True)
         
-        # Save metadata
-        metadata_path = self.cache_dir / "metadata.json"
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=2)
-        logging.info(f"  ✓ Saved metadata.json")
+        checksums = {}
         
-        # Save data files
-        for filename, content in data.items():
-            if content is None:
-                continue
+        try:
+            # Save data files with atomic writes
+            for filename, content in data.items():
+                if content is None:
+                    continue
+                    
+                filepath = self.cache_dir / filename
                 
-            filepath = self.cache_dir / filename
+                if filename.endswith(".json"):
+                    self._atomic_write(
+                        filepath,
+                        lambda f, c: json.dump(c, f, indent=2),
+                        content
+                    )
+                else:
+                    self._atomic_write(
+                        filepath,
+                        lambda f, c: pickle.dump(c, f, protocol=pickle.HIGHEST_PROTOCOL),
+                        content
+                    )
+                
+                # Compute checksum
+                checksums[filename] = self._compute_file_checksum(filepath)
+                logging.info(f"  ✓ Saved {filename}")
             
-            if filename.endswith(".json"):
-                with open(filepath, "w") as f:
-                    json.dump(content, f, indent=2)
-            else:
-                with open(filepath, "wb") as f:
-                    pickle.dump(content, f, protocol=pickle.HIGHEST_PROTOCOL)
+            # Add checksums to metadata
+            metadata[KEY_CHECKSUMS] = checksums
             
-            logging.info(f"  ✓ Saved {filename}")
+            # Save metadata last (atomic)
+            metadata_path = self.cache_dir / METADATA_FILE
+            self._atomic_write(
+                metadata_path,
+                lambda f, m: json.dump(m, f, indent=2),
+                metadata
+            )
+            logging.info(f"  ✓ Saved {METADATA_FILE}")
+            
+            logging.info(f"✓ Cache saved successfully to {self.cache_dir}")
+            
+        except Exception as e:
+            logging.error(f"Cache save failed: {e}")
+            raise
+    
+    def _verify_checksum(self, filename: str, expected_checksum: str) -> bool:
+        """
+        Verify file checksum matches expected value.
+        
+        Args:
+            filename: File name
+            expected_checksum: Expected checksum
+            
+        Returns:
+            True if checksum matches
+        """
+        filepath = self.cache_dir / filename
+        if not filepath.exists():
+            return False
+        
+        actual_checksum = self._compute_file_checksum(filepath)
+        return actual_checksum == expected_checksum
     
     def load_metadata(self) -> Dict[str, Any]:
         """
@@ -109,107 +225,117 @@ class CacheManager:
             Metadata dictionary
             
         Raises:
-            ValueError: If metadata file not found
+            ValueError: If metadata file not found or invalid
         """
-        metadata_path = self.cache_dir / "metadata.json"
-        
+        metadata_path = self.cache_dir / METADATA_FILE
         if not metadata_path.exists():
             raise ValueError(f"Metadata file not found: {metadata_path}")
         
-        with open(metadata_path, "r") as f:
-            return json.load(f)
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+        
+        return metadata
     
-    def load_pickle(self, filename: str) -> Any:
+    def load_pickle(self, filename: str, verify_checksum: bool = True) -> Any:
         """
-        Load pickled data from cache.
+        Load pickled data from cache with optional checksum verification.
         
         Args:
-            filename: Name of pickle file
+            filename: File name
+            verify_checksum: Whether to verify file checksum
             
         Returns:
             Loaded data
             
         Raises:
-            ValueError: If file not found
+            ValueError: If file not found or checksum mismatch
         """
         filepath = self.cache_dir / filename
-        
         if not filepath.exists():
             raise ValueError(f"Cache file not found: {filepath}")
         
-        with open(filepath, "rb") as f:
+        # Verify checksum if enabled and available
+        if verify_checksum:
+            metadata = self.load_metadata()
+            checksums = metadata.get(KEY_CHECKSUMS, {})
+            if filename in checksums:
+                if not self._verify_checksum(filename, checksums[filename]):
+                    raise ValueError(
+                        f"Checksum mismatch for {filename}. File may be corrupted."
+                    )
+        
+        with open(filepath, 'rb') as f:
             return pickle.load(f)
     
-    def load_pickle_optional(self, filename: str) -> Optional[Any]:
+    def load_pickle_optional(self, filename: str, verify_checksum: bool = True) -> Optional[Any]:
         """
-        Load pickled data if it exists, otherwise return None.
+        Load pickled data if file exists, otherwise return None.
         
         Args:
-            filename: Name of pickle file
+            filename: File name
+            verify_checksum: Whether to verify file checksum
             
         Returns:
-            Loaded data or None
+            Loaded data or None if file doesn't exist
         """
-        filepath = self.cache_dir / filename
-        
-        if not filepath.exists():
+        try:
+            return self.load_pickle(filename, verify_checksum=verify_checksum)
+        except (ValueError, FileNotFoundError):
             return None
-        
-        with open(filepath, "rb") as f:
-            return pickle.load(f)
     
-    def load_all(self, return_embeddings: bool = True) -> Dict[str, Any]:
+    def load(self, return_embeddings: bool = True) -> Dict[str, Any]:
         """
-        Load all cached data.
+        Load all cached data with integrity verification.
         
         Args:
             return_embeddings: Whether to load embedding data
             
         Returns:
-            Dictionary with all loaded data
+            Dictionary containing all cached data
+            
+        Raises:
+            ValueError: If cache invalid or corrupted
         """
         if not self.exists():
-            raise ValueError(f"Cache directory does not exist: {self.cache_dir}")
+            raise ValueError(f"Cache not found at {self.cache_dir}")
         
         logging.info(f"Loading dataset from cache: {self.cache_dir}")
-        metadata = self.load_metadata()
         
-        logging.info(f"  Version: {metadata['version']}")
-        logging.info(f"  Samples: {metadata['length']}")
-        logging.info(f"  Unique suggestions: {metadata.get('num_unique_suggestions', 0)}")
+        # Load metadata
+        metadata = self.load_metadata()
         
         # Load required data
         data = {
             "metadata": metadata,
-            "parsed_suggestions": self.load_pickle("parsed_suggestions.pkl"),
-            "unique_suggestions": self.load_pickle("unique_suggestions.pkl"),
+            "suggestions": self.load_pickle(SUGGESTIONS_FILE),
         }
         
         # Load embeddings if requested
         if return_embeddings:
-            has_embeddings = metadata.get("has_embeddings", True)
+            has_embeddings = metadata.get(KEY_HAS_EMBEDDINGS, True)
             if not has_embeddings:
                 raise ValueError(
                     "Cache was built without embeddings. "
                     "Set return_embeddings=False or rebuild cache with embeddings."
                 )
-            data["text_embeddings"] = self.load_pickle("text_embeddings.pkl")
-            data["suggestion_embeddings"] = self.load_pickle("suggestion_embeddings.pkl")
+            data["text_embeddings"] = self.load_pickle(TEXT_EMBEDDINGS_FILE)
+            data["suggestion_embeddings"] = self.load_pickle(SUGGESTION_EMBEDDINGS_FILE)
         else:
             data["text_embeddings"] = None
             data["suggestion_embeddings"] = None
         
         # Load steering-related caches if available
-        data["cluster_labels"] = self.load_pickle_optional("cluster_labels.pkl")
-        data["cluster_descriptors"] = self.load_pickle_optional("cluster_descriptors.pkl")
-        data["llm_steering_texts"] = self.load_pickle_optional("llm_steering_texts.pkl")
+        data["cluster_labels"] = self.load_pickle_optional(CLUSTER_LABELS_FILE)
+        data["cluster_descriptors"] = self.load_pickle_optional(CLUSTER_DESCRIPTORS_FILE)
+        data["llm_steering_texts"] = self.load_pickle_optional(LLM_STEERING_TEXTS_FILE)
         data["cluster_descriptor_embeddings"] = self.load_pickle_optional(
-            "cluster_descriptor_embeddings.pkl"
+            CLUSTER_DESCRIPTOR_EMBEDDINGS_FILE
         )
         data["llm_steering_embeddings"] = self.load_pickle_optional(
-            "llm_steering_embeddings.pkl"
+            LLM_STEERING_EMBEDDINGS_FILE
         )
-        data["steering_embeddings"] = self.load_pickle_optional("steering_embeddings.pkl")
+        data["steering_embeddings"] = self.load_pickle_optional(STEERING_EMBEDDINGS_FILE)
+        data["sample_weights"] = self.load_pickle_optional(SAMPLE_WEIGHTS_FILE)
         
-        logging.info("✓ Dataset loaded successfully")
+        logging.info("✓ Dataset loaded successfully with integrity verification")
         return data

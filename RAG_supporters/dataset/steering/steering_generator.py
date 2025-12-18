@@ -7,9 +7,8 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 from langchain_core.embeddings.embeddings import Embeddings
 
-from .clustering_data import ClusteringData
-from .steering_config import SteeringConfig
-from .steering_mode import SteeringMode
+from ...clustering.clustering_data import ClusteringData
+from .steering_config import SteeringConfig, SteeringMode
 
 
 class SteeringGenerator:

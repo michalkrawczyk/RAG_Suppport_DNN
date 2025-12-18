@@ -5,18 +5,19 @@ This module provides PyTorch datasets for RAG-based question answering
 and cluster steering.
 """
 
+# ClusteringData from clustering module
+from ..clustering import ClusteringData
+
 # Legacy imports for backward compatibility
 from .torch_dataset import (
     BaseDomainAssignDataset,
     CachedDomainAssignDataset,
-    SteeringMode as LegacySteeringMode,
     build_and_load_dataset,
 )
 
 # New modular components
 from .steering import (
     CacheManager,
-    ClusteringData,
     DatasetBuilder,
     SteeringConfig,
     SteeringDataset,

@@ -1,10 +1,19 @@
-"""Steering configuration dataclass."""
+"""Steering configuration with embedded steering modes."""
 
 import logging
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
-from .steering_mode import SteeringMode
+
+class SteeringMode(Enum):
+    """Steering embedding modes for cluster/subspace steering."""
+
+    SUGGESTION = "suggestion"  # Use suggestion embeddings
+    LLM_GENERATED = "llm_generated"  # LLM-generated steering text
+    CLUSTER_DESCRIPTOR = "cluster_descriptor"  # Cluster/topic descriptor embeddings
+    ZERO = "zero"  # Zero baseline (no steering)
+    MIXED = "mixed"  # Weighted combination of multiple modes
 
 
 @dataclass
@@ -40,18 +49,40 @@ class SteeringConfig:
             if len(self.mode) == 0:
                 raise ValueError("mode list cannot be empty")
             
-            # Normalize probabilities
+            # Validate all entries are (SteeringMode, float) tuples
+            for i, entry in enumerate(self.mode):
+                if not isinstance(entry, tuple) or len(entry) != 2:
+                    raise ValueError(
+                        f"mode[{i}] must be a (SteeringMode, float) tuple, got {type(entry)}"
+                    )
+                mode, prob = entry
+                if not isinstance(mode, SteeringMode):
+                    raise ValueError(
+                        f"mode[{i}] first element must be SteeringMode instance, "
+                        f"got {type(mode)}. Did you forget to import SteeringMode?"
+                    )
+                if not isinstance(prob, (int, float)):
+                    raise ValueError(
+                        f"mode[{i}] probability must be numeric, got {type(prob)}"
+                    )
+                if prob < 0:
+                    raise ValueError(
+                        f"mode[{i}] probability must be non-negative, got {prob}"
+                    )
+            
+            # Check for zero total probability
             total_prob = sum(prob for _, prob in self.mode)
-            if total_prob > 0 and abs(total_prob - 1.0) > 1e-6:
+            if total_prob == 0:
+                raise ValueError(
+                    "All mode probabilities are zero. At least one mode must have positive probability."
+                )
+            
+            # Normalize probabilities if needed
+            if abs(total_prob - 1.0) > 1e-6:
                 logging.warning(
-                    f"Steering mode probabilities sum to {total_prob}, normalizing to 1.0"
+                    f"Steering mode probabilities sum to {total_prob:.6f}, normalizing to 1.0"
                 )
                 self.mode = [(mode, prob / total_prob) for mode, prob in self.mode]
-            
-            # Validate all probabilities are non-negative
-            for mode, prob in self.mode:
-                if prob < 0:
-                    raise ValueError(f"Probability for {mode} must be non-negative, got {prob}")
         
         logging.info(f"SteeringConfig validated: mode={self.mode}, multi_label={self.multi_label_mode}")
     
@@ -74,7 +105,15 @@ class SteeringConfig:
             
         Returns:
             SteeringConfig instance
+            
+        Raises:
+            ValueError: If mode is not a SteeringMode instance
         """
+        if not isinstance(mode, SteeringMode):
+            raise ValueError(
+                f"mode must be SteeringMode instance, got {type(mode)}"
+            )
+        
         return cls(
             mode=[(mode, 1.0)],
             multi_label_mode=multi_label_mode,
@@ -91,7 +130,7 @@ class SteeringConfig:
         random_seed: int = 42
     ) -> "SteeringConfig":
         """
-        Create config from a list of modes with probabilities.
+        Create config from list of modes with probabilities.
         
         Args:
             modes: List of (mode, probability) tuples
@@ -109,17 +148,23 @@ class SteeringConfig:
             random_seed=random_seed
         )
     
-    def get_single_mode(self) -> Optional[SteeringMode]:
+    def get_mode_probabilities(self) -> Dict[SteeringMode, float]:
         """
-        Get single mode if only one mode is configured.
+        Get mode probabilities as a dictionary.
         
         Returns:
-            SteeringMode if single mode, None otherwise
+            Dictionary mapping modes to probabilities
         """
-        if self.mode and len(self.mode) == 1:
-            return self.mode[0][0]
-        return None
+        return {mode: prob for mode, prob in self.mode}
     
-    def is_multi_mode(self) -> bool:
-        """Check if multiple modes are configured."""
-        return len(self.mode) > 1
+    def has_mode(self, mode: SteeringMode) -> bool:
+        """
+        Check if a specific mode is configured.
+        
+        Args:
+            mode: Steering mode to check
+            
+        Returns:
+            True if mode is in configuration
+        """
+        return any(m == mode for m, _ in self.mode)

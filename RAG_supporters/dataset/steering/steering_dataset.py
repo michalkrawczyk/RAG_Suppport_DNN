@@ -10,13 +10,12 @@ import torch
 from langchain_core.embeddings.embeddings import Embeddings
 from torch.utils.data import Dataset
 
+from ...clustering.clustering_data import ClusteringData
 from ..utils.dataset_loader import filter_suggestions, parse_suggestions_safe
 from .cache_manager import CacheManager
-from .clustering_data import ClusteringData
 from .dataset_builder import DatasetBuilder
-from .steering_config import SteeringConfig
+from .steering_config import SteeringConfig, SteeringMode
 from .steering_generator import SteeringGenerator
-from .steering_mode import SteeringMode
 
 
 class SteeringDataset(Dataset):
