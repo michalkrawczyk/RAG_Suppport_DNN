@@ -107,7 +107,7 @@ class CacheManager:
                 sha256.update(chunk)
         return sha256.hexdigest()
     
-    def _atomic_write(self, filepath: Path, write_func, *args, **kwargs):
+    def _atomic_write(self, filepath: Path, write_func, mode: str, *args, **kwargs):
         """
         Write file atomically using temporary file.
         
@@ -116,6 +116,7 @@ class CacheManager:
         Args:
             filepath: Target file path
             write_func: Function to write data (takes file object)
+            mode: File open mode ('w' for text, 'wb' for binary)
             *args, **kwargs: Arguments passed to write_func
         """
         # Create temporary file in same directory for atomic rename
@@ -125,8 +126,12 @@ class CacheManager:
         )
         
         try:
-            # Write to temporary file
-            with open(temp_fd, 'wb' if 'b' in str(write_func) else 'w') as f:
+            # Close the file descriptor and reopen with correct mode
+            import os
+            os.close(temp_fd)
+            
+            # Write to temporary file with specified mode
+            with open(temp_path, mode) as f:
                 write_func(f, *args, **kwargs)
             
             # Atomic rename (POSIX guarantees atomicity)
@@ -168,12 +173,14 @@ class CacheManager:
                     self._atomic_write(
                         filepath,
                         lambda f, c: json.dump(c, f, indent=2),
+                        'w',  # Text mode for JSON
                         content
                     )
                 else:
                     self._atomic_write(
                         filepath,
                         lambda f, c: pickle.dump(c, f, protocol=pickle.HIGHEST_PROTOCOL),
+                        'wb',  # Binary mode for pickle
                         content
                     )
                 
@@ -189,6 +196,7 @@ class CacheManager:
             self._atomic_write(
                 metadata_path,
                 lambda f, m: json.dump(m, f, indent=2),
+                'w',  # Text mode for JSON
                 metadata
             )
             logging.info(f"  ✓ Saved {METADATA_FILE}")
