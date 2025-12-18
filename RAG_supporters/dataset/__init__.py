@@ -18,7 +18,7 @@ from .torch_dataset import (
 # New modular components
 from .steering import (
     CacheManager,
-    DatasetBuilder,
+    SteeringDatasetBuilder,
     SteeringConfig,
     SteeringDataset,
     SteeringGenerator,
@@ -37,6 +37,6 @@ __all__ = [
     "SteeringConfig",
     "CacheManager",
     "SteeringGenerator",
-    "DatasetBuilder",
+    "SteeringDatasetBuilder",
     "SteeringDataset",
 ]

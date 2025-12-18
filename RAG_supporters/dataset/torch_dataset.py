@@ -15,7 +15,7 @@ from langchain_core.embeddings.embeddings import Embeddings
 from .steering import (
     CacheManager,
     ClusteringData,
-    DatasetBuilder,
+    SteeringDatasetBuilder,
     SteeringConfig,
     SteeringDataset,
     SteeringMode,
@@ -29,7 +29,7 @@ class BaseDomainAssignDataset:
     """
     Backward compatibility wrapper for the legacy BaseDomainAssignDataset interface.
     
-    This class delegates to the new modular architecture (SteeringDataset + DatasetBuilder)
+    This class delegates to the new modular architecture (SteeringDataset + SteeringDatasetBuilder)
     while maintaining the original API for existing code.
     
     Usage (Legacy API - still supported):
@@ -46,12 +46,12 @@ class BaseDomainAssignDataset:
     
     New users should prefer the modular API:
         from RAG_supporters.dataset.steering import (
-            ClusteringData, SteeringConfig, DatasetBuilder, SteeringDataset
+            ClusteringData, SteeringConfig, SteeringDatasetBuilder, SteeringDataset
         )
         
         clustering_data = ClusteringData.from_json("clusters.json")
         config = SteeringConfig.from_single_mode(SteeringMode.CLUSTER_DESCRIPTOR)
-        builder = DatasetBuilder(df, model, clustering_data, config)
+        builder = SteeringDatasetBuilder(df, model, clustering_data, config)
         builder.build()
         dataset = SteeringDataset.from_builder(builder)
     """
@@ -182,8 +182,8 @@ class BaseDomainAssignDataset:
         Returns:
             self for chaining
         """
-        # Create DatasetBuilder
-        self._builder = DatasetBuilder(
+        # Create SteeringDatasetBuilder
+        self._builder = SteeringDatasetBuilder(
             df=self.df,
             embedding_model=self.embedding_model,
             clustering_data=self.clustering_data,

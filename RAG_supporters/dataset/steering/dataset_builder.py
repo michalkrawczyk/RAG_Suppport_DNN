@@ -1,4 +1,4 @@
-"""Dataset builder component for computing embeddings and building cache."""
+"""Steering dataset builder component for computing embeddings and building cache."""
 
 import logging
 from pathlib import Path
@@ -16,9 +16,12 @@ from .steering_config import SteeringConfig, SteeringMode
 from .steering_generator import SteeringGenerator
 
 
-class DatasetBuilder:
+class SteeringDatasetBuilder:
     """
-    Builds dataset by computing embeddings and preparing caches.
+    Builds steering datasets by computing embeddings and preparing caches.
+    
+    This builder is specifically for creating datasets with steering embeddings
+    for subspace/cluster-based steering in neural networks.
     
     Handles:
     - Parsing suggestions
@@ -26,7 +29,7 @@ class DatasetBuilder:
     - Computing suggestion embeddings  
     - Computing steering embeddings
     - Validation
-    - Cache persistence
+    - Cache persistence with clustering JSON reference
     """
     
     def __init__(
@@ -36,6 +39,7 @@ class DatasetBuilder:
         clustering_data: Optional[ClusteringData] = None,
         steering_config: Optional[SteeringConfig] = None,
         cache_dir: Optional[Union[str, Path]] = None,
+        clustering_json_path: Optional[Union[str, Path]] = None,
         source_col: str = "source",
         question_col: str = "question",
         suggestions_col: str = "suggestions",
@@ -47,7 +51,7 @@ class DatasetBuilder:
         version: Optional[str] = None,
     ):
         """
-        Initialize dataset builder.
+        Initialize steering dataset builder.
         
         Args:
             df: DataFrame with source data
@@ -55,6 +59,7 @@ class DatasetBuilder:
             clustering_data: Cluster data (labels, descriptors)
             steering_config: Steering configuration
             cache_dir: Directory for caching results
+            clustering_json_path: Path to clustering results JSON (from KeywordClusterer.save_results)
             source_col: Column name for source texts
             question_col: Column name for question texts
             suggestions_col: Column name for suggestions
@@ -70,6 +75,7 @@ class DatasetBuilder:
         self.clustering_data = clustering_data
         self.steering_config = steering_config or SteeringConfig()
         self.cache_manager = CacheManager(cache_dir) if cache_dir else None
+        self.clustering_json_path = str(clustering_json_path) if clustering_json_path else None
         
         self.source_col = source_col
         self.question_col = question_col
@@ -385,9 +391,25 @@ class DatasetBuilder:
         logging.info(f"Validated {n_assigned} cluster assignments")
     
     def save_cache(self):
-        """Save all processed data to cache."""
+        """
+        Save all processed data to cache.
+        
+        Embeddings are saved as memory-mapped numpy files (.npy) for efficient loading.
+        Clustering info is stored as a JSON path reference instead of duplicating data.
+        """
         if not self.cache_manager:
             raise ValueError("No cache manager configured")
+        
+        from .cache_manager import (
+            TEXT_EMBEDDINGS_FILE,
+            SUGGESTION_EMBEDDINGS_FILE,
+            STEERING_EMBEDDINGS_FILE,
+            CLUSTER_DESCRIPTOR_EMBEDDINGS_FILE,
+            LLM_STEERING_EMBEDDINGS_FILE,
+            CLUSTERING_JSON_PATH_FILE,
+            LLM_STEERING_TEXTS_FILE,
+            SUGGESTIONS_FILE,
+        )
         
         # Prepare metadata
         metadata = {
@@ -407,37 +429,38 @@ class DatasetBuilder:
             "has_cluster_labels": self.clustering_data and self.clustering_data.labels is not None,
             "has_cluster_descriptors": self.clustering_data and self.clustering_data.descriptors is not None,
             "has_llm_steering": self.llm_steering_texts is not None,
+            "has_clustering_json": self.clustering_json_path is not None,
         }
         
         # Prepare data files
         data = {
             "parsed_suggestions.pkl": self.parsed_suggestions,
-            "unique_suggestions.pkl": self.unique_suggestions,
+            SUGGESTIONS_FILE: self.unique_suggestions,
         }
         
+        # Save embeddings as memory-mapped numpy arrays (.npy)
         if self.text_embeddings is not None:
-            data["text_embeddings.pkl"] = self.text_embeddings
+            data[TEXT_EMBEDDINGS_FILE] = self.text_embeddings
         
         if self.suggestion_embeddings is not None:
-            data["suggestion_embeddings.pkl"] = self.suggestion_embeddings
+            data[SUGGESTION_EMBEDDINGS_FILE] = self.suggestion_embeddings
         
         if self.cluster_descriptor_embeddings is not None:
-            data["cluster_descriptor_embeddings.pkl"] = self.cluster_descriptor_embeddings
+            data[CLUSTER_DESCRIPTOR_EMBEDDINGS_FILE] = self.cluster_descriptor_embeddings
         
         if self.llm_steering_embeddings is not None:
-            data["llm_steering_embeddings.pkl"] = self.llm_steering_embeddings
+            data[LLM_STEERING_EMBEDDINGS_FILE] = self.llm_steering_embeddings
         
         if self.steering_embeddings is not None:
-            data["steering_embeddings.pkl"] = self.steering_embeddings
+            data[STEERING_EMBEDDINGS_FILE] = self.steering_embeddings
         
-        if self.clustering_data and self.clustering_data.labels is not None:
-            data["cluster_labels.pkl"] = self.clustering_data.labels
+        # Store reference to clustering JSON instead of duplicating data
+        if self.clustering_json_path:
+            data[CLUSTERING_JSON_PATH_FILE] = self.clustering_json_path
         
-        if self.clustering_data and self.clustering_data.descriptors is not None:
-            data["cluster_descriptors.pkl"] = self.clustering_data.descriptors
-        
+        # Store LLM steering texts if provided
         if self.llm_steering_texts is not None:
-            data["llm_steering_texts.pkl"] = self.llm_steering_texts
+            data[LLM_STEERING_TEXTS_FILE] = self.llm_steering_texts
         
         # Save
         self.cache_manager.save(data, metadata)

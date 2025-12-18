@@ -13,7 +13,7 @@ from torch.utils.data import Dataset
 from ...clustering.clustering_data import ClusteringData
 from ..utils.dataset_loader import filter_suggestions, parse_suggestions_safe
 from .cache_manager import CacheManager
-from .dataset_builder import DatasetBuilder
+from .dataset_builder import SteeringDatasetBuilder
 from .steering_config import SteeringConfig, SteeringMode
 from .steering_generator import SteeringGenerator
 
@@ -23,7 +23,7 @@ class SteeringDataset(Dataset):
     PyTorch Dataset for serving steering data.
     
     Simplified to only handle data serving - all building/computation
-    is delegated to DatasetBuilder.
+    is delegated to SteeringDatasetBuilder.
     """
     
     def __init__(
@@ -327,7 +327,7 @@ class SteeringDataset(Dataset):
             raise ValueError(f"Cache directory does not exist: {cache_dir}")
         
         # Load all data
-        data = cache_manager.load_all(return_embeddings=return_embeddings)
+        data = cache_manager.load(return_embeddings=return_embeddings)
         
         # Extract metadata
         metadata = data["metadata"]
@@ -342,26 +342,8 @@ class SteeringDataset(Dataset):
                 multi_label_mode=metadata.get("multi_label_mode", "hard"),
             )
         
-        # Reconstruct clustering data
-        clustering_data = None
-        cluster_labels = data.get("cluster_labels")
-        cluster_descriptors = data.get("cluster_descriptors")
-        if cluster_labels or cluster_descriptors:
-            # Infer n_clusters
-            n_clusters = None
-            if cluster_labels:
-                first_label = next(iter(cluster_labels.values()))
-                if isinstance(first_label, int):
-                    n_clusters = max(cluster_labels.values()) + 1
-                elif isinstance(first_label, list):
-                    n_clusters = len(first_label)
-            
-            if n_clusters:
-                clustering_data = ClusteringData(
-                    n_clusters=n_clusters,
-                    labels=cluster_labels,
-                    descriptors=cluster_descriptors,
-                )
+        # Get clustering data (already loaded from JSON reference in cache_manager.load())
+        clustering_data = data.get("clustering_data")
         
         # Note: DataFrame not saved in cache, need to reconstruct or pass separately
         # For now, create a minimal DataFrame
@@ -383,12 +365,12 @@ class SteeringDataset(Dataset):
         )
     
     @classmethod
-    def from_builder(cls, builder: DatasetBuilder) -> "SteeringDataset":
+    def from_builder(cls, builder: SteeringDatasetBuilder) -> "SteeringDataset":
         """
-        Create dataset from a DatasetBuilder.
+        Create dataset from a SteeringDatasetBuilder.
         
         Args:
-            builder: DatasetBuilder instance with built data
+            builder: SteeringDatasetBuilder instance with built data
             
         Returns:
             SteeringDataset instance

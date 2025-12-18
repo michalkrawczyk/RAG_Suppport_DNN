@@ -9,19 +9,20 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+import numpy as np
+
 from ..utils.dataset_loader import compute_cache_version
 
 
 # Cache file constants
 METADATA_FILE = "metadata.json"
-TEXT_EMBEDDINGS_FILE = "text_embeddings.pkl"
-SUGGESTION_EMBEDDINGS_FILE = "suggestion_embeddings.pkl"
-CLUSTER_LABELS_FILE = "cluster_labels.pkl"
-CLUSTER_DESCRIPTORS_FILE = "cluster_descriptors.pkl"
+TEXT_EMBEDDINGS_FILE = "text_embeddings.npy"  # Memory-mapped numpy
+SUGGESTION_EMBEDDINGS_FILE = "suggestion_embeddings.npy"  # Memory-mapped numpy
+STEERING_EMBEDDINGS_FILE = "steering_embeddings.npy"  # Memory-mapped numpy
+CLUSTER_DESCRIPTOR_EMBEDDINGS_FILE = "cluster_descriptor_embeddings.npy"  # Memory-mapped numpy
+LLM_STEERING_EMBEDDINGS_FILE = "llm_steering_embeddings.npy"  # Memory-mapped numpy
+CLUSTERING_JSON_PATH_FILE = "clustering_json_path.txt"  # Reference to clustering JSON
 LLM_STEERING_TEXTS_FILE = "llm_steering_texts.pkl"
-CLUSTER_DESCRIPTOR_EMBEDDINGS_FILE = "cluster_descriptor_embeddings.pkl"
-LLM_STEERING_EMBEDDINGS_FILE = "llm_steering_embeddings.pkl"
-STEERING_EMBEDDINGS_FILE = "steering_embeddings.pkl"
 SUGGESTIONS_FILE = "suggestions.pkl"
 SAMPLE_WEIGHTS_FILE = "sample_weights.pkl"
 CHECKSUMS_FILE = "checksums.json"
@@ -176,7 +177,22 @@ class CacheManager:
                         'w',  # Text mode for JSON
                         content
                     )
+                elif filename.endswith(".npy"):
+                    # Save numpy arrays as memory-mapped files
+                    if isinstance(content, np.ndarray):
+                        self._save_numpy_memmap(filepath, content)
+                    else:
+                        raise ValueError(f"Expected numpy array for {filename}, got {type(content)}")
+                elif filename.endswith(".txt"):
+                    # Save text files (e.g., clustering JSON path reference)
+                    self._atomic_write(
+                        filepath,
+                        lambda f, c: f.write(c),
+                        'w',  # Text mode
+                        content
+                    )
                 else:
+                    # Pickle for other data types
                     self._atomic_write(
                         filepath,
                         lambda f, c: pickle.dump(c, f, protocol=pickle.HIGHEST_PROTOCOL),
@@ -206,6 +222,38 @@ class CacheManager:
         except Exception as e:
             logging.error(f"Cache save failed: {e}")
             raise
+    
+    def _save_numpy_memmap(self, filepath: Path, array: np.ndarray):
+        """
+        Save numpy array as memory-mapped file using atomic write.
+        
+        Args:
+            filepath: Target file path
+            array: Numpy array to save
+        """
+        # Create temporary file
+        temp_fd, temp_path = tempfile.mkstemp(
+            dir=filepath.parent,
+            prefix=f".tmp_{filepath.name}_"
+        )
+        
+        try:
+            import os
+            os.close(temp_fd)
+            
+            # Save array to temp file
+            np.save(temp_path, array, allow_pickle=False)
+            
+            # Atomic rename
+            shutil.move(temp_path, filepath)
+            
+        except Exception as e:
+            # Clean up temp file on failure
+            try:
+                Path(temp_path).unlink(missing_ok=True)
+            except:
+                pass
+            raise RuntimeError(f"Failed to save numpy array to {filepath}: {e}") from e
     
     def _verify_checksum(self, filename: str, expected_checksum: str) -> bool:
         """
@@ -275,6 +323,56 @@ class CacheManager:
         with open(filepath, 'rb') as f:
             return pickle.load(f)
     
+    def load_numpy(self, filename: str, mmap_mode: str = 'r', verify_checksum: bool = True) -> np.ndarray:
+        """
+        Load numpy array from cache with optional memory mapping.
+        
+        Args:
+            filename: File name (should be .npy)
+            mmap_mode: Memory-map mode ('r' for read-only, None to load into memory)
+            verify_checksum: Whether to verify file checksum
+            
+        Returns:
+            Numpy array (memory-mapped if mmap_mode specified)
+            
+        Raises:
+            ValueError: If file not found or checksum mismatch
+        """
+        filepath = self.cache_dir / filename
+        if not filepath.exists():
+            raise ValueError(f"Cache file not found: {filepath}")
+        
+        # Verify checksum if enabled and available
+        if verify_checksum:
+            metadata = self.load_metadata()
+            checksums = metadata.get(KEY_CHECKSUMS, {})
+            if filename in checksums:
+                if not self._verify_checksum(filename, checksums[filename]):
+                    raise ValueError(
+                        f"Checksum mismatch for {filename}. File may be corrupted."
+                    )
+        
+        # Load with memory mapping for efficient access
+        return np.load(filepath, mmap_mode=mmap_mode, allow_pickle=False)
+    
+    def load_numpy_optional(self, filename: str, mmap_mode: str = 'r', verify_checksum: bool = True) -> Optional[np.ndarray]:
+        """
+        Load numpy array if file exists, otherwise return None.
+        
+        Args:
+            filename: File name
+            mmap_mode: Memory-map mode ('r' for read-only, None to load into memory)
+            verify_checksum: Whether to verify file checksum
+            
+        Returns:
+            Numpy array or None if file doesn't exist
+        """
+        filepath = self.cache_dir / filename
+        if not filepath.exists():
+            return None
+        
+        return self.load_numpy(filename, mmap_mode=mmap_mode, verify_checksum=verify_checksum)
+    
     def load_pickle_optional(self, filename: str, verify_checksum: bool = True) -> Optional[Any]:
         """
         Load pickled data if file exists, otherwise return None.
@@ -294,6 +392,9 @@ class CacheManager:
     def load(self, return_embeddings: bool = True) -> Dict[str, Any]:
         """
         Load all cached data with integrity verification.
+        
+        Embeddings are loaded as memory-mapped numpy arrays for efficiency.
+        Clustering data is loaded from JSON reference if available.
         
         Args:
             return_embeddings: Whether to load embedding data
@@ -316,9 +417,10 @@ class CacheManager:
         data = {
             "metadata": metadata,
             "suggestions": self.load_pickle(SUGGESTIONS_FILE),
+            "parsed_suggestions": self.load_pickle("parsed_suggestions.pkl"),
         }
         
-        # Load embeddings if requested
+        # Load embeddings if requested (memory-mapped for efficiency)
         if return_embeddings:
             has_embeddings = metadata.get(KEY_HAS_EMBEDDINGS, True)
             if not has_embeddings:
@@ -326,23 +428,50 @@ class CacheManager:
                     "Cache was built without embeddings. "
                     "Set return_embeddings=False or rebuild cache with embeddings."
                 )
-            data["text_embeddings"] = self.load_pickle(TEXT_EMBEDDINGS_FILE)
-            data["suggestion_embeddings"] = self.load_pickle(SUGGESTION_EMBEDDINGS_FILE)
+            # Load as memory-mapped arrays (efficient for large datasets)
+            data["text_embeddings"] = self.load_numpy(TEXT_EMBEDDINGS_FILE, mmap_mode='r')
+            data["suggestion_embeddings"] = self.load_numpy(SUGGESTION_EMBEDDINGS_FILE, mmap_mode='r')
         else:
             data["text_embeddings"] = None
             data["suggestion_embeddings"] = None
         
-        # Load steering-related caches if available
-        data["cluster_labels"] = self.load_pickle_optional(CLUSTER_LABELS_FILE)
-        data["cluster_descriptors"] = self.load_pickle_optional(CLUSTER_DESCRIPTORS_FILE)
+        # Load clustering JSON path reference
+        clustering_json_path_file = self.cache_dir / CLUSTERING_JSON_PATH_FILE
+        if clustering_json_path_file.exists():
+            with open(clustering_json_path_file, 'r') as f:
+                clustering_json_path = f.read().strip()
+                data["clustering_json_path"] = clustering_json_path
+                # Load clustering data from JSON
+                if Path(clustering_json_path).exists():
+                    from ...clustering.clustering_data import ClusteringData
+                    data["clustering_data"] = ClusteringData.from_json(clustering_json_path)
+                    # Extract labels and descriptors
+                    data["cluster_labels"] = data["clustering_data"].labels
+                    data["cluster_descriptors"] = data["clustering_data"].descriptors
+                else:
+                    logging.warning(f"Clustering JSON not found: {clustering_json_path}")
+                    data["clustering_data"] = None
+                    data["cluster_labels"] = None
+                    data["cluster_descriptors"] = None
+        else:
+            data["clustering_json_path"] = None
+            data["clustering_data"] = None
+            data["cluster_labels"] = None
+            data["cluster_descriptors"] = None
+        
+        # Load LLM steering texts if available
         data["llm_steering_texts"] = self.load_pickle_optional(LLM_STEERING_TEXTS_FILE)
-        data["cluster_descriptor_embeddings"] = self.load_pickle_optional(
-            CLUSTER_DESCRIPTOR_EMBEDDINGS_FILE
+        
+        # Load steering embeddings as memory-mapped arrays
+        data["cluster_descriptor_embeddings"] = self.load_numpy_optional(
+            CLUSTER_DESCRIPTOR_EMBEDDINGS_FILE, mmap_mode='r'
         )
-        data["llm_steering_embeddings"] = self.load_pickle_optional(
-            LLM_STEERING_EMBEDDINGS_FILE
+        data["llm_steering_embeddings"] = self.load_numpy_optional(
+            LLM_STEERING_EMBEDDINGS_FILE, mmap_mode='r'
         )
-        data["steering_embeddings"] = self.load_pickle_optional(STEERING_EMBEDDINGS_FILE)
+        data["steering_embeddings"] = self.load_numpy_optional(
+            STEERING_EMBEDDINGS_FILE, mmap_mode='r'
+        )
         data["sample_weights"] = self.load_pickle_optional(SAMPLE_WEIGHTS_FILE)
         
         logging.info("✓ Dataset loaded successfully with integrity verification")
