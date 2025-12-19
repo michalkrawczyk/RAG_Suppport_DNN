@@ -41,7 +41,7 @@ class DomainAssessmentDatasetBuilder:
         Initialize dataset builder.
         
         Args:
-            csv_paths: Path(s) to CSV files from domain_assesment.py
+            csv_paths: Path(s) to CSV files from domain_assessment.py
             clustering_json_path: Path to clustering JSON from keyword_clustering.py
             output_dir: Output directory for dataset
             embedding_model: Model for encoding text

@@ -1,6 +1,6 @@
 # Domain Assessment Dataset - Usage Examples
 
-This document provides practical examples for the new **domain assessment dataset approach** using CSV files from `domain_assesment.py` and clustering JSON from `keyword_clustering.py`.
+This document provides practical examples for the new **domain assessment dataset approach** using CSV files from `domain_assessment.py` and clustering JSON from `keyword_clustering.py`.
 
 ## Table of Contents
 
@@ -506,7 +506,7 @@ for base_emb, steering_emb, combined_label, metadata in dataloader:
 7. **Clustering Integration**: Uses `keyword_clustering.py` centroids and descriptors
 
 **Recommended Workflow**:
-1. Run `domain_assesment.py` → Get CSV with suggestions + cluster probabilities
+1. Run `domain_assessment.py` → Get CSV with suggestions + cluster probabilities
 2. Run `keyword_clustering.py` → Get clustering JSON with centroids
 3. Use `DomainAssessmentDatasetBuilder` → Build dataset
 4. Use `ClusterLabeledDataset` → Train model
