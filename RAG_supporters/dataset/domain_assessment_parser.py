@@ -20,39 +20,39 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DomainAssessmentRecord:
     """Single record from domain assessment CSV."""
-    
+
     source_text: str
     question_text: str
     chroma_source_id: str
     chroma_question_id: str
     suggestions: List[Dict[str, Any]]  # List of DomainSuggestion dicts
     cluster_probabilities: Optional[List[float]] = None
-    
+
     @classmethod
     def from_row(cls, row: pd.Series) -> "DomainAssessmentRecord":
         """
         Create record from CSV row.
-        
+
         Args:
             row: Pandas Series from CSV
-            
+
         Returns:
             DomainAssessmentRecord instance
-            
+
         Raises:
             ValueError: If required fields missing or invalid format
         """
         # Required fields
-        source_text = row.get('source_text', row.get('source', ''))
-        question_text = row.get('question_text', row.get('question', ''))
-        chroma_source_id = row.get('chroma_source_id', row.get('source_id', ''))
-        chroma_question_id = row.get('chroma_question_id', row.get('question_id', ''))
-        
+        source_text = row.get("source_text", row.get("source", ""))
+        question_text = row.get("question_text", row.get("question", ""))
+        chroma_source_id = row.get("chroma_source_id", row.get("source_id", ""))
+        chroma_question_id = row.get("chroma_question_id", row.get("question_id", ""))
+
         if not source_text or not question_text:
             raise ValueError("Missing source_text or question_text")
-        
+
         # Parse suggestions (JSON formatted)
-        suggestions_str = row.get('suggestions', '[]')
+        suggestions_str = row.get("suggestions", "[]")
         try:
             if isinstance(suggestions_str, str):
                 suggestions = json.loads(suggestions_str)
@@ -63,9 +63,9 @@ class DomainAssessmentRecord:
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse suggestions: {e}")
             suggestions = []
-        
+
         # Parse cluster probabilities (JSON formatted)
-        cluster_probs_str = row.get('cluster_probabilities', None)
+        cluster_probs_str = row.get("cluster_probabilities", None)
         cluster_probabilities = None
         if cluster_probs_str is not None:
             try:
@@ -75,31 +75,31 @@ class DomainAssessmentRecord:
                     cluster_probabilities = cluster_probs_str
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to parse cluster_probabilities: {e}")
-        
+
         return cls(
             source_text=source_text,
             question_text=question_text,
             chroma_source_id=chroma_source_id,
             chroma_question_id=chroma_question_id,
             suggestions=suggestions,
-            cluster_probabilities=cluster_probabilities
+            cluster_probabilities=cluster_probabilities,
         )
 
 
 class DomainAssessmentParser:
     """
     Parser for domain assessment CSV files.
-    
+
     Handles:
     - Multiple CSV files (concatenates and deduplicates)
     - Chunked reading for large files
     - Validation of required fields
     """
-    
+
     def __init__(self, chunksize: Optional[int] = None):
         """
         Initialize parser.
-        
+
         Args:
             chunksize: If set, reads CSV in chunks to reduce memory usage
         """
@@ -107,17 +107,17 @@ class DomainAssessmentParser:
         self._records: List[DomainAssessmentRecord] = []
         self._source_ids: set = set()
         self._question_ids: set = set()
-    
+
     def parse_csv(self, csv_path: Union[str, Path]) -> List[DomainAssessmentRecord]:
         """
         Parse single CSV file.
-        
+
         Args:
             csv_path: Path to CSV file
-            
+
         Returns:
             List of parsed records
-            
+
         Raises:
             FileNotFoundError: If CSV not found
             ValueError: If CSV invalid or missing required fields
@@ -125,10 +125,10 @@ class DomainAssessmentParser:
         csv_path = Path(csv_path)
         if not csv_path.exists():
             raise FileNotFoundError(f"CSV file not found: {csv_path}")
-        
+
         logger.info(f"Parsing CSV: {csv_path}")
         records = []
-        
+
         if self.chunksize:
             # Chunked reading for large files
             chunks = pd.read_csv(csv_path, chunksize=self.chunksize)
@@ -139,27 +139,25 @@ class DomainAssessmentParser:
             # Read entire file
             df = pd.read_csv(csv_path)
             records = self._parse_dataframe(df)
-        
+
         logger.info(f"Parsed {len(records)} records from {csv_path}")
         return records
-    
+
     def parse_multiple_csvs(
-        self, 
-        csv_paths: List[Union[str, Path]],
-        deduplicate: bool = True
+        self, csv_paths: List[Union[str, Path]], deduplicate: bool = True
     ) -> List[DomainAssessmentRecord]:
         """
         Parse multiple CSV files and optionally deduplicate.
-        
+
         Args:
             csv_paths: List of CSV file paths
             deduplicate: If True, removes duplicate records based on chroma IDs
-            
+
         Returns:
             Combined list of parsed records
         """
         all_records = []
-        
+
         for csv_path in csv_paths:
             try:
                 records = self.parse_csv(csv_path)
@@ -167,102 +165,105 @@ class DomainAssessmentParser:
             except Exception as e:
                 logger.error(f"Failed to parse {csv_path}: {e}")
                 raise
-        
+
         if deduplicate:
             all_records = self._deduplicate_records(all_records)
-        
-        logger.info(f"Total records after processing {len(csv_paths)} CSV files: {len(all_records)}")
+
+        logger.info(
+            f"Total records after processing {len(csv_paths)} CSV files: {len(all_records)}"
+        )
         return all_records
-    
+
     def _parse_dataframe(self, df: pd.DataFrame) -> List[DomainAssessmentRecord]:
         """
         Parse DataFrame into records.
-        
+
         Args:
             df: Pandas DataFrame
-            
+
         Returns:
             List of parsed records
         """
         records = []
-        
+
         for idx, row in df.iterrows():
             try:
                 record = DomainAssessmentRecord.from_row(row)
                 records.append(record)
             except Exception as e:
                 logger.warning(f"Skipping row {idx}: {e}")
-        
+
         return records
-    
+
     def _deduplicate_records(
-        self, 
-        records: List[DomainAssessmentRecord]
+        self, records: List[DomainAssessmentRecord]
     ) -> List[DomainAssessmentRecord]:
         """
         Remove duplicate records based on chroma IDs.
-        
+
         Args:
             records: List of records
-            
+
         Returns:
             Deduplicated list
         """
         seen_pairs = set()
         unique_records = []
-        
+
         for record in records:
             pair_id = (record.chroma_source_id, record.chroma_question_id)
             if pair_id not in seen_pairs:
                 seen_pairs.add(pair_id)
                 unique_records.append(record)
-        
+
         removed = len(records) - len(unique_records)
         if removed > 0:
             logger.info(f"Removed {removed} duplicate records")
-        
+
         return unique_records
-    
+
     def validate_schema(self, csv_path: Union[str, Path]) -> bool:
         """
         Validate CSV has required columns.
-        
+
         Args:
             csv_path: Path to CSV file
-            
+
         Returns:
             True if valid schema
-            
+
         Raises:
             ValueError: If schema invalid
         """
         df = pd.read_csv(csv_path, nrows=1)
-        
+
         required_columns = [
-            'source_text', 'question_text', 
-            'chroma_source_id', 'chroma_question_id',
-            'suggestions'
+            "source_text",
+            "question_text",
+            "chroma_source_id",
+            "chroma_question_id",
+            "suggestions",
         ]
-        
+
         # Allow alternative column names
         column_aliases = {
-            'source_text': ['source_text', 'source'],
-            'question_text': ['question_text', 'question'],
-            'chroma_source_id': ['chroma_source_id', 'source_id'],
-            'chroma_question_id': ['chroma_question_id', 'question_id']
+            "source_text": ["source_text", "source"],
+            "question_text": ["question_text", "question"],
+            "chroma_source_id": ["chroma_source_id", "source_id"],
+            "chroma_question_id": ["chroma_question_id", "question_id"],
         }
-        
+
         missing = []
         for col in required_columns:
             aliases = column_aliases.get(col, [col])
             if not any(alias in df.columns for alias in aliases):
                 missing.append(col)
-        
+
         if missing:
             raise ValueError(
                 f"CSV missing required columns: {missing}. "
                 f"Available columns: {list(df.columns)}"
             )
-        
+
         logger.info(f"CSV schema validation passed for {csv_path}")
         return True
