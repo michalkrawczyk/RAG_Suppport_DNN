@@ -6,12 +6,12 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-from RAG_supporters.augmentations.embedding import (
+from augmentations.embedding import (
     random_noise_embedding,
     random_zero_embedding,
 )
-from RAG_supporters.clustering.clustering_data import ClusteringData
-from RAG_supporters.dataset.steering.steering_config import SteeringConfig, SteeringMode
+from clustering.clustering_data import ClusteringData
+from dataset.steering.steering_config import SteeringConfig, SteeringMode
 
 
 class SteeringEmbeddingGenerator:

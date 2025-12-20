@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 from scipy.spatial.distance import cdist
 
-from RAG_supporters.clustering.clustering_data import ClusteringData
+from clustering.clustering_data import ClusteringData
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,6 @@ class LabelNormalizationMethod(str, Enum):
     SOFTMAX = "softmax"
     L1 = "l1"
     L2 = "l2"
-    SOFTMAX_TEMPERATURE = "softmax_temperature"
 
 
 class LabelNormalizer(ABC):
@@ -105,11 +104,6 @@ def get_normalizer(method: LabelNormalizationMethod, **kwargs) -> LabelNormalize
     """
     if method == LabelNormalizationMethod.SOFTMAX:
         temperature = kwargs.get("temperature", 1.0)
-        return SoftmaxNormalizer(temperature=temperature)
-    elif method == LabelNormalizationMethod.SOFTMAX_TEMPERATURE:
-        temperature = kwargs.get("temperature", 1.0)
-        if temperature == 1.0:
-            logger.warning("Using SOFTMAX_TEMPERATURE with default temperature=1.0")
         return SoftmaxNormalizer(temperature=temperature)
     elif method == LabelNormalizationMethod.L1:
         return L1Normalizer()

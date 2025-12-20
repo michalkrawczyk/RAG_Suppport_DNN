@@ -7,14 +7,12 @@ from typing import Any, List, Optional, Union
 import numpy as np
 from tqdm import tqdm
 
-from RAG_supporters.clustering.clustering_data import ClusteringData
-from RAG_supporters.dataset.domain_assessment_parser import DomainAssessmentParser
-from RAG_supporters.dataset.label_calculator import LabelCalculator
-from RAG_supporters.dataset.sqlite_storage import SQLiteStorageManager
-from RAG_supporters.dataset.steering.steering_config import SteeringConfig
-from RAG_supporters.dataset.steering_embedding_generator import (
-    SteeringEmbeddingGenerator,
-)
+from clustering.clustering_data import ClusteringData
+from domain_assessment_parser import DomainAssessmentParser
+from label_calculator import LabelCalculator
+from sqlite_storage import SQLiteStorageManager
+from steering.steering_config import SteeringConfig
+from steering_embedding_generator import SteeringEmbeddingGenerator
 
 
 class DomainAssessmentDatasetBuilder:
