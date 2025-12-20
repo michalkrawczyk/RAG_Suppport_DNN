@@ -46,7 +46,7 @@ class DomainAssessmentDatasetBuilder:
             output_dir: Output directory for dataset
             embedding_model: Model for encoding text
             steering_config: Steering configuration (defaults to ZERO mode)
-            label_normalizer: Normalization method ('softmax', 'l1', 'l2')
+            label_normalizer: Normalization method ('softmax', 'l1')
             label_temp: Temperature for softmax normalization
             combined_label_weight: Weight for combined labels (0=source, 1=steering)
             augment_noise_prob: Probability of noise augmentation

@@ -24,7 +24,6 @@ class LabelNormalizationMethod(str, Enum):
 
     SOFTMAX = "softmax"
     L1 = "l1"
-    L2 = "l2"
 
 
 class LabelNormalizer(ABC):
@@ -80,17 +79,6 @@ class L1Normalizer(LabelNormalizer):
         return inverse_distances / np.sum(inverse_distances)
 
 
-class L2Normalizer(LabelNormalizer):
-    """L2 normalization: inverse distances with L2 norm."""
-
-    def normalize(self, distances: np.ndarray) -> np.ndarray:
-        """L2 normalization."""
-        eps = 1e-10
-        inverse_distances = 1.0 / (distances + eps)
-        l2_norm = np.sqrt(np.sum(inverse_distances**2))
-        return inverse_distances / (l2_norm + eps)
-
-
 def get_normalizer(method: LabelNormalizationMethod, **kwargs) -> LabelNormalizer:
     """
     Get label normalizer instance for the specified method.
@@ -107,8 +95,6 @@ def get_normalizer(method: LabelNormalizationMethod, **kwargs) -> LabelNormalize
         return SoftmaxNormalizer(temperature=temperature)
     elif method == LabelNormalizationMethod.L1:
         return L1Normalizer()
-    elif method == LabelNormalizationMethod.L2:
-        return L2Normalizer()
     else:
         raise ValueError(f"Unknown normalization method: {method}")
 

@@ -67,7 +67,7 @@ builder = DomainAssessmentDatasetBuilder(
     output_dir='datasets/my_dataset',
     embedding_model=model,
     steering_config=steering_config,
-    label_normalizer='softmax',  # Options: 'softmax', 'l1', 'l2'
+    label_normalizer='softmax',  # Options: 'softmax', 'l1'
     label_temp=1.0,  # Temperature for softmax
     combined_label_weight=0.5  # Weight for combined labels
 )
