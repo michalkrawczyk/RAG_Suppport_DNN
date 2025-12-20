@@ -177,6 +177,35 @@ class SQLiteStorageManager:
         cursor = self.conn.execute("SELECT * FROM samples ORDER BY sample_id")
         return [self._row_to_dict(row) for row in cursor.fetchall()]
 
+    def get_dataset_size(self) -> int:
+        """
+        Get total number of samples in dataset.
+
+        Returns:
+            Number of samples
+        """
+        cursor = self.conn.execute("SELECT COUNT(*) FROM samples")
+        return cursor.fetchone()[0]
+
+    def get_sample_by_index(self, idx: int) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve sample by its index (0-based position in ordered dataset).
+
+        Args:
+            idx: Sample index (0-based)
+
+        Returns:
+            Sample dictionary or None if index out of range
+        """
+        cursor = self.conn.execute(
+            "SELECT * FROM samples ORDER BY sample_id LIMIT 1 OFFSET ?", (idx,)
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+
+        return self._row_to_dict(row)
+
     def update_labels(
         self,
         sample_id: int,
