@@ -104,9 +104,6 @@ class DomainAssessmentParser:
             chunksize: If set, reads CSV in chunks to reduce memory usage
         """
         self.chunksize = chunksize
-        self._records: List[DomainAssessmentRecord] = []
-        self._source_ids: set = set()
-        self._question_ids: set = set()
 
     def parse_csv(self, csv_path: Union[str, Path]) -> List[DomainAssessmentRecord]:
         """
