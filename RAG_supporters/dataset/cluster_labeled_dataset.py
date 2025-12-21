@@ -98,10 +98,12 @@ class ClusterLabeledDataset(Dataset):
 
         # Load dataset metadata
         self.n_clusters = self.storage.get_dataset_info("n_clusters")
+        self.embedding_dim = self.storage.get_dataset_info("embedding_dim")
 
         logging.info(f"Loaded ClusterLabeledDataset from {dataset_dir}")
         logging.info(f"  Samples: {self._dataset_size}")
         logging.info(f"  Clusters: {self.n_clusters}")
+        logging.info(f"  Embedding dimension: {self.embedding_dim}")
         logging.info(f"  Label type: {label_type}")
         logging.info(f"  Cache size: {cache_size}")
         logging.info(f"  Base embeddings shape: {self.base_embeddings.shape}")
@@ -285,6 +287,10 @@ class ClusterLabeledDataset(Dataset):
 
         Returns:
             Memory-mapped numpy array
+
+        Raises:
+            ValueError: If embedding dimension doesn't match expected dimension
+            FileNotFoundError: If embedding file doesn't exist
         """
         info = self.storage.get_embedding_file_info(embedding_type)
         if info is None:
@@ -298,6 +304,30 @@ class ClusterLabeledDataset(Dataset):
 
         # Load with memory mapping
         embeddings = np.load(str(file_path), mmap_mode=self.mmap_mode)
+
+        # Validate embedding dimensions against expected dimension from metadata
+        expected_dim = self.storage.get_dataset_info("embedding_dim")
+        if expected_dim is not None:
+            actual_dim = embeddings.shape[1] if len(embeddings.shape) > 1 else None
+            if actual_dim is None:
+                raise ValueError(
+                    f"{embedding_type} embeddings have invalid shape: {embeddings.shape}. "
+                    f"Expected shape (n_samples, {expected_dim})"
+                )
+            if actual_dim != expected_dim:
+                raise ValueError(
+                    f"{embedding_type} embeddings dimension mismatch: "
+                    f"expected {expected_dim}, got {actual_dim}. "
+                    f"The embedding file may be corrupted or from a different model."
+                )
+            logging.debug(
+                f"Validated {embedding_type} embeddings dimension: {actual_dim}"
+            )
+        else:
+            logging.warning(
+                f"No embedding_dim found in dataset metadata. "
+                f"Skipping dimension validation for {embedding_type} embeddings."
+            )
 
         logging.info(
             f"Loaded {embedding_type} embeddings: {file_path} (shape={embeddings.shape})"

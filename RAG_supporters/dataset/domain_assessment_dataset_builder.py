@@ -179,13 +179,17 @@ class DomainAssessmentDatasetBuilder:
             steering_embeddings.append(steering_emb)
 
         # Save embeddings as memmap files
-        self._save_embeddings("base", np.array(base_embeddings, dtype=np.float32))
-        self._save_embeddings(
-            "steering", np.array(steering_embeddings, dtype=np.float32)
-        )
+        base_embeddings_array = np.array(base_embeddings, dtype=np.float32)
+        steering_embeddings_array = np.array(steering_embeddings, dtype=np.float32)
+        
+        self._save_embeddings("base", base_embeddings_array)
+        self._save_embeddings("steering", steering_embeddings_array)
 
         # Store dataset metadata
         self.storage.set_dataset_info("n_clusters", self.clustering_data.n_clusters)
+        self.storage.set_dataset_info(
+            "embedding_dim", int(base_embeddings_array.shape[1])
+        )
         self.storage.set_dataset_info(
             "clustering_json_path", str(self.clustering_json_path)
         )
