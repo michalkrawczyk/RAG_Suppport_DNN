@@ -18,12 +18,7 @@ Domain Assessment Dataset (Recommended):
 # ClusteringData from clustering module
 from ..clustering import ClusteringData
 
-# Legacy imports for backward compatibility
-from .torch_dataset import (
-    BaseDomainAssignDataset,
-    CachedDomainAssignDataset,
-    build_and_load_dataset,
-)
+# (Removed legacy backward-compatibility imports)
 
 # Steering configuration components
 from .steering import (
@@ -40,14 +35,11 @@ from .steering_embedding_generator import SteeringEmbeddingGenerator
 from .sqlite_storage import SQLiteStorageManager
 
 __all__ = [
-    # Legacy interface (backward compatibility)
-    "BaseDomainAssignDataset",
-    "CachedDomainAssignDataset",
-    "build_and_load_dataset",
     # Steering configuration
     "SteeringMode",
     "SteeringConfig",
     "ClusteringData",
+    # Steering configuration
     # Domain assessment approach (RECOMMENDED)
     "ClusterLabeledDataset",
     "DomainAssessmentDatasetBuilder",
