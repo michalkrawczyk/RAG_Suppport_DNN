@@ -145,7 +145,7 @@ class DomainAssessmentDatasetBuilder:
             # Calculate labels
             source_label = self._calculate_source_label(sample, base_emb)
             steering_label = self.label_calculator.calculate_steering_labels(
-                steering_emb, self.clustering_data
+                steering_emb
             )
             combined_label = self.label_calculator.calculate_combined_labels(
                 source_label, steering_label, self.combined_label_weight
