@@ -340,8 +340,8 @@ class ClusterLabeledDataset(Dataset):
         """Destructor - safety fallback for cleanup."""
         try:
             self.close()
-        except:
-            pass  # Silently fail in destructor
+        except Exception as exc:
+            logging.debug("Exception during ClusterLabeledDataset.__del__: %s", exc)
 
     @staticmethod
     def create_from_csvs(
