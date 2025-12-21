@@ -499,5 +499,5 @@ for base_emb, steering_emb, combined_label, metadata in dataloader:
 6. Retrain with corrected labels
 
 **Next Steps**:
-- See the dataset package tests (if present) for unit tests, e.g. inspect the `RAG_supporters/dataset` tests.
+- See the dataset package tests for unit tests, e.g. inspect the `RAG_supporters/dataset` tests.
 - See the `RAG_supporters/dataset` package for implementation and architecture details.
