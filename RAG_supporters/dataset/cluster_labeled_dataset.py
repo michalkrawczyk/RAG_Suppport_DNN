@@ -223,7 +223,14 @@ class ClusterLabeledDataset(Dataset):
             combined_label: New combined label
         """
         with self._cache_lock:
-            # Invalidate cache FIRST (before DB update) to prevent race condition
+            # Update DB FIRST to ensure data consistency
+            # This prevents race condition where another thread reads stale data
+            # between cache invalidation and DB update
+            self.storage.update_labels(
+                sample_id, source_label, steering_label, combined_label
+            )
+            
+            # Now invalidate cache (DB is already updated)
             if sample_id in self._sample_id_to_idx:
                 # We have the mapping - efficient invalidation
                 idx = self._sample_id_to_idx[sample_id]
@@ -247,11 +254,6 @@ class ClusterLabeledDataset(Dataset):
                         f"Invalidated cache for sample {sample_id} "
                         f"(index {idx_to_remove}, found by search)"
                     )
-            
-            # Now update DB (cache already invalidated)
-            self.storage.update_labels(
-                sample_id, source_label, steering_label, combined_label
-            )
             
         logging.info(f"Updated labels for sample {sample_id}")
 

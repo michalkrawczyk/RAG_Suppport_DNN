@@ -39,7 +39,6 @@ __all__ = [
     "SteeringMode",
     "SteeringConfig",
     "ClusteringData",
-    # Steering configuration
     # Domain assessment approach (RECOMMENDED)
     "ClusterLabeledDataset",
     "DomainAssessmentDatasetBuilder",
