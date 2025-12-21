@@ -35,6 +35,7 @@ class DomainAssessmentDatasetBuilder:
         combined_label_weight: float = 0.5,
         augment_noise_prob: float = 0.0,
         augment_zero_prob: float = 0.0,
+        augment_noise_level: float = 0.01,
         chunk_size: Optional[int] = None,
     ):
         """
@@ -51,6 +52,7 @@ class DomainAssessmentDatasetBuilder:
             combined_label_weight: Weight for combined labels (0=source, 1=steering)
             augment_noise_prob: Probability of noise augmentation
             augment_zero_prob: Probability of zero steering augmentation
+            augment_noise_level: Std deviation for noise augmentation
             chunk_size: Chunk size for CSV reading (None = read all)
         """
         self.csv_paths = csv_paths if isinstance(csv_paths, list) else [csv_paths]
@@ -87,6 +89,7 @@ class DomainAssessmentDatasetBuilder:
             embedding_model=embedding_model,
             augment_noise_prob=augment_noise_prob,
             augment_zero_prob=augment_zero_prob,
+            augment_noise_level=augment_noise_level,
         )
 
         self.combined_label_weight = combined_label_weight
