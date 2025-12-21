@@ -108,7 +108,14 @@ class DomainAssessmentDatasetBuilder:
 
         # Parse CSV files
         parser = DomainAssessmentParser(chunksize=self.chunk_size)
-        data = parser.parse(self.csv_paths)
+        if isinstance(self.csv_paths, (str, Path)):
+            data = parser.parse_csv(self.csv_paths)
+        else:
+            data = (
+                parser.parse_csv(self.csv_paths[0])
+                if len(self.csv_paths) == 1
+                else parser.parse_multiple_csvs(self.csv_paths)
+            )
 
         logging.info(f"Parsed {len(data)} samples from CSV")
 
