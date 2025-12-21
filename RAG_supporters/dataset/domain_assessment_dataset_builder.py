@@ -179,7 +179,7 @@ class DomainAssessmentDatasetBuilder:
             "clustering_json_path", str(self.clustering_json_path)
         )
         self.storage.set_dataset_info(
-            "label_normalizer", self.label_calculator.normalizer
+            "label_normalizer", type(self.label_calculator.normalizer).__name__
         )
         self.storage.set_dataset_info(
             "combined_label_weight", self.combined_label_weight
