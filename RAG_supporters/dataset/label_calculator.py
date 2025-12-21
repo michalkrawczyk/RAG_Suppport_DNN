@@ -64,8 +64,17 @@ class SoftmaxNormalizer(LabelNormalizer):
         logits_max = np.max(logits)
         exp_logits = np.exp(logits - logits_max)
 
+        # Handle underflow: if all exp_logits are 0, return uniform distribution
+        exp_sum = np.sum(exp_logits)
+        if exp_sum == 0 or np.isnan(exp_sum) or np.isinf(exp_sum):
+            logger.warning(
+                "Underflow in softmax normalization (all exp_logits are 0). "
+                "Returning uniform distribution."
+            )
+            return np.ones_like(distances) / len(distances)
+
         # Normalize
-        return exp_logits / np.sum(exp_logits)
+        return exp_logits / exp_sum
 
 
 class L1Normalizer(LabelNormalizer):
