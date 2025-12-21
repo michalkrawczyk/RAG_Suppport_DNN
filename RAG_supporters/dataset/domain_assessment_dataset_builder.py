@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from clustering.clustering_data import ClusteringData
 from domain_assessment_parser import DomainAssessmentParser
-from label_calculator import LabelCalculator
+from label_calculator import LabelCalculator, LabelNormalizationMethod
 from sqlite_storage import SQLiteStorageManager
 from steering.steering_config import SteeringConfig
 from steering_embedding_generator import SteeringEmbeddingGenerator
@@ -76,7 +76,7 @@ class DomainAssessmentDatasetBuilder:
         # Initialize label calculator
         self.label_calculator = LabelCalculator(
             clustering_data=self.clustering_data,
-            normalizer=label_normalizer,
+            normalization_method=LabelNormalizationMethod(label_normalizer),
             temperature=label_temp,
         )
 
