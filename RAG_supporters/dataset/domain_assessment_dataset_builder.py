@@ -209,8 +209,8 @@ class DomainAssessmentDatasetBuilder:
             )
 
         # Last resort: use embedding distance
-        return self.label_calculator.calculate_question_labels(
-            base_embedding, None, self.clustering_data
+        return self.label_calculator.calculate_question_labels_from_embedding(
+            base_embedding
         )
 
     def _get_primary_cluster(self, sample: dict) -> Optional[int]:
