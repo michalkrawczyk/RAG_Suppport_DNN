@@ -30,13 +30,13 @@ class DomainAssessmentRecord(TypedDict):
 def create_domain_assessment_record(row: pd.Series) -> DomainAssessmentRecord:
     """
     Create DomainAssessmentRecord from a pandas Series (CSV row).
-    
+
     Args:
         row: Pandas Series from CSV
-        
+
     Returns:
         DomainAssessmentRecord dictionary
-        
+
     Raises:
         ValueError: If required fields missing or invalid format
     """
@@ -49,14 +49,16 @@ def create_domain_assessment_record(row: pd.Series) -> DomainAssessmentRecord:
     # Validate required fields
     if not source_text or not question_text:
         raise ValueError("Missing source_text or question_text")
-    
+
     if not chroma_source_id or not chroma_question_id:
         raise ValueError("Missing chroma_source_id or chroma_question_id")
 
     # Parse suggestions (JSON formatted)
     suggestions_str = row.get("suggestions", "[]")
     try:
-        suggestions = json.loads(suggestions_str) if isinstance(suggestions_str, str) else []
+        suggestions = (
+            json.loads(suggestions_str) if isinstance(suggestions_str, str) else []
+        )
     except json.JSONDecodeError as e:
         logger.warning(f"Failed to parse suggestions: {e}")
         suggestions = []

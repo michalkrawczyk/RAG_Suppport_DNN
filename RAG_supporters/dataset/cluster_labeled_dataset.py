@@ -76,22 +76,22 @@ class ClusterLabeledDataset(Dataset):
 
         # Cache for dataset size (avoids repeated DB queries)
         self._dataset_size = self.storage.get_dataset_size()
-        
+
         # Validate dataset size matches embedding size
         if self._dataset_size > len(self.base_embeddings):
             raise ValueError(
                 f"Dataset size ({self._dataset_size}) exceeds embedding array size "
                 f"({len(self.base_embeddings)})"
             )
-        
+
         # LRU cache for frequently accessed samples (thread-safe)
         self._sample_cache: OrderedDict[int, Dict[str, Any]] = OrderedDict()
         self._cache_lock = threading.Lock()  # Thread-safe for multi-worker DataLoader
-        
+
         # Mapping from sample_id to index for efficient cache invalidation
         # Built incrementally as samples are accessed
         self._sample_id_to_idx: Dict[int, int] = {}
-        
+
         # Cache statistics for monitoring
         self._cache_hits = 0
         self._cache_misses = 0
@@ -132,7 +132,7 @@ class ClusterLabeledDataset(Dataset):
         # Validate index bounds
         if not 0 <= idx < self._dataset_size:
             raise IndexError(f"Index {idx} out of range [0, {self._dataset_size})")
-        
+
         # Thread-safe cache access
         with self._cache_lock:
             if idx in self._sample_cache:
@@ -146,21 +146,21 @@ class ClusterLabeledDataset(Dataset):
                 sample = self.storage.get_sample_by_index(idx)
                 if sample is None:
                     raise IndexError(f"Sample index {idx} not found in storage")
-                
+
                 # Build sample_id to index mapping incrementally
                 self._sample_id_to_idx[sample["sample_id"]] = idx
-                
+
                 # Add to cache with LRU eviction
                 if len(self._sample_cache) >= self._cache_size:
                     # Remove least recently used (first item)
                     removed_idx, removed_sample = self._sample_cache.popitem(last=False)
                     # Also remove from id mapping
                     self._sample_id_to_idx.pop(removed_sample["sample_id"], None)
-                
+
                 self._sample_cache[idx] = sample
-        
+
         embedding_idx = sample["embedding_idx"]
-        
+
         # Validate embedding index bounds
         if not 0 <= embedding_idx < len(self.base_embeddings):
             raise IndexError(
@@ -231,7 +231,7 @@ class ClusterLabeledDataset(Dataset):
             self.storage.update_labels(
                 sample_id, source_label, steering_label, combined_label
             )
-            
+
             # Now invalidate cache (DB is already updated)
             if sample_id in self._sample_id_to_idx:
                 # We have the mapping - efficient invalidation
@@ -239,9 +239,7 @@ class ClusterLabeledDataset(Dataset):
                 if idx in self._sample_cache:
                     del self._sample_cache[idx]
                 del self._sample_id_to_idx[sample_id]
-                logging.debug(
-                    f"Invalidated cache for sample {sample_id} (index {idx})"
-                )
+                logging.debug(f"Invalidated cache for sample {sample_id} (index {idx})")
             else:
                 # Sample not in mapping - search cache to be safe
                 idx_to_remove = None
@@ -249,14 +247,14 @@ class ClusterLabeledDataset(Dataset):
                     if cached_sample["sample_id"] == sample_id:
                         idx_to_remove = idx
                         break
-                
+
                 if idx_to_remove is not None:
                     del self._sample_cache[idx_to_remove]
                     logging.debug(
                         f"Invalidated cache for sample {sample_id} "
                         f"(index {idx_to_remove}, found by search)"
                     )
-            
+
         logging.info(f"Updated labels for sample {sample_id}")
 
     def get_cache_stats(self) -> Dict[str, Union[int, float]]:
@@ -268,7 +266,7 @@ class ClusterLabeledDataset(Dataset):
         """
         total_accesses = self._cache_hits + self._cache_misses
         hit_rate = self._cache_hits / total_accesses if total_accesses > 0 else 0.0
-        
+
         return {
             "cache_hits": self._cache_hits,
             "cache_misses": self._cache_misses,
@@ -338,26 +336,26 @@ class ClusterLabeledDataset(Dataset):
     def close(self):
         """Close storage connections and cleanup resources."""
         # Close database connection
-        if hasattr(self, 'storage'):
+        if hasattr(self, "storage"):
             self.storage.close()
-        
+
         # Clear caches
-        if hasattr(self, '_cache_lock'):
+        if hasattr(self, "_cache_lock"):
             with self._cache_lock:
-                if hasattr(self, '_sample_cache'):
+                if hasattr(self, "_sample_cache"):
                     self._sample_cache.clear()
-                if hasattr(self, '_sample_id_to_idx'):
+                if hasattr(self, "_sample_id_to_idx"):
                     self._sample_id_to_idx.clear()
-        
+
         # Log final cache statistics
-        if hasattr(self, '_cache_hits'):
+        if hasattr(self, "_cache_hits"):
             stats = self.get_cache_stats()
             logging.info(f"Dataset closed. Final cache stats: {stats}")
-        
+
         # Explicitly delete memmap references to help garbage collection
-        if hasattr(self, 'base_embeddings'):
+        if hasattr(self, "base_embeddings"):
             del self.base_embeddings
-        if hasattr(self, 'steering_embeddings'):
+        if hasattr(self, "steering_embeddings"):
             del self.steering_embeddings
 
     def __enter__(self):
@@ -407,7 +405,7 @@ class ClusterLabeledDataset(Dataset):
             embedding_model=embedding_model,
             **builder_kwargs,
         )
-        
+
         try:
             builder.build()
         finally:
