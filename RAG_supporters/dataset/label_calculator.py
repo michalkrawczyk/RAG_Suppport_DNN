@@ -9,7 +9,7 @@ Calculates 3 types of labels:
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy.spatial.distance import cdist
