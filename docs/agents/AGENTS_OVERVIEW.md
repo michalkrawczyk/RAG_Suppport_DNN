@@ -127,7 +127,7 @@ result = agent.compare_text_sources(
 ---
 
 ### 4. DomainAnalysisAgent
-**File:** `RAG_supporters/agents/domain_assesment.py`  
+**File:** `RAG_supporters/agents/domain_assessment.py`  
 **Documentation:** [DOMAIN_ANALYSIS_AGENT.md](DOMAIN_ANALYSIS_AGENT.md)
 
 **Purpose:** Unified agent for domain extraction, guessing, and assessment.
