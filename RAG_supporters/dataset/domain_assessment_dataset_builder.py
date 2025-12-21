@@ -67,7 +67,7 @@ class DomainAssessmentDatasetBuilder:
         )
 
         # Initialize steering config
-        from RAG_supporters.dataset.steering.steering_config import SteeringMode
+        from dataset.steering.steering_config import SteeringMode
 
         self.steering_config = steering_config or SteeringConfig(
             mode=[(SteeringMode.ZERO, 1.0)]
