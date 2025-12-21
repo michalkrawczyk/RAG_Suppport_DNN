@@ -502,7 +502,7 @@ for base_emb, steering_emb, combined_label, metadata in dataloader:
 3. **Memory-Mapped Embeddings**: Efficient for large datasets
 4. **Augmentation Support**: Built-in noise and zero augmentations
 5. **Multiple Steering Modes**: SUGGESTION, CLUSTER_DESCRIPTOR, LLM, ZERO, MIXED
-6. **CSV Integration**: Direct support for `domain_assesment.py` outputs
+6. **CSV Integration**: Direct support for `domain_assessment.py` outputs
 7. **Clustering Integration**: Uses `keyword_clustering.py` centroids and descriptors
 
 **Recommended Workflow**:
