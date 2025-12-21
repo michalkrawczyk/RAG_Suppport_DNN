@@ -11,7 +11,7 @@ from clustering.clustering_data import ClusteringData
 from domain_assessment_parser import DomainAssessmentParser
 from label_calculator import LabelCalculator, LabelNormalizationMethod
 from sqlite_storage import SQLiteStorageManager
-from steering.steering_config import SteeringConfig
+from steering.steering_config import SteeringConfig, SteeringMode
 from steering_embedding_generator import SteeringEmbeddingGenerator
 
 
@@ -62,15 +62,16 @@ class DomainAssessmentDatasetBuilder:
         self.embedding_model = embedding_model
         self.chunk_size = chunk_size
 
-        # Load clustering data
+        # Load clustering data (including suggestion embeddings)
         self.clustering_data = ClusteringData.from_json(
             self.clustering_json_path,
-            exclude_keys={"embeddings"},  # Don't load large embedding arrays
+            exclude_keys=set(),  # Load all data including embeddings
         )
+        
+        # Load suggestion embeddings from clustering JSON
+        self.suggestion_embeddings = self._load_suggestion_embeddings()
 
         # Initialize steering config
-        from dataset.steering.steering_config import SteeringMode
-
         self.steering_config = steering_config or SteeringConfig(
             mode=[(SteeringMode.ZERO, 1.0)]
         )
@@ -229,6 +230,37 @@ class DomainAssessmentDatasetBuilder:
             probs = sample["cluster_probabilities"]
             return int(np.argmax(probs))
         return None
+
+    def _load_suggestion_embeddings(self) -> dict:
+        """
+        Load suggestion/keyword embeddings from clustering JSON.
+        
+        Returns:
+            Dictionary mapping suggestion terms to embeddings
+        """
+        import json
+        
+        with open(self.clustering_json_path, 'r') as f:
+            clustering_json = json.load(f)
+        
+        # Get embeddings from JSON (saved by keyword_clustering with include_embeddings=True)
+        embeddings_dict = clustering_json.get('embeddings', {})
+        
+        if not embeddings_dict:
+            logging.warning(
+                f"No embeddings found in {self.clustering_json_path}. "
+                "Suggestion-based label calculation will fall back to uniform distribution."
+            )
+            return {}
+        
+        # Convert lists back to numpy arrays
+        suggestion_embeddings = {
+            term: np.array(emb, dtype=np.float32)
+            for term, emb in embeddings_dict.items()
+        }
+        
+        logging.info(f"Loaded {len(suggestion_embeddings)} suggestion embeddings")
+        return suggestion_embeddings
 
     def _save_embeddings(self, embedding_type: str, embeddings: np.ndarray):
         """Save embeddings as memory-mapped numpy array."""
