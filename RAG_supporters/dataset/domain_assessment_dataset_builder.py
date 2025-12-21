@@ -151,6 +151,13 @@ class DomainAssessmentDatasetBuilder:
                 source_label, steering_label, self.combined_label_weight
             )
 
+            # Get correct chroma_id based on sample type
+            chroma_id = (
+                sample.get("chroma_source_id")
+                if sample_type == "source"
+                else sample.get("chroma_question_id")
+            )
+
             # Store in database
             self.storage.insert_sample(
                 sample_type=sample_type,
@@ -159,7 +166,7 @@ class DomainAssessmentDatasetBuilder:
                 steering_label=steering_label,
                 combined_label=combined_label,
                 embedding_idx=idx,
-                chroma_id=sample.get("chroma_id"),
+                chroma_id=chroma_id,
                 suggestions=sample.get("suggestions"),
                 steering_mode=steering_mode.value,
             )
@@ -204,13 +211,13 @@ class DomainAssessmentDatasetBuilder:
 
         # Fallback: use suggestions
         if "suggestions" in sample and sample["suggestions"]:
-            return self.label_calculator.calculate_source_labels(
-                sample["suggestions"], self.clustering_data, self.embedding_model
+            return self.label_calculator.calculate_source_labels_from_suggestions(
+                sample["suggestions"], self.suggestion_embeddings
             )
 
         # Last resort: use embedding distance
-        return self.label_calculator.calculate_question_labels(
-            base_embedding, None, self.clustering_data
+        return self.label_calculator.calculate_question_labels_from_embedding(
+            base_embedding
         )
 
     def _get_primary_cluster(self, sample: dict) -> Optional[int]:
