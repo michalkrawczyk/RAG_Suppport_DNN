@@ -267,21 +267,6 @@ builder = DomainAssessmentDatasetBuilder(
 )
 ```
 
-### MIXED Mode
-
-```python
-config = SteeringConfig(
-    mode=[(SteeringMode.MIXED, 1.0)],
-    mixed_weights={
-        'suggestion': 0.5,
-        'cluster_descriptor': 0.3,
-        'llm_generated': 0.2
-    }
-)
-```
-
-Weighted combination of multiple modes.
-
 ### Probabilistic Mode Selection
 
 ```python
@@ -501,7 +486,7 @@ for base_emb, steering_emb, combined_label, metadata in dataloader:
 2. **SQLite Storage**: Human-editable, supports corrections
 3. **Memory-Mapped Embeddings**: Efficient for large datasets
 4. **Augmentation Support**: Built-in noise and zero augmentations
-5. **Multiple Steering Modes**: SUGGESTION, CLUSTER_DESCRIPTOR, LLM, ZERO, MIXED
+5. **Multiple Steering Modes**: SUGGESTION, CLUSTER_DESCRIPTOR, LLM, ZERO
 6. **CSV Integration**: Direct support for `domain_assessment.py` outputs
 7. **Clustering Integration**: Uses `keyword_clustering.py` centroids and descriptors
 

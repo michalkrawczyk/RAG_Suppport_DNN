@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from RAG_supporters.dataset.sqlite_storage import SQLiteStorageManager
+from dataset.sqlite_storage import SQLiteStorageManager
 
 
 class ClusterLabeledDataset(Dataset):

@@ -13,7 +13,6 @@ class SteeringMode(Enum):
     LLM_GENERATED = "llm_generated"  # LLM-generated steering text
     CLUSTER_DESCRIPTOR = "cluster_descriptor"  # Cluster/topic descriptor embeddings
     ZERO = "zero"  # Zero baseline (no steering)
-    MIXED = "mixed"  # Weighted combination of multiple modes
 
 
 @dataclass
@@ -24,13 +23,11 @@ class SteeringConfig:
     Attributes:
         mode: List of (mode, probability) tuples for steering mode selection
         multi_label_mode: "hard" for one-hot, "soft" for probabilities
-        mixed_weights: Weights for MIXED mode
         random_seed: Seed for reproducible mode selection
     """
     
     mode: List[Tuple[SteeringMode, float]] = field(default_factory=list)
     multi_label_mode: str = "hard"
-    mixed_weights: Dict[str, float] = field(default_factory=dict)
     random_seed: int = 42
     
     def __post_init__(self):
@@ -91,7 +88,6 @@ class SteeringConfig:
         cls,
         mode: SteeringMode,
         multi_label_mode: str = "hard",
-        mixed_weights: Optional[Dict[str, float]] = None,
         random_seed: int = 42
     ) -> "SteeringConfig":
         """
@@ -100,7 +96,6 @@ class SteeringConfig:
         Args:
             mode: Steering mode
             multi_label_mode: Target label mode
-            mixed_weights: Weights for MIXED mode
             random_seed: Random seed
             
         Returns:
@@ -117,7 +112,6 @@ class SteeringConfig:
         return cls(
             mode=[(mode, 1.0)],
             multi_label_mode=multi_label_mode,
-            mixed_weights=mixed_weights or {},
             random_seed=random_seed
         )
     
@@ -126,7 +120,6 @@ class SteeringConfig:
         cls,
         modes: List[Tuple[SteeringMode, float]],
         multi_label_mode: str = "hard",
-        mixed_weights: Optional[Dict[str, float]] = None,
         random_seed: int = 42
     ) -> "SteeringConfig":
         """
@@ -135,7 +128,6 @@ class SteeringConfig:
         Args:
             modes: List of (mode, probability) tuples
             multi_label_mode: Target label mode
-            mixed_weights: Weights for MIXED mode
             random_seed: Random seed
             
         Returns:
@@ -144,7 +136,6 @@ class SteeringConfig:
         return cls(
             mode=modes,
             multi_label_mode=multi_label_mode,
-            mixed_weights=mixed_weights or {},
             random_seed=random_seed
         )
     

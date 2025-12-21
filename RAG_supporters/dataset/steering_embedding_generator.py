@@ -23,7 +23,6 @@ class SteeringEmbeddingGenerator:
     - CLUSTER_DESCRIPTOR: Uses cluster descriptor embeddings
     - LLM_GENERATED: Uses LLM-generated steering text embeddings
     - ZERO: Returns zero vector (no steering)
-    - MIXED: Weighted combination of modes
 
     Integrates augmentations from embedding.py for noise injection.
     """
@@ -91,10 +90,6 @@ class SteeringEmbeddingGenerator:
             embedding = self._generate_descriptor_embedding(cluster_id)
         elif mode == SteeringMode.LLM_GENERATED:
             embedding = self._generate_llm_embedding(sample_id)
-        elif mode == SteeringMode.MIXED:
-            embedding = self._generate_mixed_embedding(
-                sample_id, suggestions, cluster_id
-            )
         else:
             raise ValueError(f"Unsupported steering mode: {mode}")
 
@@ -200,58 +195,6 @@ class SteeringEmbeddingGenerator:
         except Exception as e:
             logging.error(f"Failed to encode LLM text for sample {sample_id}: {e}")
             return self._generate_zero_embedding()
-
-    def _generate_mixed_embedding(
-        self,
-        sample_id: int,
-        suggestions: Optional[List[str]],
-        cluster_id: Optional[int],
-    ) -> np.ndarray:
-        """
-        Generate weighted combination of multiple steering modes.
-
-        Args:
-            sample_id: Sample identifier
-            suggestions: List of suggestion strings
-            cluster_id: Primary cluster ID
-
-        Returns:
-            Mixed steering embedding
-        """
-        weights = self.config.mixed_weights
-        if not weights:
-            logging.warning("No mixed weights configured, using equal weights")
-            weights = {"suggestion": 0.5, "cluster_descriptor": 0.5}
-
-        embeddings = []
-        weight_values = []
-
-        for mode_name, weight in weights.items():
-            if weight == 0:
-                continue
-
-            if mode_name == "suggestion":
-                emb = self._generate_suggestion_embedding(suggestions)
-            elif mode_name == "cluster_descriptor":
-                emb = self._generate_descriptor_embedding(cluster_id)
-            elif mode_name == "llm_generated":
-                emb = self._generate_llm_embedding(sample_id)
-            else:
-                logging.warning(f"Unknown mode in mixed_weights: {mode_name}")
-                continue
-
-            embeddings.append(emb)
-            weight_values.append(weight)
-
-        if not embeddings:
-            return self._generate_zero_embedding()
-
-        # Weighted average
-        embeddings = np.array(embeddings)
-        weights_normalized = np.array(weight_values) / np.sum(weight_values)
-        return np.average(embeddings, axis=0, weights=weights_normalized).astype(
-            np.float32
-        )
 
     def _apply_augmentations(self, embedding: np.ndarray) -> np.ndarray:
         """
