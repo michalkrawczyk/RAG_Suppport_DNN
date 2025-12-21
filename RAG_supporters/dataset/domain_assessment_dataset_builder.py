@@ -107,7 +107,7 @@ class DomainAssessmentDatasetBuilder:
         logging.info("Starting dataset build...")
 
         # Parse CSV files
-        parser = DomainAssessmentParser(chunk_size=self.chunk_size)
+        parser = DomainAssessmentParser(chunksize=self.chunk_size)
         data = parser.parse(self.csv_paths)
 
         logging.info(f"Parsed {len(data)} samples from CSV")
