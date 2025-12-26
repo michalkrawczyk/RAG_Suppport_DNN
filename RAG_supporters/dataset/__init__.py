@@ -13,6 +13,8 @@ Domain Assessment Dataset (Recommended):
 - SQLiteStorageManager: SQLite + numpy memmap storage
 - SteeringMode: Enum for steering embedding modes
 - SteeringConfig: Configuration for steering generation
+- DatasetSplitter: Split datasets with persistent sample tracking
+- create_train_val_split: Convenience function for creating splits
 """
 
 # ClusteringData from clustering module
@@ -34,6 +36,9 @@ from .label_calculator import LabelCalculator
 from .steering_embedding_generator import SteeringEmbeddingGenerator
 from .sqlite_storage import SQLiteStorageManager
 
+# Dataset splitting utilities
+from .dataset_splitter import DatasetSplitter, create_train_val_split
+
 __all__ = [
     # Steering configuration
     "SteeringMode",
@@ -46,4 +51,7 @@ __all__ = [
     "LabelCalculator",
     "SteeringEmbeddingGenerator",
     "SQLiteStorageManager",
+    # Dataset splitting
+    "DatasetSplitter",
+    "create_train_val_split",
 ]
