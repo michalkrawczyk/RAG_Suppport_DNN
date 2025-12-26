@@ -78,6 +78,7 @@ Each agent documentation includes:
 
 ## Other Documentation
 
+- **[DATASET_SPLITTING.md](./DATASET_SPLITTING.md)** - Guide for splitting datasets with persistent sample tracking
 - **[SAMPLE_GENERATION_GUIDE.md](../RAG_supporters/dataset/SAMPLE_GENERATION_GUIDE.md)** - Guide for generating RAG dataset samples
 - **[QUICK_REFERENCE.md](../RAG_supporters/dataset/QUICK_REFERENCE.md)** - Quick reference for dataset utilities
 
