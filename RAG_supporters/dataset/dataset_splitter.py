@@ -244,15 +244,21 @@ class DatasetSplitter:
         if self.train_indices is None or self.val_indices is None:
             raise ValueError("No split to validate. Load or create a split first.")
         
-        # Check that all indices are within bounds
-        all_indices = set(self.train_indices + self.val_indices)
-        max_idx = max(all_indices)
+        # Check for empty indices
+        if not self.train_indices and not self.val_indices:
+            raise ValueError("Split contains no indices")
         
-        if max_idx >= dataset_size:
-            raise ValueError(
-                f"Split contains indices up to {max_idx}, "
-                f"but dataset size is only {dataset_size}"
-            )
+        # Check that all indices are within bounds - more efficient for large datasets
+        all_indices = set(self.train_indices) | set(self.val_indices)
+        
+        if all_indices:  # Only call max() if set is not empty
+            max_idx = max(all_indices)
+            
+            if max_idx >= dataset_size:
+                raise ValueError(
+                    f"Split contains indices up to {max_idx}, "
+                    f"but dataset size is only {dataset_size}"
+                )
         
         # Check for duplicates
         if len(all_indices) != len(self.train_indices) + len(self.val_indices):
