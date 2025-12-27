@@ -16,7 +16,7 @@ Domain Assessment Dataset (Recommended):
 """
 
 # ClusteringData from clustering module
-from ..clustering import ClusteringData
+from clustering import ClusteringData
 
 # (Removed legacy backward-compatibility imports)
 
