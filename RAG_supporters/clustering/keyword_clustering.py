@@ -106,6 +106,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
+from .utils.text_utils import parse_json_or_literal
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -956,8 +958,10 @@ class KeywordClusterer:
         Dict[str, Any]
             Clustering results
         """
-        with open(input_path, "r", encoding="utf-8") as f:
+        try:
+            with open(input_path, "r", encoding="utf-8") as f:
             data = json.load(f)
+        except Exception as e
 
         return data
 
