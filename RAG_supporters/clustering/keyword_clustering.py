@@ -958,10 +958,8 @@ class KeywordClusterer:
         Dict[str, Any]
             Clustering results
         """
-        try:
-            with open(input_path, "r", encoding="utf-8") as f:
+        with open(input_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        except Exception as e
 
         return data
 
