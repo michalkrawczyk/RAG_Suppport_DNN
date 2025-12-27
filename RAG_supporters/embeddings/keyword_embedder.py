@@ -18,6 +18,8 @@ from typing import Any, Dict, List, Optional, Tuple, Literal
 import numpy as np
 from tqdm import tqdm
 
+from utils.text_utils import normalize_string
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -309,12 +311,13 @@ class KeywordEmbedder:
         if not str_list:
             raise ValueError("String list cannot be empty")
 
-        # Remove duplicates while preserving order
-        unique_strs = list(dict.fromkeys(str_list))
+        # Normalize strings and remove duplicates while preserving order
+        normalized_strs = [normalize_string(s) for s in str_list]
+        unique_strs = list(dict.fromkeys(normalized_strs))
 
-        if len(unique_strs) < len(str_list):
+        if len(unique_strs) < len(normalized_strs):
             LOGGER.warning(
-                f"Removed {len(str_list) - len(unique_strs)} duplicate strings"
+                f"Removed {len(normalized_strs) - len(unique_strs)} duplicate strings after normalization"
             )
 
         LOGGER.info(

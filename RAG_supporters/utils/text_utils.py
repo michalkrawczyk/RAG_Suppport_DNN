@@ -1,6 +1,7 @@
 import ast
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional, Union
 
 LOGGER = logging.getLogger(__name__)
@@ -13,6 +14,35 @@ def is_empty_text(text: str) -> bool:
     if text.lower() == "nan":
         return True
     return False
+
+
+def normalize_string(text: str) -> str:
+    """
+    Normalize a string by converting to lowercase, stripping whitespace,
+    and removing multiple spaces.
+
+    Parameters
+    ----------
+    text : str
+        String to normalize
+
+    Returns
+    -------
+    str
+        Normalized string
+
+    Examples
+    --------
+    >>> normalize_string("  Machine Learning  ")
+    'machine learning'
+    >>> normalize_string("DATA   SCIENCE")
+    'data science'
+    """
+    # Lowercase, strip, and remove multiple spaces
+    normalized = text.lower().strip()
+    normalized = re.sub(r'\s+', ' ', normalized)
+    return normalized
+
 
 def parse_json_or_literal(
     data_str: str,
