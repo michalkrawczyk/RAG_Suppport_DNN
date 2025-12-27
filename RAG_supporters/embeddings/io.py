@@ -11,9 +11,11 @@ Supports chunked processing for large files and includes progress tracking.
 Part of the RAG_supporters.embeddings package.
 """
 
+import ast
 import json
 import logging
 from typing import Any, Dict, List
+
 
 import pandas as pd
 
@@ -138,3 +140,109 @@ def load_suggestions_from_csv(
         raise
 
     return all_suggestions
+
+
+def parse_json_or_literal(
+    data_str: str,
+    expected_type: Optional[type] = None,
+) -> Union[List, Dict, Any]:
+    """
+    Robustly parse JSON or Python literal format strings.
+    
+    This function provides resilient parsing that handles both standard JSON
+    (with double quotes) and Python literal syntax (with single quotes).
+    It first attempts JSON parsing (preferred), then falls back to safe
+    Python literal evaluation.
+    
+    Parameters
+    ----------
+    data_str : str
+        String containing data in JSON or Python literal format
+    expected_type : Optional[type]
+        Expected type of the result (e.g., list, dict) for validation.
+        If None, any valid type is accepted.
+        
+    Returns
+    -------
+    Union[List, Dict, Any]
+        Parsed data structure (list, dict, or other Python literal)
+        
+    Raises
+    ------
+    ValueError
+        If the string cannot be parsed as either JSON or Python literal,
+        or if the result doesn't match the expected_type
+        
+    Examples
+    --------
+    >>> # Handles standard JSON (double quotes)
+    >>> json_str = '[{"term": "ML", "type": "domain"}]'
+    >>> parse_json_or_literal(json_str)
+    [{'term': 'ML', 'type': 'domain'}]
+    
+    >>> # Also handles Python literal format (single quotes)
+    >>> py_str = "[{'term': 'ML', 'type': 'domain'}]"
+    >>> parse_json_or_literal(py_str)
+    [{'term': 'ML', 'type': 'domain'}]
+    
+    >>> # With type validation
+    >>> parse_json_or_literal('[1, 2, 3]', expected_type=list)
+    [1, 2, 3]
+    
+    >>> # Type mismatch raises error
+    >>> parse_json_or_literal('{"key": "value"}', expected_type=list)
+    ValueError: Expected result type list, got dict
+    
+    Notes
+    -----
+    - JSON parsing is attempted first (faster and more standard)
+    - Python literal evaluation uses ast.literal_eval() which is safe
+      (doesn't execute arbitrary code)
+    - Useful for handling LLM outputs that may use Python syntax instead of JSON
+    """
+    # Remove any leading/trailing whitespace
+    data_str = data_str.strip()
+    
+    # Handle empty string
+    if not data_str:
+        raise ValueError("Cannot parse empty string")
+    
+    try:
+        # Try JSON first (standard, preferred, and faster)
+        result = json.loads(data_str)
+        LOGGER.debug("Successfully parsed as JSON")
+        
+    except json.JSONDecodeError as json_error:
+        LOGGER.debug(
+            f"JSON parsing failed: {json_error}, "
+            f"attempting Python literal evaluation"
+        )
+        
+        try:
+            # Fallback to safe Python literal evaluation
+            # Handles: strings, bytes, numbers, tuples, lists, dicts, sets,
+            # booleans, None, and nested structures
+            result = ast.literal_eval(data_str)
+            
+            LOGGER.warning(
+                "Parsed data using Python literal evaluation. "
+                "Consider using standard JSON format (double quotes) "
+                "for better compatibility and performance."
+            )
+            
+        except (ValueError, SyntaxError) as eval_error:
+            raise ValueError(
+                f"Failed to parse data string as JSON or Python literal.\n"
+                f"JSON parsing error: {str(json_error)}\n"
+                f"Python literal error: {str(eval_error)}\n"
+                f"Input preview (first 200 chars): {data_str[:200]}"
+            ) from eval_error
+    
+    # Validate type if specified
+    if expected_type is not None and not isinstance(result, expected_type):
+        raise ValueError(
+            f"Expected result type {expected_type.__name__}, "
+            f"got {type(result).__name__}"
+        )
+    
+    return result
