@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Literal
 
 import numpy as np
+from tqdm import tqdm
 
 LOGGER = logging.getLogger(__name__)
 
@@ -375,7 +376,11 @@ class KeywordEmbedder:
         # Convert embeddings to lists for JSON serialization
         embeddings_json = {
             keyword: embedding.tolist()
-            for keyword, embedding in keyword_embeddings.items()
+            for keyword, embedding in tqdm(
+                keyword_embeddings.items(), 
+                desc="Converting embeddings",
+                unit="embedding"
+            )
         }
 
         # Get embedding dimension
@@ -398,6 +403,7 @@ class KeywordEmbedder:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(output_path, "w", encoding="utf-8") as f:
+            LOGGER.info(f"Saving embeddings to {output_path}")
             json.dump(output_data, f, indent=2, ensure_ascii=False)
 
         LOGGER.info(f"Saved {len(keyword_embeddings)} embeddings to {output_path}")
