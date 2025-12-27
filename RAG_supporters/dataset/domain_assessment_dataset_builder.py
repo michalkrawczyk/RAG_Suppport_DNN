@@ -8,11 +8,11 @@ import numpy as np
 from tqdm import tqdm
 
 from clustering.clustering_data import ClusteringData
-from domain_assessment_parser import DomainAssessmentParser
-from label_calculator import LabelCalculator, LabelNormalizationMethod
-from sqlite_storage import SQLiteStorageManager
-from steering.steering_config import SteeringConfig, SteeringMode
-from steering_embedding_generator import SteeringEmbeddingGenerator
+from .domain_assessment_parser import DomainAssessmentParser
+from .label_calculator import LabelCalculator, LabelNormalizationMethod
+from .sqlite_storage import SQLiteStorageManager
+from .steering.steering_config import SteeringConfig, SteeringMode
+from .steering_embedding_generator import SteeringEmbeddingGenerator
 
 
 class DomainAssessmentDatasetBuilder:
