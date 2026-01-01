@@ -55,9 +55,9 @@ class TextAugmentationAgent:
     llm : BaseChatModel
         LangChain chat model for text generation
     verify_meaning : bool, optional
-        Whether to verify meaning preservation (default: False)
+        Whether to verify meaning preservation, by default False
     max_retries : int, optional
-        Maximum retry attempts for LLM calls (default: 3)
+        Maximum retry attempts for LLM calls, by default 3
     """
     
     def __init__(
