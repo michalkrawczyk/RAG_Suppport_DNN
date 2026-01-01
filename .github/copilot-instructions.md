@@ -1,5 +1,7 @@
 # GitHub Copilot Instructions for RAG Support DNN
 
+> **Note**: This file should be updated with each PR to match the current state of the repository. When adding new features, modules, or changing architecture patterns, update the relevant sections here to keep guidance current.
+
 ## Project Overview
 
 This repository contains **RAG Support DNN** - a Python library for supporting Retrieval-Augmented Generation (RAG) systems with deep neural networks. The project provides tools for dataset generation, text augmentation, clustering, embeddings, and LangChain-based agents for RAG workflows.
@@ -27,7 +29,7 @@ This repository contains **RAG Support DNN** - a Python library for supporting R
 ### Code Quality Requirements
 
 1. **All code must be formatted with Black** - Run `black <file>` before committing
-2. **All public APIs must have docstrings** - Use Google-style or NumPy-style docstrings
+2. **All public APIs must have docstrings** - Prefer NumPy-style docstrings
 3. **Pass pylint checks** - Address pylint warnings on changed files
 4. **Avoid TODOs in production code** - TODOs are flagged in CI (allowed but warned)
 
@@ -48,10 +50,14 @@ class TextAugmentationAgent:
     This agent provides methods to rephrase entire texts or individual
     sentences while preserving semantic meaning.
     
-    Args:
-        llm: LangChain chat model for text generation
-        verify_meaning: Whether to verify meaning preservation
-        max_retries: Maximum retry attempts for LLM calls
+    Parameters
+    ----------
+    llm : BaseChatModel
+        LangChain chat model for text generation
+    verify_meaning : bool, optional
+        Whether to verify meaning preservation (default: False)
+    max_retries : int, optional
+        Maximum retry attempts for LLM calls (default: 3)
     """
     
     def __init__(
@@ -336,6 +342,38 @@ Runs when dependency files change:
 - **API documentation** should be in docstrings
 - **Quick references** for complex features (see `RAG_supporters/dataset/QUICK_REFERENCE.md`)
 - **Comprehensive guides** for major features (see `docs/CSV_QUESTION_AGENT.md`)
+
+### Major Module README Requirements
+
+Each major module should contain a `README.md` file with the following sections:
+
+1. **Module Purpose & "The Why"**
+   - High-level description of the module's purpose
+   - Rationale for its existence and design decisions
+   - How it fits into the overall architecture
+
+2. **Public API & Entry Points**
+   - List of public classes, functions, and methods
+   - Main entry points for users of the module
+   - What should be imported and used vs. internal implementation
+
+3. **Key Data Structures**
+   - Important data types and their purpose
+   - Input/output formats (e.g., DataFrame schemas, dict structures)
+   - Data flow through the module
+
+4. **External Dependencies**
+   - Required dependencies (from requirements.txt)
+   - Optional dependencies and what they enable
+   - Version constraints and compatibility notes
+
+5. **Standard Patterns & Constraints**
+   - Common usage patterns and examples
+   - Design constraints and limitations
+   - Best practices specific to this module
+   - Anti-patterns to avoid
+
+Major modules include: `agents/`, `clustering/`, `dataset/`, `embeddings/`, `nn/`, and any new top-level modules.
 
 ### Documentation Structure
 
