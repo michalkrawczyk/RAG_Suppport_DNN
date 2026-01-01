@@ -52,7 +52,7 @@ class KeywordEmbedder:
             Type of embedding model. If None, will be auto-detected.
         """
         self.model = embedding_model
-        
+
         # Detect or set model type
         if self.model is not None:
             self.model_type = model_type or self._detect_model_type(self.model)
@@ -136,14 +136,16 @@ class KeywordEmbedder:
                 "endpoint",  # some custom embeddings
                 "repo_id",  # HuggingFaceInferenceAPIEmbeddings
             ]
-            
+
             for attr in model_attrs:
                 if hasattr(model, attr):
                     value = getattr(model, attr)
                     if value is not None and isinstance(value, str):
-                        LOGGER.info(f"Extracted model name from attribute '{attr}': {value}")
+                        LOGGER.info(
+                            f"Extracted model name from attribute '{attr}': {value}"
+                        )
                         return value
-            
+
             # If no model name found, try to get from class name
             class_name = model.__class__.__name__
             LOGGER.warning(
@@ -234,7 +236,7 @@ class KeywordEmbedder:
             if show_progress:
                 try:
                     from tqdm import tqdm
-                    
+
                     # Process in batches with progress bar
                     all_embeddings = []
                     for i in tqdm(
@@ -251,13 +253,13 @@ class KeywordEmbedder:
                     embeddings = np.array(self.model.embed_documents(texts))
             else:
                 embeddings = np.array(self.model.embed_documents(texts))
-            
+
             # Apply normalization if requested
             if normalize_embeddings:
                 norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
                 # Add small epsilon to avoid division by zero
                 embeddings = embeddings / (norms + 1e-8)
-            
+
             return embeddings
 
         else:
@@ -301,7 +303,7 @@ class KeywordEmbedder:
         >>> embeddings = embedder.create_embeddings(str_list)
         >>> len(embeddings)
         2
-        
+
         >>> # With LangChain
         >>> from langchain_openai import OpenAIEmbeddings
         >>> model = OpenAIEmbeddings(model="text-embedding-3-small")
@@ -380,9 +382,9 @@ class KeywordEmbedder:
         embeddings_json = {
             keyword: embedding.tolist()
             for keyword, embedding in tqdm(
-                keyword_embeddings.items(), 
+                keyword_embeddings.items(),
                 desc="Converting embeddings",
-                unit="embedding"
+                unit="embedding",
             )
         }
 

@@ -40,7 +40,7 @@ def normalize_string(text: str) -> str:
     """
     # Lowercase, strip, and remove multiple spaces
     normalized = text.lower().strip()
-    normalized = re.sub(r'\s+', ' ', normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
     return normalized
 
 
@@ -51,10 +51,10 @@ def parse_json_or_literal(
 ) -> Union[List, Dict, Any]:
     """
     Robustly parse JSON or Python literal format strings.
-    
+
     Attempts JSON parsing first (fast and standard), then falls back to
     safe Python literal evaluation if needed.
-    
+
     Parameters
     ----------
     data_str : str
@@ -63,32 +63,32 @@ def parse_json_or_literal(
         Expected type for validation (e.g., list, dict)
     debug : bool, default=False
         Enable debug logging for parsing details
-        
+
     Returns
     -------
     Union[List, Dict, Any]
         Parsed data structure
-        
+
     Raises
     ------
     ValueError
         If parsing fails or type validation fails
     """
     data_str = data_str.strip()
-    
+
     if not data_str:
         raise ValueError("Cannot parse empty string")
-    
+
     # Try JSON first (preferred)
     try:
         result = json.loads(data_str)
         if debug:
             LOGGER.debug("Parsed as JSON")
-        
+
     except json.JSONDecodeError as json_error:
         if debug:
             LOGGER.debug(f"JSON failed: {json_error}, trying literal eval")
-        
+
         # Fallback to Python literal eval (safe)
         try:
             result = ast.literal_eval(data_str)
@@ -96,7 +96,7 @@ def parse_json_or_literal(
                 LOGGER.warning(
                     "Used Python literal eval. Consider using JSON format (double quotes)."
                 )
-            
+
         except (ValueError, SyntaxError) as eval_error:
             raise ValueError(
                 f"Failed to parse data.\n"
@@ -104,11 +104,11 @@ def parse_json_or_literal(
                 f"Literal error: {eval_error}\n"
                 f"Preview: {data_str[:200]}"
             ) from eval_error
-    
+
     # Validate type if specified
     if expected_type is not None and not isinstance(result, expected_type):
         raise ValueError(
             f"Expected {expected_type.__name__}, got {type(result).__name__}"
         )
-    
+
     return result
