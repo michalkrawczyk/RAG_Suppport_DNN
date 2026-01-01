@@ -47,6 +47,7 @@ def normalize_string(text: str) -> str:
 def parse_json_or_literal(
     data_str: str,
     expected_type: Optional[type] = None,
+    debug: bool = False,
 ) -> Union[List, Dict, Any]:
     """
     Robustly parse JSON or Python literal format strings.
@@ -60,6 +61,8 @@ def parse_json_or_literal(
         String containing data in JSON or Python literal format
     expected_type : Optional[type]
         Expected type for validation (e.g., list, dict)
+    debug : bool, default=False
+        Enable debug logging for parsing details
         
     Returns
     -------
@@ -79,17 +82,20 @@ def parse_json_or_literal(
     # Try JSON first (preferred)
     try:
         result = json.loads(data_str)
-        LOGGER.debug("Parsed as JSON")
+        if debug:
+            LOGGER.debug("Parsed as JSON")
         
     except json.JSONDecodeError as json_error:
-        LOGGER.debug(f"JSON failed: {json_error}, trying literal eval")
+        if debug:
+            LOGGER.debug(f"JSON failed: {json_error}, trying literal eval")
         
         # Fallback to Python literal eval (safe)
         try:
             result = ast.literal_eval(data_str)
-            LOGGER.warning(
-                "Used Python literal eval. Consider using JSON format (double quotes)."
-            )
+            if debug:
+                LOGGER.warning(
+                    "Used Python literal eval. Consider using JSON format (double quotes)."
+                )
             
         except (ValueError, SyntaxError) as eval_error:
             raise ValueError(
