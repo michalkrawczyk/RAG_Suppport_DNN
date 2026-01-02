@@ -8,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 
 from clustering.clustering_data import ClusteringData
+from embeddings.keyword_embedder import KeywordEmbedder
 from .domain_assessment_parser import DomainAssessmentParser
 from .label_calculator import LabelCalculator, LabelNormalizationMethod
 from .sqlite_storage import SQLiteStorageManager
@@ -28,7 +29,7 @@ class DomainAssessmentDatasetBuilder:
         csv_paths: Union[str, Path, List[Union[str, Path]]],
         clustering_json_path: Union[str, Path],
         output_dir: Union[str, Path],
-        embedding_model: Any,  # Model with encode() method
+        embedding_model: Union[str, Any, KeywordEmbedder],  # Model name, KeywordEmbedder, or raw model
         steering_config: Optional[SteeringConfig] = None,
         label_normalizer: str = "softmax",
         label_temp: float = 1.0,
@@ -45,7 +46,9 @@ class DomainAssessmentDatasetBuilder:
             csv_paths: Path(s) to CSV files from domain_assessment.py
             clustering_json_path: Path to clustering JSON from keyword_clustering.py
             output_dir: Output directory for dataset
-            embedding_model: Model for encoding text
+            embedding_model: Model name (str), KeywordEmbedder instance, or raw model.
+                           If string: creates KeywordEmbedder with model_name.
+                           Supports both sentence-transformers and LangChain models.
             steering_config: Steering configuration (defaults to ZERO mode)
             label_normalizer: Normalization method ('softmax', 'l1')
             label_temp: Temperature for softmax normalization
@@ -59,7 +62,16 @@ class DomainAssessmentDatasetBuilder:
         self.clustering_json_path = Path(clustering_json_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.embedding_model = embedding_model
+        
+        # Initialize KeywordEmbedder (supports both sentence-transformers and LangChain)
+        if isinstance(embedding_model, KeywordEmbedder):
+            self.embedder = embedding_model
+        elif isinstance(embedding_model, str):
+            # Create KeywordEmbedder from model name
+            self.embedder = KeywordEmbedder(model_name=embedding_model)
+        else:
+            self.embedder = KeywordEmbedder(embedding_model=embedding_model)
+        
         self.chunk_size = chunk_size
 
         # Load clustering data (including suggestion embeddings)
@@ -87,7 +99,7 @@ class DomainAssessmentDatasetBuilder:
         self.steering_generator = SteeringEmbeddingGenerator(
             config=self.steering_config,
             clustering_data=self.clustering_data,
-            embedding_model=embedding_model,
+            embedding_model=self.embedder,
             augment_noise_prob=augment_noise_prob,
             augment_zero_prob=augment_zero_prob,
             augment_noise_level=augment_noise_level,
@@ -134,7 +146,9 @@ class DomainAssessmentDatasetBuilder:
             sample_type = "source" if sample.get("source_text") else "question"
 
             try:
-                base_emb = self.embedding_model.encode([text])[0]
+                base_emb = self.embedder._generate_embeddings(
+                    [text], batch_size=1, show_progress=False
+                )[0]
             except Exception as e:
                 logging.error(f"Failed to encode sample {idx}: {e}")
                 continue

@@ -21,17 +21,33 @@ This document provides practical examples for the new **domain assessment datase
 
 ```python
 from RAG_supporters.dataset import ClusterLabeledDataset
+
+# Option 1: Use model name (string) - simplest approach
+dataset = ClusterLabeledDataset.create_from_csvs(
+    csv_paths='data/domain_assessment.csv',
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model='all-MiniLM-L6-v2'  # Just pass model name!
+)
+
+# Option 2: Use pre-loaded model
 from sentence_transformers import SentenceTransformer
-
-# Load embedding model
 model = SentenceTransformer('all-MiniLM-L6-v2')
-
-# Build and load dataset in one step
 dataset = ClusterLabeledDataset.create_from_csvs(
     csv_paths='data/domain_assessment.csv',
     clustering_json_path='data/clustering_results.json',
     output_dir='datasets/my_dataset',
     embedding_model=model
+)
+
+# Option 3: Use LangChain model
+from langchain_openai import OpenAIEmbeddings
+langchain_model = OpenAIEmbeddings(model="text-embedding-3-small")
+dataset = ClusterLabeledDataset.create_from_csvs(
+    csv_paths='data/domain_assessment.csv',
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model=langchain_model
 )
 
 # Use in training
@@ -49,10 +65,37 @@ for base_emb, steering_emb, label in dataset:
 ```python
 from RAG_supporters.dataset import DomainAssessmentDatasetBuilder
 from RAG_supporters.dataset.steering import SteeringConfig, SteeringMode
-from sentence_transformers import SentenceTransformer
 
-# Load embedding model
+# Option 1: Pass model name as string (simplest)
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths=['data/sources.csv', 'data/questions.csv'],
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model='all-MiniLM-L6-v2'  # Model name as string
+)
+
+# Option 2: Pass sentence-transformers model
+from sentence_transformers import SentenceTransformer
 model = SentenceTransformer('all-MiniLM-L6-v2')
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths=['data/sources.csv', 'data/questions.csv'],
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model=model
+)
+
+# Option 3: Use LangChain model (supports OpenAI, Cohere, HuggingFace, etc.)
+from langchain_openai import OpenAIEmbeddings
+langchain_model = OpenAIEmbeddings(
+    model="text-embedding-3-small",
+    openai_api_key="your-api-key"
+)
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths=['data/sources.csv', 'data/questions.csv'],
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model=langchain_model
+)
 
 # Configure steering (optional - defaults to ZERO mode)
 steering_config = SteeringConfig(
@@ -60,12 +103,12 @@ steering_config = SteeringConfig(
     random_seed=42
 )
 
-# Build dataset
+# Build dataset with configuration
 builder = DomainAssessmentDatasetBuilder(
     csv_paths=['data/sources.csv', 'data/questions.csv'],  # Can be multiple files
     clustering_json_path='data/clustering_results.json',
     output_dir='datasets/my_dataset',
-    embedding_model=model,
+    embedding_model='all-MiniLM-L6-v2',  # String for simplicity
     steering_config=steering_config,
     label_normalizer='softmax',  # Options: 'softmax', 'l1'
     label_temp=1.0,  # Temperature for softmax
@@ -85,7 +128,7 @@ builder = DomainAssessmentDatasetBuilder(
     csv_paths='data/domain_assessment.csv',
     clustering_json_path='data/clustering_results.json',
     output_dir='datasets/augmented_dataset',
-    embedding_model=model,
+    embedding_model='all-MiniLM-L6-v2',  # Simple string model name
     augment_noise_prob=0.2,  # 20% chance of noise
     augment_zero_prob=0.1,   # 10% chance of zeroing steering
     augment_noise_level=0.01  # Noise std deviation
@@ -102,7 +145,7 @@ builder = DomainAssessmentDatasetBuilder(
     csv_paths='data/large_dataset.csv',
     clustering_json_path='data/clustering_results.json',
     output_dir='datasets/large_dataset',
-    embedding_model=model,
+    embedding_model='all-MiniLM-L6-v2',
     chunk_size=10000  # Read 10k rows at a time
 )
 
