@@ -16,6 +16,7 @@ def count_csv_rows_chunked(csv_path: Union[str, Path], chunksize: int = 10000) -
         total += len(chunk)
     return total
 
+
 # TODO:Move to text_utils.py
 def parse_suggestions_safe(suggestions_data: Union[str, list]) -> List[Dict[str, Any]]:
     """Safely parse suggestions JSON without using eval()"""

@@ -29,7 +29,9 @@ class DomainAssessmentDatasetBuilder:
         csv_paths: Union[str, Path, List[Union[str, Path]]],
         clustering_json_path: Union[str, Path],
         output_dir: Union[str, Path],
-        embedding_model: Union[str, Any, KeywordEmbedder],  # Model name, KeywordEmbedder, or raw model
+        embedding_model: Union[
+            str, Any, KeywordEmbedder
+        ],  # Model name, KeywordEmbedder, or raw model
         steering_config: Optional[SteeringConfig] = None,
         label_normalizer: str = "softmax",
         label_temp: float = 1.0,
@@ -62,7 +64,7 @@ class DomainAssessmentDatasetBuilder:
         self.clustering_json_path = Path(clustering_json_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Initialize KeywordEmbedder (supports both sentence-transformers and LangChain)
         if isinstance(embedding_model, KeywordEmbedder):
             self.embedder = embedding_model
@@ -71,7 +73,7 @@ class DomainAssessmentDatasetBuilder:
             self.embedder = KeywordEmbedder(model_name=embedding_model)
         else:
             self.embedder = KeywordEmbedder(embedding_model=embedding_model)
-        
+
         self.chunk_size = chunk_size
 
         # Load clustering data (including suggestion embeddings)

@@ -32,7 +32,9 @@ class SteeringEmbeddingGenerator:
         self,
         config: SteeringConfig,
         clustering_data: ClusteringData,
-        embedding_model: Union[str, Any, KeywordEmbedder],  # Model name, KeywordEmbedder, or raw model
+        embedding_model: Union[
+            str, Any, KeywordEmbedder
+        ],  # Model name, KeywordEmbedder, or raw model
         suggestion_embeddings: Optional[Dict[str, np.ndarray]] = None,
         llm_steering_texts: Optional[Dict[str, str]] = None,
         augment_noise_prob: float = 0.0,
@@ -56,7 +58,7 @@ class SteeringEmbeddingGenerator:
         """
         self.config = config
         self.clustering_data = clustering_data
-        
+
         # Initialize KeywordEmbedder (supports both sentence-transformers and LangChain)
         if isinstance(embedding_model, KeywordEmbedder):
             self.embedder = embedding_model
@@ -66,7 +68,7 @@ class SteeringEmbeddingGenerator:
         else:
             # Wrap raw model in KeywordEmbedder
             self.embedder = KeywordEmbedder(embedding_model=embedding_model)
-        
+
         self.suggestion_embeddings = suggestion_embeddings or {}
         self.llm_steering_texts = llm_steering_texts or {}
         self.augment_noise_prob = augment_noise_prob
