@@ -15,7 +15,6 @@ import json
 import logging
 from typing import Any, Dict, List
 
-
 import pandas as pd
 
 LOGGER = logging.getLogger(__name__)

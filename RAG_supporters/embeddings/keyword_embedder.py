@@ -13,11 +13,10 @@ both instance methods and static utility methods for embedding operations.
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Literal
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
-
 from utils.text_utils import normalize_string
 
 LOGGER = logging.getLogger(__name__)

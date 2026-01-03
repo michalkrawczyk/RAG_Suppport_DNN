@@ -5,11 +5,7 @@ import random
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-
-from augmentations.embedding import (
-    random_noise_embedding,
-    random_zero_embedding,
-)
+from augmentations.embedding import random_noise_embedding, random_zero_embedding
 from clustering.clustering_data import ClusteringData
 from dataset.steering.steering_config import SteeringConfig, SteeringMode
 from embeddings.keyword_embedder import KeywordEmbedder
@@ -151,14 +147,14 @@ class SteeringEmbeddingGenerator:
                 term = suggestion.get("term", "")
             else:
                 term = suggestion
-            
+
             if not term:
                 continue
-            
+
             # Normalize term to match keys in suggestion_embeddings
             # (KeywordEmbedder normalizes all keys during embedding creation)
             normalized_term = normalize_string(term)
-            
+
             if normalized_term in self.suggestion_embeddings:
                 embeddings.append(self.suggestion_embeddings[normalized_term])
             else:
@@ -169,7 +165,9 @@ class SteeringEmbeddingGenerator:
                     )[0]
                     embeddings.append(emb)
                 except Exception as e:
-                    logging.warning(f"Failed to encode suggestion '{term}' (normalized: '{normalized_term}'): {e}")
+                    logging.warning(
+                        f"Failed to encode suggestion '{term}' (normalized: '{normalized_term}'): {e}"
+                    )
 
         if not embeddings:
             return self._generate_zero_embedding()

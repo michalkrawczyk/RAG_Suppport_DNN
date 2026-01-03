@@ -5,10 +5,10 @@ from pathlib import Path
 from typing import Any, List, Optional, Union
 
 import numpy as np
-from tqdm import tqdm
-
 from clustering.clustering_data import ClusteringData
 from embeddings.keyword_embedder import KeywordEmbedder
+from tqdm import tqdm
+
 from .domain_assessment_parser import DomainAssessmentParser
 from .label_calculator import LabelCalculator, LabelNormalizationMethod
 from .sqlite_storage import SQLiteStorageManager
@@ -170,7 +170,9 @@ class DomainAssessmentDatasetBuilder:
             steering_emb, steering_mode = self.steering_generator.generate(
                 sample_id=idx,
                 suggestions=sample.get(
-                    self.source_suggestions_col if sample_type == "source" else self.question_suggestions_col
+                    self.source_suggestions_col
+                    if sample_type == "source"
+                    else self.question_suggestions_col
                 ),
                 cluster_id=self._get_primary_cluster(sample, sample_type),
             )
@@ -201,7 +203,9 @@ class DomainAssessmentDatasetBuilder:
                 embedding_idx=idx,
                 chroma_id=chroma_id,
                 suggestions=sample.get(
-                    self.source_suggestions_col if sample_type == "source" else self.question_suggestions_col
+                    self.source_suggestions_col
+                    if sample_type == "source"
+                    else self.question_suggestions_col
                 ),
                 steering_mode=steering_mode.value,
             )
@@ -242,7 +246,7 @@ class DomainAssessmentDatasetBuilder:
         self, sample: dict, base_embedding: np.ndarray, sample_type: str
     ) -> np.ndarray:
         """Calculate source/question label from CSV probabilities or embedding.
-        
+
         Args:
             sample: Sample dictionary from CSV
             base_embedding: Embedding of the text
@@ -256,7 +260,9 @@ class DomainAssessmentDatasetBuilder:
 
         # Fallback: use suggestions from appropriate column
         suggestions = sample.get(
-            self.source_suggestions_col if sample_type == "source" else self.question_suggestions_col
+            self.source_suggestions_col
+            if sample_type == "source"
+            else self.question_suggestions_col
         )
         if suggestions:
             return self.label_calculator.calculate_source_labels_from_suggestions(
@@ -270,7 +276,7 @@ class DomainAssessmentDatasetBuilder:
 
     def _get_primary_cluster(self, sample: dict, sample_type: str) -> Optional[int]:
         """Get primary cluster ID from sample.
-        
+
         Args:
             sample: Sample dictionary from CSV
             sample_type: Type of sample ('source' or 'question') - used to select appropriate column
@@ -279,25 +285,35 @@ class DomainAssessmentDatasetBuilder:
         if "cluster_probabilities" in sample and sample["cluster_probabilities"]:
             probs = sample["cluster_probabilities"]
             return int(np.argmax(probs))
-        
+
         # Fallback: calculate from suggestions using appropriate column based on sample_type
         suggestions = sample.get(
-            self.source_suggestions_col if sample_type == "source" else self.question_suggestions_col
+            self.source_suggestions_col
+            if sample_type == "source"
+            else self.question_suggestions_col
         )
         if suggestions:
             try:
-                source_label = self.label_calculator.calculate_source_labels_from_suggestions(
-                    suggestions, self.suggestion_embeddings
+                source_label = (
+                    self.label_calculator.calculate_source_labels_from_suggestions(
+                        suggestions, self.suggestion_embeddings
+                    )
                 )
                 primary_cluster = int(np.argmax(source_label))
-                logging.debug(f"Calculated primary cluster {primary_cluster} from {len(suggestions)} suggestions")
+                logging.debug(
+                    f"Calculated primary cluster {primary_cluster} from {len(suggestions)} suggestions"
+                )
                 return primary_cluster
             except Exception as e:
-                logging.warning(f"Failed to calculate primary cluster from suggestions: {e}")
+                logging.warning(
+                    f"Failed to calculate primary cluster from suggestions: {e}"
+                )
                 return None
-        
+
         # No way to determine cluster
-        logging.debug("No cluster_probabilities or suggestions available, returning None")
+        logging.debug(
+            "No cluster_probabilities or suggestions available, returning None"
+        )
         return None
 
     def _load_suggestion_embeddings(self) -> dict:

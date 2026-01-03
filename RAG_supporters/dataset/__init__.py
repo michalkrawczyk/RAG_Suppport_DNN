@@ -20,24 +20,22 @@ Domain Assessment Dataset (Recommended):
 # ClusteringData from clustering module
 from RAG_supporters.clustering import ClusteringData
 
-# (Removed legacy backward-compatibility imports)
-
-# Steering configuration components
-from .steering import (
-    SteeringConfig,
-    SteeringMode,
-)
-
 # Domain assessment components
 from .cluster_labeled_dataset import ClusterLabeledDataset
-from .domain_assessment_dataset_builder import DomainAssessmentDatasetBuilder
-from .domain_assessment_parser import DomainAssessmentParser
-from .label_calculator import LabelCalculator
-from .steering_embedding_generator import SteeringEmbeddingGenerator
-from .sqlite_storage import SQLiteStorageManager
 
 # Dataset splitting utilities
 from .dataset_splitter import DatasetSplitter, create_train_val_split
+from .domain_assessment_dataset_builder import DomainAssessmentDatasetBuilder
+from .domain_assessment_parser import DomainAssessmentParser
+from .label_calculator import LabelCalculator
+from .sqlite_storage import SQLiteStorageManager
+
+# Steering configuration components
+from .steering import SteeringConfig, SteeringMode
+from .steering_embedding_generator import SteeringEmbeddingGenerator
+
+# (Removed legacy backward-compatibility imports)
+
 
 __all__ = [
     # Steering configuration

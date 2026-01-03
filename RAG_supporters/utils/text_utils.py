@@ -1,3 +1,5 @@
+"""Text processing utilities."""
+
 import ast
 import json
 import logging
@@ -8,7 +10,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def is_empty_text(text: str) -> bool:
-    """Check if the text is empty or only whitespace"""
+    """Check if the text is empty or only whitespace."""
     if not text or text.strip() == "":
         return True
     if text.lower() == "nan":
@@ -18,8 +20,7 @@ def is_empty_text(text: str) -> bool:
 
 def normalize_string(text: str) -> str:
     """
-    Normalize a string by converting to lowercase, stripping whitespace,
-    and removing multiple spaces.
+    Normalize a string by converting to lowercase and removing multiple spaces.
 
     Parameters
     ----------

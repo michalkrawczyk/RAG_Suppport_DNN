@@ -62,7 +62,7 @@ class TestDatasetSplitterSplit:
     def test_split_different_ratios(self):
         """Test splitting with different validation ratios."""
         splitter = DatasetSplitter(random_state=42)
-        
+
         # Test 10% validation
         train_idx, val_idx = splitter.split(dataset_size=100, val_ratio=0.1)
         assert len(val_idx) == 10
@@ -188,7 +188,7 @@ class TestDatasetSplitterSaveLoad:
             # Create and save split with metadata
             splitter = DatasetSplitter(random_state=42)
             splitter.split(dataset_size=100, val_ratio=0.2)
-            
+
             metadata = {
                 "dataset_name": "test_dataset",
                 "description": "Test split for unit tests",
@@ -223,7 +223,7 @@ class TestDatasetSplitterSaveLoad:
             split_path = Path(tmpdir) / "invalid.json"
 
             # Create invalid file
-            with open(split_path, 'w') as f:
+            with open(split_path, "w") as f:
                 json.dump({"invalid": "data"}, f)
 
             with pytest.raises(ValueError):
@@ -371,7 +371,7 @@ class TestEdgeCases:
     def test_extreme_ratio(self):
         """Test with extreme but valid ratios."""
         splitter = DatasetSplitter(random_state=42)
-        
+
         # Very small validation set
         train_idx, val_idx = splitter.split(dataset_size=1000, val_ratio=0.01)
         assert len(val_idx) == 10
