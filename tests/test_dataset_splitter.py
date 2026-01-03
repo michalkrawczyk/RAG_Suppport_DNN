@@ -13,7 +13,6 @@ Tests cover:
 import json
 import tempfile
 
-import numpy as np
 import pytest
 
 from RAG_supporters.dataset.dataset_splitter import (
