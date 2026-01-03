@@ -13,6 +13,7 @@ from augmentations.embedding import (
 from clustering.clustering_data import ClusteringData
 from dataset.steering.steering_config import SteeringConfig, SteeringMode
 from embeddings.keyword_embedder import KeywordEmbedder
+from utils.text_utils import normalize_string
 
 
 class SteeringEmbeddingGenerator:
@@ -79,7 +80,7 @@ class SteeringEmbeddingGenerator:
     def generate(
         self,
         sample_id: int,
-        suggestions: Optional[List[str]] = None,
+        suggestions: Optional[Union[List[str], List[Dict]]] = None,
         cluster_id: Optional[int] = None,
     ) -> Tuple[np.ndarray, SteeringMode]:
         """
@@ -87,7 +88,7 @@ class SteeringEmbeddingGenerator:
 
         Args:
             sample_id: Sample identifier
-            suggestions: List of suggestion strings
+            suggestions: List of suggestion strings or dicts with 'term' field
             cluster_id: Primary cluster ID for descriptor mode
 
         Returns:
@@ -127,13 +128,13 @@ class SteeringEmbeddingGenerator:
         return np.zeros(embedding_dim, dtype=np.float32)
 
     def _generate_suggestion_embedding(
-        self, suggestions: Optional[List[str]]
+        self, suggestions: Optional[Union[List[str], List[Dict]]]
     ) -> np.ndarray:
         """
         Generate embedding from suggestions.
 
         Args:
-            suggestions: List of suggestion strings
+            suggestions: List of suggestion strings or dicts with 'term' field
 
         Returns:
             Suggestion embedding (averaged if multiple)
@@ -145,17 +146,30 @@ class SteeringEmbeddingGenerator:
         # Try to use pre-computed embeddings first
         embeddings = []
         for suggestion in suggestions:
-            if suggestion in self.suggestion_embeddings:
-                embeddings.append(self.suggestion_embeddings[suggestion])
+            # Extract term from dict if needed
+            if isinstance(suggestion, dict):
+                term = suggestion.get("term", "")
+            else:
+                term = suggestion
+            
+            if not term:
+                continue
+            
+            # Normalize term to match keys in suggestion_embeddings
+            # (KeywordEmbedder normalizes all keys during embedding creation)
+            normalized_term = normalize_string(term)
+            
+            if normalized_term in self.suggestion_embeddings:
+                embeddings.append(self.suggestion_embeddings[normalized_term])
             else:
                 # Fallback: encode on-the-fly using KeywordEmbedder
                 try:
                     emb = self.embedder._generate_embeddings(
-                        [suggestion], batch_size=1, show_progress=False
+                        [term], batch_size=1, show_progress=False
                     )[0]
                     embeddings.append(emb)
                 except Exception as e:
-                    logging.warning(f"Failed to encode suggestion '{suggestion}': {e}")
+                    logging.warning(f"Failed to encode suggestion '{term}' (normalized: '{normalized_term}'): {e}")
 
         if not embeddings:
             return self._generate_zero_embedding()

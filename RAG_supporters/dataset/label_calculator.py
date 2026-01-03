@@ -15,6 +15,7 @@ import numpy as np
 from scipy.spatial.distance import cdist
 
 from clustering.clustering_data import ClusteringData
+from utils.text_utils import normalize_string
 
 logger = logging.getLogger(__name__)
 
@@ -166,10 +167,13 @@ class LabelCalculator:
         valid_embeddings = []
         for sugg in suggestions:
             term = sugg.get("term", "")
-            if term in suggestion_embeddings:
-                valid_embeddings.append(suggestion_embeddings[term])
+            # Normalize term to match the keys in suggestion_embeddings
+            # (KeywordEmbedder normalizes all keys during embedding creation)
+            normalized_term = normalize_string(term)
+            if normalized_term in suggestion_embeddings:
+                valid_embeddings.append(suggestion_embeddings[normalized_term])
             else:
-                logger.debug(f"Missing embedding for suggestion: {term}")
+                logger.debug(f"Missing embedding for suggestion: {term} (normalized: {normalized_term})")
 
         if not valid_embeddings:
             logger.warning(
