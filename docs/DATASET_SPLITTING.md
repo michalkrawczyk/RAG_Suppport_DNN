@@ -585,7 +585,25 @@ splitter = DatasetSplitter(random_state=42)
 splitter = DatasetSplitter(random_state=None)
 ```
 
-### 2. Save Splits Early in Your Experiment
+### 2. Ensure Adequate Dataset Size
+
+```python
+# Both train and validation sets must have at least one sample
+# For small datasets, choose val_ratio carefully:
+
+# Minimum dataset size is 2
+dataset_size = 10
+min_val_ratio = 1.0 / dataset_size  # 0.1 - ensures val set has >= 1 sample
+max_val_ratio = (dataset_size - 1) / dataset_size  # 0.9 - ensures train set has >= 1 sample
+
+# Good: Appropriate ratio for small dataset
+splitter.split(dataset_size=10, val_ratio=0.2)  # 8 train, 2 val
+
+# Will raise ValueError: Empty validation set
+# splitter.split(dataset_size=10, val_ratio=0.05)  # Would give 0 val samples
+```
+
+### 3. Save Splits Early in Your Experiment
 
 ```python
 # Save split immediately after creation
@@ -596,7 +614,7 @@ train_dataset, val_dataset = dataset.split_dataset(
 )
 ```
 
-### 3. Validate Splits Before Using
+### 4. Validate Splits Before Using
 
 ```python
 # Load and validate before using
@@ -605,7 +623,7 @@ splitter.validate_split(len(dataset))  # Ensure compatibility
 train_idx, val_idx = splitter.get_split()
 ```
 
-### 4. Use Meaningful Metadata
+### 5. Use Meaningful Metadata
 
 ```python
 metadata = {
@@ -628,6 +646,24 @@ splitter.save_split('split.json', metadata=metadata)
 ```
 
 ## Troubleshooting
+
+### Issue: Empty validation or training set
+
+**Problem**: ValueError raised: "Validation set would be empty" or "Training set would be empty"
+
+**Cause**: Dataset is too small for the chosen `val_ratio`, resulting in one set having zero samples.
+
+**Solution**: Adjust `val_ratio` to ensure both sets have at least one sample:
+```python
+# For small datasets, calculate appropriate ratio
+dataset_size = 5
+min_val_ratio = 1.0 / dataset_size  # 0.2 - minimum to get 1 val sample
+max_val_ratio = (dataset_size - 1) / dataset_size  # 0.8 - maximum to keep 1 train sample
+
+# Use a ratio within valid range
+splitter = DatasetSplitter(random_state=42)
+train_idx, val_idx = splitter.split(dataset_size=5, val_ratio=0.2)  # Works: 4 train, 1 val
+```
 
 ### Issue: ImportError when using DatasetSplitter
 

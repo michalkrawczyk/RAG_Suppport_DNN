@@ -61,7 +61,7 @@ class DatasetSplitter:
         Parameters
         ----------
         dataset_size : int
-            Total number of samples in the dataset
+            Total number of samples in the dataset (must be >= 2)
         val_ratio : float, optional
             Ratio of validation samples (between 0 and 1). Default is 0.2.
         shuffle : bool, optional
@@ -75,13 +75,40 @@ class DatasetSplitter:
         Raises
         ------
         ValueError
-            If val_ratio is not between 0 and 1, or dataset_size is not positive
+            If val_ratio is not between 0 and 1, dataset_size is not positive,
+            or if the split would result in empty train or validation sets.
+            
+        Notes
+        -----
+        Both train and validation sets must have at least one sample. For small
+        datasets, ensure val_ratio is chosen such that both sets are non-empty:
+        - Minimum val_ratio: 1/dataset_size
+        - Maximum val_ratio: (dataset_size-1)/dataset_size
         """
         if not 0 < val_ratio < 1:
             raise ValueError(f"val_ratio must be between 0 and 1, got {val_ratio}")
         
         if dataset_size <= 0:
             raise ValueError(f"dataset_size must be positive, got {dataset_size}")
+        
+        # Calculate split point
+        val_size = int(dataset_size * val_ratio)
+        
+        # Ensure both train and validation sets have at least one sample
+        if val_size == 0:
+            raise ValueError(
+                f"Validation set would be empty with dataset_size={dataset_size} "
+                f"and val_ratio={val_ratio}. Minimum validation set size is 1. "
+                f"Consider using a larger dataset or increasing val_ratio to at least "
+                f"{1.0/dataset_size:.4f}"
+            )
+        
+        train_size = dataset_size - val_size
+        if train_size == 0:
+            raise ValueError(
+                f"Training set would be empty with dataset_size={dataset_size} "
+                f"and val_ratio={val_ratio}. Consider using a smaller val_ratio."
+            )
         
         # Store parameters
         self.dataset_size = dataset_size
@@ -94,9 +121,6 @@ class DatasetSplitter:
         if shuffle:
             rng = np.random.RandomState(self.random_state)
             rng.shuffle(indices)
-        
-        # Calculate split point
-        val_size = int(dataset_size * val_ratio)
         
         # Split indices
         self.val_indices = indices[:val_size].tolist()
