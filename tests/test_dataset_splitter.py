@@ -11,13 +11,17 @@ Tests cover:
 """
 
 import json
+import sys
 import tempfile
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from .dataset_splitter import (
+# Add RAG_supporters to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / 'RAG_supporters' / 'dataset'))
+
+from dataset_splitter import (
     DatasetSplitter,
     create_train_val_split,
 )

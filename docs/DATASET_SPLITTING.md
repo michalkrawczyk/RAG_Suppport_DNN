@@ -313,6 +313,152 @@ train_a, val_a = splitter_a.get_split()
 train_b, val_b = splitter_b.get_split()
 ```
 
+## Runnable Examples
+
+Below are practical, self-contained code snippets you can run to test the functionality:
+
+### Example 1: Basic Train/Val Split
+
+```python
+from RAG_supporters.dataset import DatasetSplitter
+
+# Create a splitter with reproducible random seed
+splitter = DatasetSplitter(random_state=42)
+
+# Split a dataset of 100 samples with 20% validation
+train_indices, val_indices = splitter.split(
+    dataset_size=100,
+    val_ratio=0.2,
+    shuffle=True
+)
+
+print(f"Dataset size: 100")
+print(f"Train samples: {len(train_indices)}")  # 80
+print(f"Val samples: {len(val_indices)}")      # 20
+print(f"First 5 train indices: {train_indices[:5]}")
+print(f"First 5 val indices: {val_indices[:5]}")
+
+# Verify no overlap
+overlap = set(train_indices) & set(val_indices)
+print(f"Overlap between train and val: {len(overlap)} (should be 0)")
+```
+
+### Example 2: Save and Load Split
+
+```python
+from RAG_supporters.dataset import DatasetSplitter
+from pathlib import Path
+import tempfile
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    split_path = Path(tmpdir) / "my_split.json"
+    
+    # Create and save a split
+    print("Creating and saving split...")
+    splitter1 = DatasetSplitter(random_state=42)
+    train_idx1, val_idx1 = splitter1.split(dataset_size=100, val_ratio=0.2)
+    
+    # Add metadata
+    metadata = {
+        "experiment": "baseline",
+        "model": "bert",
+        "date": "2024-01-15"
+    }
+    splitter1.save_split(split_path, metadata=metadata)
+    print(f"Split saved to: {split_path}")
+    
+    # Load the split
+    print("\nLoading split...")
+    splitter2 = DatasetSplitter.load_split(split_path)
+    train_idx2, val_idx2 = splitter2.get_split()
+    
+    # Verify they're identical
+    print(f"Splits are identical: {train_idx1 == train_idx2 and val_idx1 == val_idx2}")
+    print(f"Train indices match: {train_idx1[:5]} == {train_idx2[:5]}")
+```
+
+### Example 3: Using Convenience Function
+
+```python
+from RAG_supporters.dataset import create_train_val_split
+
+# One-liner to create a split
+train_idx, val_idx = create_train_val_split(
+    dataset_size=100,
+    val_ratio=0.2,
+    random_state=42,
+    shuffle=True
+)
+
+print(f"Created split with convenience function")
+print(f"Train: {len(train_idx)}, Val: {len(val_idx)}")
+```
+
+### Example 4: Different Validation Ratios
+
+```python
+from RAG_supporters.dataset import DatasetSplitter
+
+dataset_size = 1000
+ratios = [0.1, 0.2, 0.3]
+
+for ratio in ratios:
+    splitter = DatasetSplitter(random_state=42)
+    train_idx, val_idx = splitter.split(
+        dataset_size=dataset_size,
+        val_ratio=ratio
+    )
+    print(f"Val ratio {ratio:.1f}: Train={len(train_idx)}, Val={len(val_idx)}")
+```
+
+### Example 5: Reproducibility Test
+
+```python
+from RAG_supporters.dataset import DatasetSplitter
+
+# Create two splitters with same seed
+splitter1 = DatasetSplitter(random_state=42)
+train1, val1 = splitter1.split(dataset_size=100, val_ratio=0.2)
+
+splitter2 = DatasetSplitter(random_state=42)
+train2, val2 = splitter2.split(dataset_size=100, val_ratio=0.2)
+
+print(f"Same random seed (42):")
+print(f"  Splits are identical: {train1 == train2 and val1 == val2}")
+
+# Create splitter with different seed
+splitter3 = DatasetSplitter(random_state=123)
+train3, val3 = splitter3.split(dataset_size=100, val_ratio=0.2)
+
+print(f"Different random seed (123):")
+print(f"  Splits are different: {train1 != train3 or val1 != val3}")
+print(f"  But sizes are same: Train={len(train3)}, Val={len(val3)}")
+```
+
+### Example 6: Split Validation
+
+```python
+from RAG_supporters.dataset import DatasetSplitter
+
+# Create a split for dataset of size 100
+splitter = DatasetSplitter(random_state=42)
+train_idx, val_idx = splitter.split(dataset_size=100, val_ratio=0.2)
+
+# Validate against correct size
+try:
+    splitter.validate_split(dataset_size=100)
+    print("✓ Split is valid for dataset size 100")
+except ValueError as e:
+    print(f"✗ Validation failed: {e}")
+
+# Try to validate against wrong size
+try:
+    splitter.validate_split(dataset_size=50)
+    print("✓ Split is valid for dataset size 50")
+except ValueError as e:
+    print(f"✗ Validation failed for size 50 (expected): {str(e)[:60]}...")
+```
+
 ## API Reference
 
 ### DatasetSplitter
