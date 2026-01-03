@@ -1,3 +1,5 @@
+"""Dataset loading utilities."""
+
 import hashlib
 import json
 import logging
@@ -10,15 +12,16 @@ LOGGER = logging.getLogger(__name__)
 
 
 def count_csv_rows_chunked(csv_path: Union[str, Path], chunksize: int = 10000) -> int:
-    """Count rows by processing in chunks"""
+    """Count rows by processing in chunks."""
     total = 0
     for chunk in pd.read_csv(csv_path, chunksize=chunksize):
         total += len(chunk)
     return total
 
 
+# TODO:Move to text_utils.py
 def parse_suggestions_safe(suggestions_data: Union[str, list]) -> List[Dict[str, Any]]:
-    """Safely parse suggestions JSON without using eval()"""
+    """Safely parse suggestions JSON without using eval()."""
     if isinstance(suggestions_data, list):
         return suggestions_data
 
@@ -42,7 +45,7 @@ def filter_suggestions(
     min_confidence: float = 0.0,
     suggestion_types: Optional[List[str]] = None,
 ) -> List[str]:
-    """Filter suggestions based on confidence and type, return terms"""
+    """Filter suggestions based on confidence and type, return terms."""
     filtered_terms = []
 
     for suggestion in suggestions:
@@ -73,7 +76,7 @@ def compute_cache_version(
     suggestion_types: Optional[List[str]],
     embedding_model_name: Optional[str] = None,
 ) -> str:
-    """Compute a version hash for cache validation"""
+    """Compute a version hash for cache validation."""
     config = {
         "min_confidence": min_confidence,
         "suggestion_types": sorted(suggestion_types) if suggestion_types else None,

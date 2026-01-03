@@ -2,7 +2,7 @@
 KeywordEmbedder class for keyword embedding operations.
 
 This module provides a high-level interface for the complete embedding pipeline:
-- Creating embeddings for strings using sentence transformers
+- Creating embeddings for strings using sentence transformers or LangChain models
 - Saving and loading embeddings to/from JSON
 - Processing CSV files with LLM suggestions into embeddings
 
@@ -13,9 +13,11 @@ both instance methods and static utility methods for embedding operations.
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
+from tqdm import tqdm
+from utils.text_utils import normalize_string
 
 LOGGER = logging.getLogger(__name__)
 
@@ -24,14 +26,15 @@ class KeywordEmbedder:
     """
     Class for keyword embedding operations.
 
-    Provides methods for creating, saving, and loading keyword embeddings using
-    sentence transformer models.
+    Supports both sentence-transformers and LangChain embedding models.
+    Provides methods for creating, saving, and loading keyword embeddings.
     """
 
     def __init__(
         self,
         embedding_model: Optional[Any] = None,
-        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        model_name: Optional[str] = None,
+        model_type: Optional[Literal["sentence-transformers", "langchain"]] = None,
     ):
         """
         Initialize the keyword embedder.
@@ -39,25 +42,227 @@ class KeywordEmbedder:
         Parameters
         ----------
         embedding_model : Optional[Any]
-            Pre-loaded embedding model
-        model_name : str
-            Name of the embedding model to use if embedding_model is None
+            Pre-loaded embedding model (sentence-transformers or LangChain)
+        model_name : Optional[str]
+            Name of the embedding model to use. If None and embedding_model is provided,
+            will attempt to extract from the model instance. If None and no model provided,
+            defaults to "sentence-transformers/all-MiniLM-L6-v2"
+        model_type : Optional[Literal["sentence-transformers", "langchain"]]
+            Type of embedding model. If None, will be auto-detected.
         """
-        self.model_name = model_name
         self.model = embedding_model
 
-        # Load model if not provided
-        if self.model is None:
+        # Detect or set model type
+        if self.model is not None:
+            self.model_type = model_type or self._detect_model_type(self.model)
+            # Extract model name from instance if not provided
+            self.model_name = model_name or self._extract_model_name(self.model)
+        else:
+            self.model_type = model_type or "sentence-transformers"
+            self.model_name = model_name or "sentence-transformers/all-MiniLM-L6-v2"
+            self.model = self._load_default_model()
+
+    def _detect_model_type(self, model: Any) -> str:
+        """
+        Detect whether the model is from sentence-transformers or LangChain.
+
+        Parameters
+        ----------
+        model : Any
+            Embedding model instance
+
+        Returns
+        -------
+        str
+            Model type: "sentence-transformers" or "langchain"
+
+        Raises
+        ------
+        ValueError
+            If model type cannot be detected
+        """
+        # Check for LangChain Embeddings interface
+        if hasattr(model, "embed_documents") and hasattr(model, "embed_query"):
+            LOGGER.info("Detected LangChain embedding model")
+            return "langchain"
+        # Check for sentence-transformers
+        elif hasattr(model, "encode"):
+            LOGGER.info("Detected sentence-transformers model")
+            return "sentence-transformers"
+        else:
+            raise ValueError(
+                "Unable to detect model type. Model must be either a "
+                "sentence-transformers SentenceTransformer or a LangChain Embeddings model"
+            )
+
+    def _extract_model_name(self, model: Any) -> str:
+        """
+        Extract model name from a model instance.
+
+        Parameters
+        ----------
+        model : Any
+            Embedding model instance
+
+        Returns
+        -------
+        str
+            Extracted model name or a default value
+        """
+        if self.model_type == "sentence-transformers":
+            # SentenceTransformer models have various ways to get the name
+            if hasattr(model, "model_name"):
+                return model.model_name
+            elif hasattr(model, "_model_name"):
+                return model._model_name
+            # Try to get from the config
+            elif hasattr(model, "_modules") and "0" in model._modules:
+                auto_model = model._modules["0"]
+                if hasattr(auto_model, "auto_model"):
+                    config = getattr(auto_model.auto_model, "config", None)
+                    if config and hasattr(config, "_name_or_path"):
+                        return config._name_or_path
+            return "sentence-transformers/unknown"
+
+        elif self.model_type == "langchain":
+            # LangChain models have different attribute names for the model identifier
+            # Try common attribute names in order of preference
+            model_attrs = [
+                "model",  # OpenAIEmbeddings, OllamaEmbeddings, CohereEmbeddings
+                "model_name",  # HuggingFaceEmbeddings, HuggingFaceInstructEmbeddings
+                "model_id",  # BedrockEmbeddings
+                "deployment",  # AzureOpenAIEmbeddings
+                "endpoint",  # some custom embeddings
+                "repo_id",  # HuggingFaceInferenceAPIEmbeddings
+            ]
+
+            for attr in model_attrs:
+                if hasattr(model, attr):
+                    value = getattr(model, attr)
+                    if value is not None and isinstance(value, str):
+                        LOGGER.info(
+                            f"Extracted model name from attribute '{attr}': {value}"
+                        )
+                        return value
+
+            # If no model name found, try to get from class name
+            class_name = model.__class__.__name__
+            LOGGER.warning(
+                f"Could not extract model name from {class_name}, using class name as fallback"
+            )
+            return f"langchain/{class_name}"
+
+        return "unknown"
+
+    def _load_default_model(self) -> Any:
+        """
+        Load the default embedding model based on model_type.
+
+        Returns
+        -------
+        Any
+            Loaded embedding model
+
+        Raises
+        ------
+        ImportError
+            If required library is not installed
+        ValueError
+            If model_type is not supported
+        """
+        if self.model_type == "sentence-transformers":
             try:
                 from sentence_transformers import SentenceTransformer
 
-                LOGGER.info(f"Loading embedding model: {model_name}")
-                self.model = SentenceTransformer(model_name)
+                LOGGER.info(f"Loading sentence-transformers model: {self.model_name}")
+                return SentenceTransformer(self.model_name)
             except ImportError:
                 raise ImportError(
                     "sentence-transformers is required. "
                     "Install with: pip install sentence-transformers"
                 )
+        elif self.model_type == "langchain":
+            raise ValueError(
+                "Cannot load default LangChain model. "
+                "Please provide a pre-initialized LangChain embedding model."
+            )
+        else:
+            raise ValueError(f"Unknown model_type: {self.model_type}")
+
+    def _generate_embeddings(
+        self,
+        texts: List[str],
+        batch_size: int = 32,
+        show_progress: bool = True,
+        normalize_embeddings: bool = False,
+    ) -> np.ndarray:
+        """
+        Generate embeddings using the appropriate model type.
+
+        Parameters
+        ----------
+        texts : List[str]
+            List of texts to embed
+        batch_size : int
+            Batch size for embedding generation
+        show_progress : bool
+            Whether to show progress bar
+        normalize_embeddings : bool
+            Whether to L2-normalize the embeddings
+
+        Returns
+        -------
+        np.ndarray
+            Array of embeddings with shape (len(texts), embedding_dim)
+
+        Raises
+        ------
+        ValueError
+            If model_type is not supported
+        """
+        if self.model_type == "sentence-transformers":
+            embeddings = self.model.encode(
+                texts,
+                batch_size=batch_size,
+                show_progress_bar=show_progress,
+                convert_to_numpy=True,
+                normalize_embeddings=normalize_embeddings,
+            )
+            return embeddings
+
+        elif self.model_type == "langchain":
+            # LangChain uses embed_documents which returns List[List[float]]
+            if show_progress:
+                try:
+                    from tqdm import tqdm
+
+                    # Process in batches with progress bar
+                    all_embeddings = []
+                    for i in tqdm(
+                        range(0, len(texts), batch_size),
+                        desc="Embedding",
+                        disable=not show_progress,
+                    ):
+                        batch = texts[i : i + batch_size]
+                        batch_embeddings = self.model.embed_documents(batch)
+                        all_embeddings.extend(batch_embeddings)
+                    embeddings = np.array(all_embeddings)
+                except ImportError:
+                    LOGGER.warning("tqdm not available, progress bar disabled")
+                    embeddings = np.array(self.model.embed_documents(texts))
+            else:
+                embeddings = np.array(self.model.embed_documents(texts))
+
+            # Apply normalization if requested
+            if normalize_embeddings:
+                norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+                # Add small epsilon to avoid division by zero
+                embeddings = embeddings / (norms + 1e-8)
+
+            return embeddings
+
+        else:
+            raise ValueError(f"Unknown model_type: {self.model_type}")
 
     def create_embeddings(
         self,
@@ -97,26 +302,35 @@ class KeywordEmbedder:
         >>> embeddings = embedder.create_embeddings(str_list)
         >>> len(embeddings)
         2
+
+        >>> # With LangChain
+        >>> from langchain_openai import OpenAIEmbeddings
+        >>> model = OpenAIEmbeddings(model="text-embedding-3-small")
+        >>> embedder = KeywordEmbedder(embedding_model=model)
+        >>> embeddings = embedder.create_embeddings(str_list)
         """
         if not str_list:
             raise ValueError("String list cannot be empty")
 
-        # Remove duplicates while preserving order
-        unique_strs = list(dict.fromkeys(str_list))
+        # Normalize strings and remove duplicates while preserving order
+        normalized_strs = [normalize_string(s) for s in str_list]
+        unique_strs = list(dict.fromkeys(normalized_strs))
 
-        if len(unique_strs) < len(str_list):
+        if len(unique_strs) < len(normalized_strs):
             LOGGER.warning(
-                f"Removed {len(str_list) - len(unique_strs)} duplicate strings"
+                f"Removed {len(normalized_strs) - len(unique_strs)} duplicate strings after normalization"
             )
 
-        LOGGER.info(f"Generating embeddings for {len(unique_strs)} strings")
+        LOGGER.info(
+            f"Generating embeddings for {len(unique_strs)} strings "
+            f"using {self.model_type} model: {self.model_name}"
+        )
 
-        # Generate embeddings
-        embeddings = self.model.encode(
+        # Generate embeddings using the unified interface
+        embeddings = self._generate_embeddings(
             unique_strs,
             batch_size=batch_size,
-            show_progress_bar=show_progress,
-            convert_to_numpy=True,
+            show_progress=show_progress,
             normalize_embeddings=normalize_embeddings,
         )
 
@@ -128,7 +342,7 @@ class KeywordEmbedder:
         embedding_dim = embeddings.shape[1]
         LOGGER.info(
             f"Successfully generated embeddings with dimension {embedding_dim} "
-            f"for {len(string_embeddings)} strings"
+            f"for {len(string_embeddings)} strings using {self.model_type}"
         )
 
         return string_embeddings
@@ -166,7 +380,11 @@ class KeywordEmbedder:
         # Convert embeddings to lists for JSON serialization
         embeddings_json = {
             keyword: embedding.tolist()
-            for keyword, embedding in keyword_embeddings.items()
+            for keyword, embedding in tqdm(
+                keyword_embeddings.items(),
+                desc="Converting embeddings",
+                unit="embedding",
+            )
         }
 
         # Get embedding dimension
@@ -189,6 +407,7 @@ class KeywordEmbedder:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(output_path, "w", encoding="utf-8") as f:
+            LOGGER.info(f"Saving embeddings to {output_path}")
             json.dump(output_data, f, indent=2, ensure_ascii=False)
 
         LOGGER.info(f"Saved {len(keyword_embeddings)} embeddings to {output_path}")
@@ -271,6 +490,15 @@ class KeywordEmbedder:
         -------
         Dict[str, np.ndarray]
             Dictionary mapping keywords to embeddings
+
+        Examples
+        --------
+        >>> embedder = KeywordEmbedder()
+        >>> embeddings = embedder.process_csv_to_embeddings(
+        ...     'suggestions.csv',
+        ...     'embeddings.json',
+        ...     min_confidence=0.7
+        ... )
         """
         from ..utils.suggestion_processing import (
             aggregate_unique_terms,
@@ -279,12 +507,15 @@ class KeywordEmbedder:
         from .io import load_suggestions_from_csv
 
         # Step 1: Load suggestions from CSV
+        LOGGER.info(f"Loading suggestions from {csv_path}")
         suggestions = load_suggestions_from_csv(csv_path, suggestion_column)
 
         # Step 2: Filter by confidence
+        LOGGER.info(f"Filtering suggestions with min_confidence={min_confidence}")
         filtered_suggestions = filter_by_field_value(suggestions, min_confidence)
 
         # Step 3: Aggregate unique keywords
+        LOGGER.info("Aggregating unique keywords")
         keywords = aggregate_unique_terms(
             filtered_suggestions,
             normalize=normalize_keywords,
@@ -293,6 +524,8 @@ class KeywordEmbedder:
         if not keywords:
             LOGGER.warning("No keywords found after filtering and aggregation")
             return {}
+
+        LOGGER.info(f"Found {len(keywords)} unique keywords")
 
         # Step 4: Create embeddings for keywords
         keyword_embeddings = self.create_embeddings(
@@ -306,6 +539,7 @@ class KeywordEmbedder:
             "source_csv": str(csv_path),
             "min_confidence": min_confidence,
             "normalized": normalize_keywords,
+            "model_type": self.model_type,
         }
         self.save_embeddings(
             keyword_embeddings,
