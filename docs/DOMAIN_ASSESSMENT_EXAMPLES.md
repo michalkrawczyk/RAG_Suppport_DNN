@@ -60,6 +60,22 @@ for base_emb, steering_emb, label in dataset:
 
 ## Dataset Building
 
+### Column Name Configuration
+
+The dataset builder supports configurable column names for suggestions:
+
+- **`source_suggestions_col`** (default: `'suggestions'`): Column name for source domain suggestions
+- **`question_suggestions_col`** (default: `'selected_terms'`): Column name for question/assessment suggestions
+
+**Why different columns?**
+- Sources use `EXTRACT` mode → generates `suggestions` column with domain/subdomain/keyword suggestions
+- Questions use `ASSESS` mode → generates `selected_terms` column with relevance-scored terms
+
+**When to customize:**
+- Your CSV uses different column names
+- You want to use the same column for both (legacy compatibility)
+- You're processing CSVs from different sources with varying conventions
+
 ### Basic Build
 
 ```python
@@ -95,6 +111,17 @@ builder = DomainAssessmentDatasetBuilder(
     clustering_json_path='data/clustering_results.json',
     output_dir='datasets/my_dataset',
     embedding_model=langchain_model
+)
+
+# Configure custom column names (optional)
+# Default: source_suggestions_col='suggestions', question_suggestions_col='selected_terms'
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths=['data/sources.csv', 'data/questions.csv'],
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model='all-MiniLM-L6-v2',
+    source_suggestions_col='source_domains',      # Custom column for source suggestions
+    question_suggestions_col='question_keywords'  # Custom column for question suggestions
 )
 
 # Configure steering (optional - defaults to ZERO mode)
@@ -518,6 +545,42 @@ for base_emb, steering_emb, combined_label, metadata in dataloader:
     loss = source_loss + steering_loss + combined_loss
     ...
 ```
+
+## CSV Structure Requirements
+
+### Expected Columns
+
+The domain assessment CSV must contain:
+
+**Required columns:**
+- `source_text`: The source text content
+- `question_text`: The question text
+- `chroma_source_id`: Unique ID for the source
+- `chroma_question_id`: Unique ID for the question
+
+**Suggestion columns (configurable):**
+- `suggestions` (default for sources): JSON list of domain suggestions from EXTRACT mode
+- `selected_terms` (default for questions): JSON list of selected terms from ASSESS mode
+
+**Optional columns:**
+- `cluster_probabilities`: JSON list of cluster probability values
+
+### Column Name Customization
+
+If your CSV uses different column names, specify them in the builder:
+
+```python
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths='custom_data.csv',
+    clustering_json_path='clusters.json',
+    output_dir='output',
+    embedding_model='all-MiniLM-L6-v2',
+    source_suggestions_col='my_source_domains',    # Instead of 'suggestions'
+    question_suggestions_col='my_question_terms'   # Instead of 'selected_terms'
+)
+```
+
+**Note:** The parser and builder are fully aware that sources and questions have different suggestion columns and will automatically select the correct one based on row type.
 
 ---
 

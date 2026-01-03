@@ -280,6 +280,12 @@ source_text,question_text,chroma_source_id,chroma_question_id,selected_terms,tot
 
 Finally, we create a PyTorch Dataset from the CSV file with clustering information.
 
+**Important:** The dataset builder is aware that sources and questions may have different suggestion columns:
+- **Sources** (from `EXTRACT` mode): Use column specified by `source_suggestions_col` (default: `'suggestions'`)
+- **Questions** (from `ASSESS` mode): Use column specified by `question_suggestions_col` (default: `'selected_terms'`)
+
+The builder automatically selects the correct column based on whether the row is a source or question.
+
 ```python
 from pathlib import Path
 from RAG_supporters.dataset import DomainAssessmentDatasetBuilder, ClusterLabeledDataset
@@ -326,6 +332,18 @@ builder = DomainAssessmentDatasetBuilder(
     output_dir="dataset_output",
     embedding_model=langchain_model,
     steering_config=steering_config
+)
+
+# Option 4: Custom column names
+# Use this if your CSV has different column names for suggestions
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths="domain_assessment_with_clusters.csv",
+    clustering_json_path="suggestion_clusters.json",
+    output_dir="dataset_output",
+    embedding_model='all-MiniLM-L6-v2',
+    steering_config=steering_config,
+    source_suggestions_col='source_domains',      # Custom column for sources
+    question_suggestions_col='question_keywords'  # Custom column for questions
 )
 
 # Build the dataset
@@ -557,8 +575,12 @@ print("\n✓ Complete workflow finished successfully!")
 1. **CSV Structure**: The domain assessment CSV must contain:
    - `source_text`, `question_text`
    - `chroma_source_id`, `chroma_question_id`
-   - `selected_terms` (JSON list of selected terms)
+   - Suggestion columns (configurable):
+     - `suggestions` (default for sources): JSON list from EXTRACT mode
+     - `selected_terms` (default for questions): JSON list from ASSESS mode
    - `cluster_probabilities` (optional, JSON array of probabilities)
+   
+   **Important:** The parser automatically distinguishes between source and question suggestions based on the configured column names (`source_suggestions_col` and `question_suggestions_col`).
 
 2. **Clustering JSON**: Must contain:
    - `cluster_assignments`: Map from suggestion → cluster ID
