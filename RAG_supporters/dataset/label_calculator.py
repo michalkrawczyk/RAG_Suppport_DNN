@@ -165,6 +165,7 @@ class LabelCalculator:
 
         # Collect embeddings for suggestions that we have
         valid_embeddings = []
+        missing_terms = []
         for sugg in suggestions:
             term = sugg.get("term", "")
             # Normalize term to match the keys in suggestion_embeddings
@@ -173,11 +174,15 @@ class LabelCalculator:
             if normalized_term in suggestion_embeddings:
                 valid_embeddings.append(suggestion_embeddings[normalized_term])
             else:
+                missing_terms.append(f"{term} (normalized: {normalized_term})")
                 logger.debug(f"Missing embedding for suggestion: {term} (normalized: {normalized_term})")
 
+        if missing_terms:
+            logger.info(f"Missing embeddings for {len(missing_terms)}/{len(suggestions)} suggestions: {missing_terms[:3]}")
+        
         if not valid_embeddings:
             logger.warning(
-                "No valid suggestion embeddings, returning uniform distribution"
+                f"No valid suggestion embeddings found for {len(suggestions)} suggestions, returning uniform distribution"
             )
             return np.ones(self.n_clusters) / self.n_clusters
 

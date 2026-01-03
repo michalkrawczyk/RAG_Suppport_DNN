@@ -246,9 +246,26 @@ class DomainAssessmentDatasetBuilder:
 
     def _get_primary_cluster(self, sample: dict) -> Optional[int]:
         """Get primary cluster ID from sample."""
+        # Try CSV probabilities first
         if "cluster_probabilities" in sample and sample["cluster_probabilities"]:
             probs = sample["cluster_probabilities"]
             return int(np.argmax(probs))
+        
+        # Fallback: calculate from suggestions
+        if "suggestions" in sample and sample["suggestions"]:
+            try:
+                source_label = self.label_calculator.calculate_source_labels_from_suggestions(
+                    sample["suggestions"], self.suggestion_embeddings
+                )
+                primary_cluster = int(np.argmax(source_label))
+                logging.debug(f"Calculated primary cluster {primary_cluster} from {len(sample['suggestions'])} suggestions")
+                return primary_cluster
+            except Exception as e:
+                logging.warning(f"Failed to calculate primary cluster from suggestions: {e}")
+                return None
+        
+        # No way to determine cluster
+        logging.debug("No cluster_probabilities or suggestions available, returning None")
         return None
 
     def _load_suggestion_embeddings(self) -> dict:
