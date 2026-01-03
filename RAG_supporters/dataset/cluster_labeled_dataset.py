@@ -8,9 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset, Subset
-
 from dataset.sqlite_storage import SQLiteStorageManager
+from torch.utils.data import Dataset, Subset
 
 
 class ClusterLabeledDataset(Dataset):
@@ -417,16 +416,16 @@ class ClusterLabeledDataset(Dataset):
     def create_subset(self, indices: List[int]) -> Subset:
         """
         Create a subset of this dataset using the provided indices.
-        
+
         This is useful for creating train/val splits while maintaining access
         to the full dataset's methods and properties.
-        
+
         Args:
             indices: List of indices to include in the subset
-            
+
         Returns:
             torch.utils.data.Subset wrapping this dataset with the specified indices
-            
+
         Examples:
             >>> dataset = ClusterLabeledDataset('path/to/dataset')
             >>> from RAG_supporters.dataset import DatasetSplitter
@@ -436,7 +435,7 @@ class ClusterLabeledDataset(Dataset):
             >>> val_dataset = dataset.create_subset(val_idx)
         """
         return Subset(self, indices)
-    
+
     def split_dataset(
         self,
         val_ratio: float = 0.2,
@@ -446,16 +445,16 @@ class ClusterLabeledDataset(Dataset):
     ) -> Tuple[Subset, Subset]:
         """
         Split this dataset into training and validation subsets.
-        
+
         Args:
             val_ratio: Ratio of validation samples (between 0 and 1). Default is 0.2.
             random_state: Random seed for reproducibility
             shuffle: Whether to shuffle indices before splitting. Default is True.
             save_path: If provided, save split configuration to this path
-            
+
         Returns:
             Tuple of (train_subset, val_subset)
-            
+
         Examples:
             >>> dataset = ClusterLabeledDataset('path/to/dataset')
             >>> train_dataset, val_dataset = dataset.split_dataset(
@@ -466,14 +465,14 @@ class ClusterLabeledDataset(Dataset):
             >>> print(f"Train size: {len(train_dataset)}, Val size: {len(val_dataset)}")
         """
         from RAG_supporters.dataset.dataset_splitter import DatasetSplitter
-        
+
         splitter = DatasetSplitter(random_state=random_state)
         train_indices, val_indices = splitter.split(
             dataset_size=len(self),
             val_ratio=val_ratio,
             shuffle=shuffle,
         )
-        
+
         if save_path is not None:
             metadata = {
                 "dataset_dir": str(self.dataset_dir),
@@ -482,12 +481,12 @@ class ClusterLabeledDataset(Dataset):
                 "embedding_dim": self.embedding_dim,
             }
             splitter.save_split(save_path, metadata=metadata)
-        
+
         train_subset = self.create_subset(train_indices)
         val_subset = self.create_subset(val_indices)
-        
+
         return train_subset, val_subset
-    
+
     @staticmethod
     def load_split(
         dataset_dir: Union[str, Path],
@@ -497,16 +496,16 @@ class ClusterLabeledDataset(Dataset):
     ) -> Tuple[Subset, Subset]:
         """
         Load a dataset and apply a saved split configuration.
-        
+
         Args:
             dataset_dir: Directory containing the dataset
             split_path: Path to the saved split configuration
             label_type: Which label to return ('source', 'steering', 'combined')
             **dataset_kwargs: Additional arguments for ClusterLabeledDataset
-            
+
         Returns:
             Tuple of (train_subset, val_subset)
-            
+
         Examples:
             >>> train_dataset, val_dataset = ClusterLabeledDataset.load_split(
             ...     dataset_dir='path/to/dataset',
@@ -514,23 +513,23 @@ class ClusterLabeledDataset(Dataset):
             ... )
         """
         from RAG_supporters.dataset.dataset_splitter import DatasetSplitter
-        
+
         # Load the full dataset
         dataset = ClusterLabeledDataset(
             dataset_dir=dataset_dir,
             label_type=label_type,
             **dataset_kwargs,
         )
-        
+
         # Load the split configuration
         splitter = DatasetSplitter.load_split(split_path)
-        
+
         # Validate split against dataset
         splitter.validate_split(len(dataset))
-        
+
         # Get indices and create subsets
         train_indices, val_indices = splitter.get_split()
         train_subset = dataset.create_subset(train_indices)
         val_subset = dataset.create_subset(val_indices)
-        
+
         return train_subset, val_subset

@@ -12,9 +12,8 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from scipy.spatial.distance import cdist
-
 from clustering.clustering_data import ClusteringData
+from scipy.spatial.distance import cdist
 from utils.text_utils import normalize_string
 
 logger = logging.getLogger(__name__)
@@ -175,11 +174,15 @@ class LabelCalculator:
                 valid_embeddings.append(suggestion_embeddings[normalized_term])
             else:
                 missing_terms.append(f"{term} (normalized: {normalized_term})")
-                logger.debug(f"Missing embedding for suggestion: {term} (normalized: {normalized_term})")
+                logger.debug(
+                    f"Missing embedding for suggestion: {term} (normalized: {normalized_term})"
+                )
 
         if missing_terms:
-            logger.info(f"Missing embeddings for {len(missing_terms)}/{len(suggestions)} suggestions: {missing_terms[:3]}")
-        
+            logger.info(
+                f"Missing embeddings for {len(missing_terms)}/{len(suggestions)} suggestions: {missing_terms[:3]}"
+            )
+
         if not valid_embeddings:
             logger.warning(
                 f"No valid suggestion embeddings found for {len(suggestions)} suggestions, returning uniform distribution"
