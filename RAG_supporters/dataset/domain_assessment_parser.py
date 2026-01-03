@@ -23,16 +23,24 @@ class DomainAssessmentRecord(TypedDict):
     question_text: str
     chroma_source_id: str
     chroma_question_id: str
-    suggestions: List[Dict[str, Any]]  # List of DomainSuggestion dicts
+    source_suggestions: List[Dict[str, Any]]  # List of DomainSuggestion dicts for sources
+    question_suggestions: List[Dict[str, Any]]  # List of SelectedTerm dicts for questions
+    suggestions: List[Dict[str, Any]]  # Legacy: combined suggestions
     cluster_probabilities: Optional[List[float]]
 
 
-def create_domain_assessment_record(row: pd.Series) -> DomainAssessmentRecord:
+def create_domain_assessment_record(
+    row: pd.Series,
+    source_suggestions_col: str = "suggestions",
+    question_suggestions_col: str = "selected_terms",
+) -> DomainAssessmentRecord:
     """
     Create DomainAssessmentRecord from a pandas Series (CSV row).
 
     Args:
         row: Pandas Series from CSV
+        source_suggestions_col: Column name for source suggestions (default: 'suggestions')
+        question_suggestions_col: Column name for question suggestions (default: 'selected_terms')
 
     Returns:
         DomainAssessmentRecord dictionary
@@ -53,15 +61,35 @@ def create_domain_assessment_record(row: pd.Series) -> DomainAssessmentRecord:
     if not chroma_source_id or not chroma_question_id:
         raise ValueError("Missing chroma_source_id or chroma_question_id")
 
-    # Parse suggestions (JSON formatted)
-    suggestions_str = row.get("suggestions", "[]")
+    # Parse source suggestions (JSON formatted)
+    source_suggestions_str = row.get(source_suggestions_col, "[]")
     try:
-        suggestions = (
-            json.loads(suggestions_str) if isinstance(suggestions_str, str) else []
+        source_suggestions = (
+            json.loads(source_suggestions_str) if isinstance(source_suggestions_str, str) else []
         )
     except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse suggestions: {e}")
-        suggestions = []
+        logger.warning(f"Failed to parse {source_suggestions_col}: {e}")
+        source_suggestions = []
+
+    # Parse question suggestions (JSON formatted)
+    question_suggestions_str = row.get(question_suggestions_col, "[]")
+    try:
+        question_suggestions = (
+            json.loads(question_suggestions_str) if isinstance(question_suggestions_str, str) else []
+        )
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse {question_suggestions_col}: {e}")
+        question_suggestions = []
+
+    # Legacy: try 'suggestions' column for backwards compatibility
+    legacy_suggestions_str = row.get("suggestions", "[]")
+    try:
+        legacy_suggestions = (
+            json.loads(legacy_suggestions_str) if isinstance(legacy_suggestions_str, str) else []
+        )
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse legacy suggestions: {e}")
+        legacy_suggestions = []
 
     # Parse cluster probabilities (JSON formatted)
     cluster_probabilities: Optional[List[float]] = None
@@ -78,7 +106,9 @@ def create_domain_assessment_record(row: pd.Series) -> DomainAssessmentRecord:
         "question_text": question_text,
         "chroma_source_id": chroma_source_id,
         "chroma_question_id": chroma_question_id,
-        "suggestions": suggestions,
+        "source_suggestions": source_suggestions,
+        "question_suggestions": question_suggestions,
+        "suggestions": legacy_suggestions,  # Legacy field
         "cluster_probabilities": cluster_probabilities,
     }
 
@@ -93,14 +123,23 @@ class DomainAssessmentParser:
     - Validation of required fields
     """
 
-    def __init__(self, chunksize: Optional[int] = None):
+    def __init__(
+        self,
+        chunksize: Optional[int] = None,
+        source_suggestions_col: str = "suggestions",
+        question_suggestions_col: str = "selected_terms",
+    ):
         """
         Initialize parser.
 
         Args:
             chunksize: If set, reads CSV in chunks to reduce memory usage
+            source_suggestions_col: Column name for source suggestions (default: 'suggestions')
+            question_suggestions_col: Column name for question suggestions (default: 'selected_terms')
         """
         self.chunksize = chunksize
+        self.source_suggestions_col = source_suggestions_col
+        self.question_suggestions_col = question_suggestions_col
 
     def parse_csv(self, csv_path: Union[str, Path]) -> List[DomainAssessmentRecord]:
         """
@@ -182,7 +221,11 @@ class DomainAssessmentParser:
 
         for idx, row in df.iterrows():
             try:
-                record = create_domain_assessment_record(row)
+                record = create_domain_assessment_record(
+                    row,
+                    source_suggestions_col=self.source_suggestions_col,
+                    question_suggestions_col=self.question_suggestions_col,
+                )
                 records.append(record)
             except ValueError as e:
                 logger.warning(f"Skipping row {idx}: {e}")
