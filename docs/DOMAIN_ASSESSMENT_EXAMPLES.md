@@ -21,17 +21,33 @@ This document provides practical examples for the new **domain assessment datase
 
 ```python
 from RAG_supporters.dataset import ClusterLabeledDataset
+
+# Option 1: Use model name (string) - simplest approach
+dataset = ClusterLabeledDataset.create_from_csvs(
+    csv_paths='data/domain_assessment.csv',
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model='all-MiniLM-L6-v2'  # Just pass model name!
+)
+
+# Option 2: Use pre-loaded model
 from sentence_transformers import SentenceTransformer
-
-# Load embedding model
 model = SentenceTransformer('all-MiniLM-L6-v2')
-
-# Build and load dataset in one step
 dataset = ClusterLabeledDataset.create_from_csvs(
     csv_paths='data/domain_assessment.csv',
     clustering_json_path='data/clustering_results.json',
     output_dir='datasets/my_dataset',
     embedding_model=model
+)
+
+# Option 3: Use LangChain model
+from langchain_openai import OpenAIEmbeddings
+langchain_model = OpenAIEmbeddings(model="text-embedding-3-small")
+dataset = ClusterLabeledDataset.create_from_csvs(
+    csv_paths='data/domain_assessment.csv',
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model=langchain_model
 )
 
 # Use in training
@@ -44,15 +60,69 @@ for base_emb, steering_emb, label in dataset:
 
 ## Dataset Building
 
+### Column Name Configuration
+
+The dataset builder supports configurable column names for suggestions:
+
+- **`source_suggestions_col`** (default: `'suggestions'`): Column name for source domain suggestions
+- **`question_suggestions_col`** (default: `'selected_terms'`): Column name for question/assessment suggestions
+
+**Why different columns?**
+- Sources use `EXTRACT` mode → generates `suggestions` column with domain/subdomain/keyword suggestions
+- Questions use `ASSESS` mode → generates `selected_terms` column with relevance-scored terms
+
+**When to customize:**
+- Your CSV uses different column names
+- You want to use the same column for both (legacy compatibility)
+- You're processing CSVs from different sources with varying conventions
+
 ### Basic Build
 
 ```python
 from RAG_supporters.dataset import DomainAssessmentDatasetBuilder
 from RAG_supporters.dataset.steering import SteeringConfig, SteeringMode
-from sentence_transformers import SentenceTransformer
 
-# Load embedding model
+# Option 1: Pass model name as string (simplest)
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths=['data/sources.csv', 'data/questions.csv'],
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model='all-MiniLM-L6-v2'  # Model name as string
+)
+
+# Option 2: Pass sentence-transformers model
+from sentence_transformers import SentenceTransformer
 model = SentenceTransformer('all-MiniLM-L6-v2')
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths=['data/sources.csv', 'data/questions.csv'],
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model=model
+)
+
+# Option 3: Use LangChain model (supports OpenAI, Cohere, HuggingFace, etc.)
+from langchain_openai import OpenAIEmbeddings
+langchain_model = OpenAIEmbeddings(
+    model="text-embedding-3-small",
+    openai_api_key="your-api-key"
+)
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths=['data/sources.csv', 'data/questions.csv'],
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model=langchain_model
+)
+
+# Configure custom column names (optional)
+# Default: source_suggestions_col='suggestions', question_suggestions_col='selected_terms'
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths=['data/sources.csv', 'data/questions.csv'],
+    clustering_json_path='data/clustering_results.json',
+    output_dir='datasets/my_dataset',
+    embedding_model='all-MiniLM-L6-v2',
+    source_suggestions_col='source_domains',      # Custom column for source suggestions
+    question_suggestions_col='question_keywords'  # Custom column for question suggestions
+)
 
 # Configure steering (optional - defaults to ZERO mode)
 steering_config = SteeringConfig(
@@ -60,12 +130,12 @@ steering_config = SteeringConfig(
     random_seed=42
 )
 
-# Build dataset
+# Build dataset with configuration
 builder = DomainAssessmentDatasetBuilder(
     csv_paths=['data/sources.csv', 'data/questions.csv'],  # Can be multiple files
     clustering_json_path='data/clustering_results.json',
     output_dir='datasets/my_dataset',
-    embedding_model=model,
+    embedding_model='all-MiniLM-L6-v2',  # String for simplicity
     steering_config=steering_config,
     label_normalizer='softmax',  # Options: 'softmax', 'l1'
     label_temp=1.0,  # Temperature for softmax
@@ -85,7 +155,7 @@ builder = DomainAssessmentDatasetBuilder(
     csv_paths='data/domain_assessment.csv',
     clustering_json_path='data/clustering_results.json',
     output_dir='datasets/augmented_dataset',
-    embedding_model=model,
+    embedding_model='all-MiniLM-L6-v2',  # Simple string model name
     augment_noise_prob=0.2,  # 20% chance of noise
     augment_zero_prob=0.1,   # 10% chance of zeroing steering
     augment_noise_level=0.01  # Noise std deviation
@@ -102,7 +172,7 @@ builder = DomainAssessmentDatasetBuilder(
     csv_paths='data/large_dataset.csv',
     clustering_json_path='data/clustering_results.json',
     output_dir='datasets/large_dataset',
-    embedding_model=model,
+    embedding_model='all-MiniLM-L6-v2',
     chunk_size=10000  # Read 10k rows at a time
 )
 
@@ -475,6 +545,42 @@ for base_emb, steering_emb, combined_label, metadata in dataloader:
     loss = source_loss + steering_loss + combined_loss
     ...
 ```
+
+## CSV Structure Requirements
+
+### Expected Columns
+
+The domain assessment CSV must contain:
+
+**Required columns:**
+- `source_text`: The source text content
+- `question_text`: The question text
+- `chroma_source_id`: Unique ID for the source
+- `chroma_question_id`: Unique ID for the question
+
+**Suggestion columns (configurable):**
+- `suggestions` (default for sources): JSON list of domain suggestions from EXTRACT mode
+- `selected_terms` (default for questions): JSON list of selected terms from ASSESS mode
+
+**Optional columns:**
+- `cluster_probabilities`: JSON list of cluster probability values
+
+### Column Name Customization
+
+If your CSV uses different column names, specify them in the builder:
+
+```python
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths='custom_data.csv',
+    clustering_json_path='clusters.json',
+    output_dir='output',
+    embedding_model='all-MiniLM-L6-v2',
+    source_suggestions_col='my_source_domains',    # Instead of 'suggestions'
+    question_suggestions_col='my_question_terms'   # Instead of 'selected_terms'
+)
+```
+
+**Note:** The parser and builder are fully aware that sources and questions have different suggestion columns and will automatically select the correct one based on row type.
 
 ---
 

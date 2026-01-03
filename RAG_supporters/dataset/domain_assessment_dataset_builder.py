@@ -8,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 
 from clustering.clustering_data import ClusteringData
+from embeddings.keyword_embedder import KeywordEmbedder
 from .domain_assessment_parser import DomainAssessmentParser
 from .label_calculator import LabelCalculator, LabelNormalizationMethod
 from .sqlite_storage import SQLiteStorageManager
@@ -28,7 +29,9 @@ class DomainAssessmentDatasetBuilder:
         csv_paths: Union[str, Path, List[Union[str, Path]]],
         clustering_json_path: Union[str, Path],
         output_dir: Union[str, Path],
-        embedding_model: Any,  # Model with encode() method
+        embedding_model: Union[
+            str, Any, KeywordEmbedder
+        ],  # Model name, KeywordEmbedder, or raw model
         steering_config: Optional[SteeringConfig] = None,
         label_normalizer: str = "softmax",
         label_temp: float = 1.0,
@@ -37,6 +40,8 @@ class DomainAssessmentDatasetBuilder:
         augment_zero_prob: float = 0.0,
         augment_noise_level: float = 0.01,
         chunk_size: Optional[int] = None,
+        source_suggestions_col: str = "suggestions",
+        question_suggestions_col: str = "selected_terms",
     ):
         """
         Initialize dataset builder.
@@ -45,7 +50,9 @@ class DomainAssessmentDatasetBuilder:
             csv_paths: Path(s) to CSV files from domain_assessment.py
             clustering_json_path: Path to clustering JSON from keyword_clustering.py
             output_dir: Output directory for dataset
-            embedding_model: Model for encoding text
+            embedding_model: Model name (str), KeywordEmbedder instance, or raw model.
+                           If string: creates KeywordEmbedder with model_name.
+                           Supports both sentence-transformers and LangChain models.
             steering_config: Steering configuration (defaults to ZERO mode)
             label_normalizer: Normalization method ('softmax', 'l1')
             label_temp: Temperature for softmax normalization
@@ -54,12 +61,26 @@ class DomainAssessmentDatasetBuilder:
             augment_zero_prob: Probability of zero steering augmentation
             augment_noise_level: Std deviation for noise augmentation
             chunk_size: Chunk size for CSV reading (None = read all)
+            source_suggestions_col: Column name for source suggestions (default: 'suggestions')
+            question_suggestions_col: Column name for question suggestions (default: 'selected_terms')
         """
         self.csv_paths = csv_paths if isinstance(csv_paths, list) else [csv_paths]
         self.clustering_json_path = Path(clustering_json_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.embedding_model = embedding_model
+
+        self.source_suggestions_col = source_suggestions_col
+        self.question_suggestions_col = question_suggestions_col
+
+        # Initialize KeywordEmbedder (supports both sentence-transformers and LangChain)
+        if isinstance(embedding_model, KeywordEmbedder):
+            self.embedder = embedding_model
+        elif isinstance(embedding_model, str):
+            # Create KeywordEmbedder from model name
+            self.embedder = KeywordEmbedder(model_name=embedding_model)
+        else:
+            self.embedder = KeywordEmbedder(embedding_model=embedding_model)
+
         self.chunk_size = chunk_size
 
         # Load clustering data (including suggestion embeddings)
@@ -87,7 +108,7 @@ class DomainAssessmentDatasetBuilder:
         self.steering_generator = SteeringEmbeddingGenerator(
             config=self.steering_config,
             clustering_data=self.clustering_data,
-            embedding_model=embedding_model,
+            embedding_model=self.embedder,
             augment_noise_prob=augment_noise_prob,
             augment_zero_prob=augment_zero_prob,
             augment_noise_level=augment_noise_level,
@@ -111,7 +132,11 @@ class DomainAssessmentDatasetBuilder:
         logging.info("Starting dataset build...")
 
         # Parse CSV files
-        parser = DomainAssessmentParser(chunksize=self.chunk_size)
+        parser = DomainAssessmentParser(
+            chunksize=self.chunk_size,
+            source_suggestions_col=self.source_suggestions_col,
+            question_suggestions_col=self.question_suggestions_col,
+        )
         if isinstance(self.csv_paths, (str, Path)):
             data = parser.parse_csv(self.csv_paths)
         else:
@@ -134,7 +159,9 @@ class DomainAssessmentDatasetBuilder:
             sample_type = "source" if sample.get("source_text") else "question"
 
             try:
-                base_emb = self.embedding_model.encode([text])[0]
+                base_emb = self.embedder._generate_embeddings(
+                    [text], batch_size=1, show_progress=False
+                )[0]
             except Exception as e:
                 logging.error(f"Failed to encode sample {idx}: {e}")
                 continue
@@ -142,12 +169,14 @@ class DomainAssessmentDatasetBuilder:
             # Generate steering embedding
             steering_emb, steering_mode = self.steering_generator.generate(
                 sample_id=idx,
-                suggestions=sample.get("suggestions"),
-                cluster_id=self._get_primary_cluster(sample),
+                suggestions=sample.get(
+                    self.source_suggestions_col if sample_type == "source" else self.question_suggestions_col
+                ),
+                cluster_id=self._get_primary_cluster(sample, sample_type),
             )
 
             # Calculate labels
-            source_label = self._calculate_source_label(sample, base_emb)
+            source_label = self._calculate_source_label(sample, base_emb, sample_type)
             steering_label = self.label_calculator.calculate_steering_labels(
                 steering_emb
             )
@@ -171,7 +200,9 @@ class DomainAssessmentDatasetBuilder:
                 combined_label=combined_label,
                 embedding_idx=idx,
                 chroma_id=chroma_id,
-                suggestions=sample.get("suggestions"),
+                suggestions=sample.get(
+                    self.source_suggestions_col if sample_type == "source" else self.question_suggestions_col
+                ),
                 steering_mode=steering_mode.value,
             )
 
@@ -208,19 +239,28 @@ class DomainAssessmentDatasetBuilder:
         )
 
     def _calculate_source_label(
-        self, sample: dict, base_embedding: np.ndarray
+        self, sample: dict, base_embedding: np.ndarray, sample_type: str
     ) -> np.ndarray:
-        """Calculate source/question label from CSV probabilities or embedding."""
+        """Calculate source/question label from CSV probabilities or embedding.
+        
+        Args:
+            sample: Sample dictionary from CSV
+            base_embedding: Embedding of the text
+            sample_type: Type of sample ('source' or 'question') - used to select appropriate column
+        """
         # Try CSV probabilities first
         if "cluster_probabilities" in sample and sample["cluster_probabilities"]:
             probs = sample["cluster_probabilities"]
             if len(probs) == self.clustering_data.n_clusters:
                 return np.array(probs, dtype=np.float32)
 
-        # Fallback: use suggestions
-        if "suggestions" in sample and sample["suggestions"]:
+        # Fallback: use suggestions from appropriate column
+        suggestions = sample.get(
+            self.source_suggestions_col if sample_type == "source" else self.question_suggestions_col
+        )
+        if suggestions:
             return self.label_calculator.calculate_source_labels_from_suggestions(
-                sample["suggestions"], self.suggestion_embeddings
+                suggestions, self.suggestion_embeddings
             )
 
         # Last resort: use embedding distance
@@ -228,11 +268,36 @@ class DomainAssessmentDatasetBuilder:
             base_embedding
         )
 
-    def _get_primary_cluster(self, sample: dict) -> Optional[int]:
-        """Get primary cluster ID from sample."""
+    def _get_primary_cluster(self, sample: dict, sample_type: str) -> Optional[int]:
+        """Get primary cluster ID from sample.
+        
+        Args:
+            sample: Sample dictionary from CSV
+            sample_type: Type of sample ('source' or 'question') - used to select appropriate column
+        """
+        # Try CSV probabilities first
         if "cluster_probabilities" in sample and sample["cluster_probabilities"]:
             probs = sample["cluster_probabilities"]
             return int(np.argmax(probs))
+        
+        # Fallback: calculate from suggestions using appropriate column based on sample_type
+        suggestions = sample.get(
+            self.source_suggestions_col if sample_type == "source" else self.question_suggestions_col
+        )
+        if suggestions:
+            try:
+                source_label = self.label_calculator.calculate_source_labels_from_suggestions(
+                    suggestions, self.suggestion_embeddings
+                )
+                primary_cluster = int(np.argmax(source_label))
+                logging.debug(f"Calculated primary cluster {primary_cluster} from {len(suggestions)} suggestions")
+                return primary_cluster
+            except Exception as e:
+                logging.warning(f"Failed to calculate primary cluster from suggestions: {e}")
+                return None
+        
+        # No way to determine cluster
+        logging.debug("No cluster_probabilities or suggestions available, returning None")
         return None
 
     def _load_suggestion_embeddings(self) -> dict:

@@ -280,26 +280,29 @@ source_text,question_text,chroma_source_id,chroma_question_id,selected_terms,tot
 
 Finally, we create a PyTorch Dataset from the CSV file with clustering information.
 
+**Important:** The dataset builder is aware that sources and questions may have different suggestion columns:
+- **Sources** (from `EXTRACT` mode): Use column specified by `source_suggestions_col` (default: `'suggestions'`)
+- **Questions** (from `ASSESS` mode): Use column specified by `question_suggestions_col` (default: `'selected_terms'`)
+
+The builder automatically selects the correct column based on whether the row is a source or question.
+
 ```python
 from pathlib import Path
 from RAG_supporters.dataset import DomainAssessmentDatasetBuilder, ClusterLabeledDataset
 from RAG_supporters.dataset.steering import SteeringConfig, SteeringMode
-from sentence_transformers import SentenceTransformer
 
-# Step 5.1: Initialize embedding model
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-
-# Step 5.2: Configure steering (optional augmentation)
+# Step 5.1: Configure steering (optional augmentation)
 steering_config = SteeringConfig(
     mode=[(SteeringMode.ZERO, 0.8), (SteeringMode.CLUSTER_DESCRIPTOR, 0.2)]
 )
 
-# Step 5.3: Build dataset from CSV + clustering JSON
+# Step 5.2: Build dataset from CSV + clustering JSON
+# Option 1: Use model name (simplest)
 builder = DomainAssessmentDatasetBuilder(
     csv_paths="domain_assessment_with_clusters.csv",
     clustering_json_path="suggestion_clusters.json",
     output_dir="dataset_output",
-    embedding_model=embedding_model,
+    embedding_model='all-MiniLM-L6-v2',  # Just pass model name!
     steering_config=steering_config,
     label_normalizer="softmax",
     label_temp=1.0,
@@ -307,6 +310,40 @@ builder = DomainAssessmentDatasetBuilder(
     augment_noise_prob=0.1,
     augment_zero_prob=0.1,
     augment_noise_level=0.01
+)
+
+# Option 2: Use sentence-transformers model
+from sentence_transformers import SentenceTransformer
+embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths="domain_assessment_with_clusters.csv",
+    clustering_json_path="suggestion_clusters.json",
+    output_dir="dataset_output",
+    embedding_model=embedding_model,
+    steering_config=steering_config
+)
+
+# Option 3: Use LangChain model (supports OpenAI, Cohere, etc.)
+from langchain_openai import OpenAIEmbeddings
+langchain_model = OpenAIEmbeddings(model="text-embedding-3-small")
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths="domain_assessment_with_clusters.csv",
+    clustering_json_path="suggestion_clusters.json",
+    output_dir="dataset_output",
+    embedding_model=langchain_model,
+    steering_config=steering_config
+)
+
+# Option 4: Custom column names
+# Use this if your CSV has different column names for suggestions
+builder = DomainAssessmentDatasetBuilder(
+    csv_paths="domain_assessment_with_clusters.csv",
+    clustering_json_path="suggestion_clusters.json",
+    output_dir="dataset_output",
+    embedding_model='all-MiniLM-L6-v2',
+    steering_config=steering_config,
+    source_suggestions_col='source_domains',      # Custom column for sources
+    question_suggestions_col='question_keywords'  # Custom column for questions
 )
 
 # Build the dataset
@@ -497,14 +534,13 @@ df_assessed.to_csv("domain_assessment_with_clusters.csv", index=False)
 # ============================================================================
 print("\nSTEP 5: Building PyTorch Dataset...")
 
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 steering_config = SteeringConfig(mode=[(SteeringMode.ZERO, 0.8), (SteeringMode.CLUSTER_DESCRIPTOR, 0.2)])
 
 builder = DomainAssessmentDatasetBuilder(
     csv_paths="domain_assessment_with_clusters.csv",
     clustering_json_path="suggestion_clusters.json",
     output_dir="dataset_output",
-    embedding_model=embedding_model,
+    embedding_model='all-MiniLM-L6-v2',  # Use string model name (simpler!)
     steering_config=steering_config,
     combined_label_weight=0.5
 )
@@ -537,8 +573,12 @@ print("\n✓ Complete workflow finished successfully!")
 1. **CSV Structure**: The domain assessment CSV must contain:
    - `source_text`, `question_text`
    - `chroma_source_id`, `chroma_question_id`
-   - `selected_terms` (JSON list of selected terms)
+   - Suggestion columns (configurable):
+     - `suggestions` (default for sources): JSON list from EXTRACT mode
+     - `selected_terms` (default for questions): JSON list from ASSESS mode
    - `cluster_probabilities` (optional, JSON array of probabilities)
+   
+   **Important:** The parser automatically distinguishes between source and question suggestions based on the configured column names (`source_suggestions_col` and `question_suggestions_col`).
 
 2. **Clustering JSON**: Must contain:
    - `cluster_assignments`: Map from suggestion → cluster ID

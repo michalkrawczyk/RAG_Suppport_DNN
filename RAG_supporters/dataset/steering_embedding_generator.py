@@ -2,7 +2,7 @@
 
 import logging
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -12,6 +12,8 @@ from augmentations.embedding import (
 )
 from clustering.clustering_data import ClusteringData
 from dataset.steering.steering_config import SteeringConfig, SteeringMode
+from embeddings.keyword_embedder import KeywordEmbedder
+from utils.text_utils import normalize_string
 
 
 class SteeringEmbeddingGenerator:
@@ -31,7 +33,9 @@ class SteeringEmbeddingGenerator:
         self,
         config: SteeringConfig,
         clustering_data: ClusteringData,
-        embedding_model: Any,  # Model with encode() method
+        embedding_model: Union[
+            str, Any, KeywordEmbedder
+        ],  # Model name, KeywordEmbedder, or raw model
         suggestion_embeddings: Optional[Dict[str, np.ndarray]] = None,
         llm_steering_texts: Optional[Dict[str, str]] = None,
         augment_noise_prob: float = 0.0,
@@ -44,7 +48,9 @@ class SteeringEmbeddingGenerator:
         Args:
             config: Steering configuration with modes
             clustering_data: Cluster data with centroids and descriptors
-            embedding_model: Model for encoding text to embeddings
+            embedding_model: Model name (str), KeywordEmbedder instance, or raw model.
+                           If string: creates KeywordEmbedder with model_name.
+                           Supports both sentence-transformers and LangChain models.
             suggestion_embeddings: Pre-computed suggestion embeddings {suggestion: embedding}
             llm_steering_texts: LLM-generated steering texts {key: text}
             augment_noise_prob: Probability of applying noise augmentation
@@ -53,7 +59,17 @@ class SteeringEmbeddingGenerator:
         """
         self.config = config
         self.clustering_data = clustering_data
-        self.embedding_model = embedding_model
+
+        # Initialize KeywordEmbedder (supports both sentence-transformers and LangChain)
+        if isinstance(embedding_model, KeywordEmbedder):
+            self.embedder = embedding_model
+        elif isinstance(embedding_model, str):
+            # Create KeywordEmbedder from model name
+            self.embedder = KeywordEmbedder(model_name=embedding_model)
+        else:
+            # Wrap raw model in KeywordEmbedder
+            self.embedder = KeywordEmbedder(embedding_model=embedding_model)
+
         self.suggestion_embeddings = suggestion_embeddings or {}
         self.llm_steering_texts = llm_steering_texts or {}
         self.augment_noise_prob = augment_noise_prob
@@ -64,7 +80,7 @@ class SteeringEmbeddingGenerator:
     def generate(
         self,
         sample_id: int,
-        suggestions: Optional[List[str]] = None,
+        suggestions: Optional[Union[List[str], List[Dict]]] = None,
         cluster_id: Optional[int] = None,
     ) -> Tuple[np.ndarray, SteeringMode]:
         """
@@ -72,7 +88,7 @@ class SteeringEmbeddingGenerator:
 
         Args:
             sample_id: Sample identifier
-            suggestions: List of suggestion strings
+            suggestions: List of suggestion strings or dicts with 'term' field
             cluster_id: Primary cluster ID for descriptor mode
 
         Returns:
@@ -112,13 +128,13 @@ class SteeringEmbeddingGenerator:
         return np.zeros(embedding_dim, dtype=np.float32)
 
     def _generate_suggestion_embedding(
-        self, suggestions: Optional[List[str]]
+        self, suggestions: Optional[Union[List[str], List[Dict]]]
     ) -> np.ndarray:
         """
         Generate embedding from suggestions.
 
         Args:
-            suggestions: List of suggestion strings
+            suggestions: List of suggestion strings or dicts with 'term' field
 
         Returns:
             Suggestion embedding (averaged if multiple)
@@ -130,15 +146,30 @@ class SteeringEmbeddingGenerator:
         # Try to use pre-computed embeddings first
         embeddings = []
         for suggestion in suggestions:
-            if suggestion in self.suggestion_embeddings:
-                embeddings.append(self.suggestion_embeddings[suggestion])
+            # Extract term from dict if needed
+            if isinstance(suggestion, dict):
+                term = suggestion.get("term", "")
             else:
-                # Fallback: encode on-the-fly
+                term = suggestion
+            
+            if not term:
+                continue
+            
+            # Normalize term to match keys in suggestion_embeddings
+            # (KeywordEmbedder normalizes all keys during embedding creation)
+            normalized_term = normalize_string(term)
+            
+            if normalized_term in self.suggestion_embeddings:
+                embeddings.append(self.suggestion_embeddings[normalized_term])
+            else:
+                # Fallback: encode on-the-fly using KeywordEmbedder
                 try:
-                    emb = self.embedding_model.encode([suggestion])[0]
+                    emb = self.embedder._generate_embeddings(
+                        [term], batch_size=1, show_progress=False
+                    )[0]
                     embeddings.append(emb)
                 except Exception as e:
-                    logging.warning(f"Failed to encode suggestion '{suggestion}': {e}")
+                    logging.warning(f"Failed to encode suggestion '{term}' (normalized: '{normalized_term}'): {e}")
 
         if not embeddings:
             return self._generate_zero_embedding()
@@ -165,9 +196,11 @@ class SteeringEmbeddingGenerator:
             logging.warning(f"No descriptors for cluster {cluster_id}")
             return self._generate_zero_embedding()
 
-        # Encode descriptors
+        # Encode descriptors using KeywordEmbedder
         try:
-            embeddings = self.embedding_model.encode(descriptors)
+            embeddings = self.embedder._generate_embeddings(
+                descriptors, batch_size=32, show_progress=True
+            )
             return np.mean(embeddings, axis=0).astype(np.float32)
         except Exception as e:
             logging.error(f"Failed to encode descriptors for cluster {cluster_id}: {e}")
@@ -190,7 +223,9 @@ class SteeringEmbeddingGenerator:
 
         try:
             text = self.llm_steering_texts[key]
-            embedding = self.embedding_model.encode([text])[0]
+            embedding = self.embedder._generate_embeddings(
+                [text], batch_size=1, show_progress=True
+            )[0]
             return embedding.astype(np.float32)
         except Exception as e:
             logging.error(f"Failed to encode LLM text for sample {sample_id}: {e}")
