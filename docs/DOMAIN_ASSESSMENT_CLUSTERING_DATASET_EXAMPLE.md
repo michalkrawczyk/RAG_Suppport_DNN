@@ -293,7 +293,7 @@ from RAG_supporters.dataset.steering import SteeringConfig, SteeringMode
 
 # Step 5.1: Configure steering (optional augmentation)
 steering_config = SteeringConfig(
-    mode=[(SteeringMode.ZERO, 0.8), (SteeringMode.TOPIC, 0.2)]
+    mode=[(SteeringMode.ZERO, 0.8), (SteeringMode.CLUSTER_DESCRIPTOR, 0.2)]
 )
 
 # Step 5.2: Build dataset from CSV + clustering JSON
@@ -347,13 +347,11 @@ builder = DomainAssessmentDatasetBuilder(
 )
 
 # Build the dataset
-dataset_info = builder.build()
+builder.build()
 
 print("\n=== Dataset Build Complete ===")
-print(f"Total samples: {dataset_info['total_samples']}")
-print(f"Clusters: {dataset_info['n_clusters']}")
-print(f"Embedding dimension: {dataset_info['embedding_dim']}")
-print(f"Output directory: {dataset_info['output_dir']}")
+print(f"Output directory: {builder.output_dir}")
+print(f"Clusters: {builder.clustering_data.n_clusters}")
 ```
 
 ### Step 6: Load and Use the Dataset
@@ -407,11 +405,11 @@ print(f"Label shape: {label.shape}")
 print(f"Label (cluster probabilities): {label}")
 print(f"Primary cluster: {torch.argmax(label).item()}")
 
-# Step 6.5: Get dataset statistics
-stats = dataset.get_statistics()
-print("\n=== Dataset Statistics ===")
-print(f"Cluster distribution: {stats['cluster_distribution']}")
-print(f"Average samples per cluster: {stats['avg_samples_per_cluster']:.2f}")
+# Step 6.5: Access dataset metadata
+print("\n=== Dataset Metadata ===")
+print(f"Total samples: {len(dataset)}")
+print(f"Number of clusters: {dataset.n_clusters}")
+print(f"Embedding dimension: {dataset.embedding_dim}")
 ```
 
 ## Complete Code Summary
@@ -536,7 +534,7 @@ df_assessed.to_csv("domain_assessment_with_clusters.csv", index=False)
 # ============================================================================
 print("\nSTEP 5: Building PyTorch Dataset...")
 
-steering_config = SteeringConfig(mode=[(SteeringMode.ZERO, 0.8), (SteeringMode.TOPIC, 0.2)])
+steering_config = SteeringConfig(mode=[(SteeringMode.ZERO, 0.8), (SteeringMode.CLUSTER_DESCRIPTOR, 0.2)])
 
 builder = DomainAssessmentDatasetBuilder(
     csv_paths="domain_assessment_with_clusters.csv",
@@ -547,8 +545,8 @@ builder = DomainAssessmentDatasetBuilder(
     combined_label_weight=0.5
 )
 
-dataset_info = builder.build()
-print(f"Dataset built: {dataset_info['total_samples']} samples, {dataset_info['n_clusters']} clusters")
+builder.build()
+print(f"Dataset built in: {builder.output_dir}")
 
 # ============================================================================
 # STEP 6: Load and use Dataset
