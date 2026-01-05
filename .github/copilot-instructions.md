@@ -466,13 +466,13 @@ The "Agent Generator for CSV" pattern is a core architectural principle for batc
 - Alternative question generation from sources
 - Batch CSV processing with flexible column mapping
 
-**Domain Assessment Agent** (`RAG_supporters/agents/domain_assesment.py`)
+**Domain Assessment Agent** (`RAG_supporters/agents/domain_assessment.py`)
 - Domain theme extraction
 - Question categorization
 - Topic analysis
 - Multi-phase processing with interruption recovery
 
-**Source Assessment Agent** (`RAG_supporters/agents/source_assesment.py`)
+**Source Assessment Agent** (`RAG_supporters/agents/source_assessment.py`)
 - Source quality evaluation
 - Relevance scoring
 - Batch processing support
