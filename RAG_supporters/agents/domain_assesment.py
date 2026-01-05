@@ -2002,6 +2002,7 @@ except ImportError as e:
         EXTRACT = "extract"
         GUESS = "guess"
         ASSESS = "assess"
+        CLUSTER_RELEVANCE = "cluster_relevance"
 
     class DomainAnalysisAgent:
         """
