@@ -11,9 +11,15 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-import numpy as np
-
 LOGGER = logging.getLogger(__name__)
+
+# Optional numpy import for statistical functions
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
+    LOGGER.warning("numpy not available. Statistical functions will be limited.")
 
 
 def validate_steering_text(result: Dict[str, Any]) -> Tuple[bool, List[str]]:
@@ -286,14 +292,39 @@ def compute_confidence_statistics(
             "median": 0.0,
         }
 
-    return {
-        "count": len(confidences),
-        "mean": float(np.mean(confidences)),
-        "std": float(np.std(confidences)),
-        "min": float(np.min(confidences)),
-        "max": float(np.max(confidences)),
-        "median": float(np.median(confidences)),
-    }
+    if HAS_NUMPY:
+        import numpy as np
+        return {
+            "count": len(confidences),
+            "mean": float(np.mean(confidences)),
+            "std": float(np.std(confidences)),
+            "min": float(np.min(confidences)),
+            "max": float(np.max(confidences)),
+            "median": float(np.median(confidences)),
+        }
+    else:
+        # Fallback implementation without numpy
+        mean_val = sum(confidences) / len(confidences)
+        sorted_conf = sorted(confidences)
+        n = len(sorted_conf)
+        median_val = (
+            sorted_conf[n // 2]
+            if n % 2 == 1
+            else (sorted_conf[n // 2 - 1] + sorted_conf[n // 2]) / 2
+        )
+        
+        # Simple std calculation
+        variance = sum((x - mean_val) ** 2 for x in confidences) / len(confidences)
+        std_val = variance ** 0.5
+        
+        return {
+            "count": len(confidences),
+            "mean": mean_val,
+            "std": std_val,
+            "min": min(confidences),
+            "max": max(confidences),
+            "median": median_val,
+        }
 
 
 def analyze_descriptor_usage(
