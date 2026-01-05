@@ -309,8 +309,8 @@ def from_results(cls, results_path: str):
     """Load results from JSON file."""
     with open(results_path, "r") as f:
         results = json.load(f)
-    # Reconstruct object from results
-    return cls(...)
+    # Reconstruct object with appropriate parameters from loaded results
+    return cls(results)
 ```
 
 ## CI/CD Workflows
