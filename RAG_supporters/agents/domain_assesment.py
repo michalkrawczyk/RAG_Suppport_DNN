@@ -472,6 +472,27 @@ try:
             LOGGER.warning(f"Unexpected result type: {type(result)}")
             return None
 
+        def _create_relevance_json_mapping(
+            self, cluster_scores: List[Dict[str, Any]]
+        ) -> str:
+            """Create JSON mapping of cluster descriptors to probabilities.
+
+            Parameters
+            ----------
+            cluster_scores : List[Dict[str, Any]]
+                List of cluster score dictionaries
+
+            Returns
+            -------
+            str
+                JSON string mapping cluster_descriptor to probability
+            """
+            relevance_json = {
+                score["cluster_descriptor"]: score["probability"]
+                for score in cluster_scores
+            }
+            return json.dumps(relevance_json)
+
         # Public API methods
 
         def extract_domains(self, text_source: str) -> Optional[Dict[str, Any]]:
@@ -1156,9 +1177,10 @@ try:
                     f"{prefix}_error",
                 ]
             elif mode == OperationMode.CLUSTER_RELEVANCE:
-                # Special column name as per requirements
+                # Special column name as per requirements: must be "question_term_relevance_scores"
+                # This is different from other modes which use prefix-based naming
                 result_columns = [
-                    "question_term_relevance_scores",  # JSON mapping as required
+                    "question_term_relevance_scores",  # Required name from specification
                     f"{prefix}_cluster_scores",
                     f"{prefix}_total_clusters",
                     f"{prefix}_question_summary",
@@ -1381,13 +1403,11 @@ try:
                                 result["primary_topics"]
                             )
                         elif mode == OperationMode.CLUSTER_RELEVANCE:
-                            # Create JSON mapping of cluster_descriptor -> probability
-                            relevance_json = {
-                                score["cluster_descriptor"]: score["probability"]
-                                for score in result["cluster_scores"]
-                            }
+                            # Create JSON mapping using helper method
                             result_df.at[idx, "question_term_relevance_scores"] = (
-                                json.dumps(relevance_json)
+                                self._create_relevance_json_mapping(
+                                    result["cluster_scores"]
+                                )
                             )
                             result_df.at[idx, f"{prefix}_cluster_scores"] = str(
                                 result["cluster_scores"]
@@ -1498,13 +1518,11 @@ try:
                                 result["primary_topics"]
                             )
                         elif mode == OperationMode.CLUSTER_RELEVANCE:
-                            # Create JSON mapping of cluster_descriptor -> probability
-                            relevance_json = {
-                                score["cluster_descriptor"]: score["probability"]
-                                for score in result["cluster_scores"]
-                            }
+                            # Create JSON mapping using helper method
                             result_df.at[idx, "question_term_relevance_scores"] = (
-                                json.dumps(relevance_json)
+                                self._create_relevance_json_mapping(
+                                    result["cluster_scores"]
+                                )
                             )
                             result_df.at[idx, f"{prefix}_cluster_scores"] = str(
                                 result["cluster_scores"]
