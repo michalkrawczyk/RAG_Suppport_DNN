@@ -35,6 +35,8 @@ This repository contains **RAG Support DNN** - a Python library for supporting R
 
 ### Example Code Style
 
+The following example demonstrates the preferred NumPy-style docstring format:
+
 ```python
 """Module docstring describing the module purpose."""
 
@@ -84,6 +86,8 @@ class TextAugmentationAgent:
 - **PyYAML** (`pyyaml>=6.0`) - Configuration parsing
 
 ### Optional Agent Dependencies
+
+Note: Version specifications use `>=` for minimum compatible versions or `==` for exact versions when API stability is critical (as specified in `RAG_supporters/requirements_agents.txt`).
 
 - **LangChain** (`langchain>=0.3.20`, `langchain-core==0.3.52`) - LLM agent framework
 - **LangChain Community** (`langchain-community>=0.3.19`) - Additional integrations
@@ -233,6 +237,16 @@ def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     Note: Using iterrows() is acceptable for LLM-based processing where
     each row requires an API call. For pure Python operations, consider
     vectorized operations or df.apply() for better performance.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame to process
+    
+    Returns
+    -------
+    pd.DataFrame
+        Processed DataFrame with results
     """
     results = []
     for idx, row in tqdm(df.iterrows(), total=len(df), desc="Processing"):
@@ -251,7 +265,22 @@ def process_csv(
     df: pd.DataFrame,
     columns_mapping: Optional[dict] = None
 ) -> pd.DataFrame:
-    """Process CSV with flexible column mapping."""
+    """Process CSV with flexible column mapping.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame to process
+    columns_mapping : dict, optional
+        Mapping of expected column names to actual column names in the DataFrame.
+        Example: {"question_text": "custom_question_col", "source_text": "custom_source_col"}
+        If None, uses default column names.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Processed DataFrame
+    """
     default_mapping = {
         "question_text": "question_text",
         "source_text": "source_text"
@@ -278,15 +307,20 @@ logger = logging.getLogger(__name__)
 
 def call_llm_with_retry(self, prompt: str) -> Optional[str]:
     """Call LLM with retry logic."""
+    last_exception = None
     for attempt in range(self.max_retries):
         try:
             response = self.llm.invoke(prompt)
             return response.content
         except Exception as e:
-            if attempt == self.max_retries - 1:
-                logger.error(f"Failed after {self.max_retries} attempts: {e}")
-                return None
-            logger.warning(f"Attempt {attempt + 1} failed, retrying...")
+            last_exception = e
+            logger.warning(f"Attempt {attempt + 1}/{self.max_retries} failed: {e}")
+            if attempt < self.max_retries - 1:
+                logger.info("Retrying...")
+    
+    # All retries exhausted
+    logger.error(f"Failed after {self.max_retries} attempts: {last_exception}")
+    return None
 ```
 
 ### 4. Save and Load Results
@@ -302,13 +336,10 @@ def save_results(self, output_path: str):
     results = {
         "metadata": {
             "version": "1.0",
-            # Add additional metadata fields here, for example:
-            # "generated_at": self.generated_at.isoformat(),
+            "n_items": len(self.results),
+            # Add additional metadata fields as needed
         },
-        "data": [
-            # Add your serialized result items here, for example:
-            # {"id": item.id, "score": item.score, "text": item.text}
-        ],
+        "data": self.results,  # Your serialized result items
     }
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
