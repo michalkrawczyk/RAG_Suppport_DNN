@@ -300,8 +300,15 @@ import json
 def save_results(self, output_path: str):
     """Save results to JSON file."""
     results = {
-        "metadata": {...},
-        "data": {...}
+        "metadata": {
+            "version": "1.0",
+            # Add additional metadata fields here, for example:
+            # "generated_at": self.generated_at.isoformat(),
+        },
+        "data": [
+            # Add your serialized result items here, for example:
+            # {"id": item.id, "score": item.score, "text": item.text}
+        ],
     }
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
