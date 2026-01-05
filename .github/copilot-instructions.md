@@ -144,14 +144,17 @@ class MyAgent:
     
     def process_single(self, text: str) -> Optional[str]:
         """Process a single text item."""
+        # Implementation details omitted; this example focuses on the class pattern.
         pass
     
     def process_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Process entire DataFrame with progress bar."""
+        # Implementation details omitted; this example focuses on the class pattern.
         pass
     
     def process_csv(self, input_path: str, output_path: str):
         """Convenience method for CSV processing."""
+        # Implementation details omitted; this example focuses on the class pattern.
         pass
 ```
 
