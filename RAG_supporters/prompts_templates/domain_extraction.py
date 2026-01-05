@@ -90,3 +90,36 @@ Output the results in the following JSON format:
 }}
 
 Provide only the JSON output, no additional text."""
+
+
+QUESTION_CLUSTER_RELEVANCE_PROMPT = """Given a user question and a list of cluster descriptors, assess the probability of semantic connection between the question and each cluster descriptor. Each probability should indicate how likely the question belongs to or is related to that cluster's topic.
+
+QUESTION:
+{question}
+
+CLUSTER DESCRIPTORS:
+{cluster_descriptors}
+
+Requirements:
+- Analyze the question's main topic, intent, and semantic content
+- For each cluster descriptor, determine the probability (0-1) that the question is semantically connected to it
+- A probability of 1.0 means the question is highly relevant to the cluster's topic
+- A probability of 0.0 means no semantic connection
+- Provide probabilities for ALL cluster descriptors provided
+- Include a brief explanation for each probability assessment
+- Base probabilities on semantic similarity, topic matching, and contextual relevance
+
+Output the results in the following JSON format:
+{{
+  "cluster_scores": [
+    {{
+      "cluster_descriptor": "example-descriptor",
+      "probability": 0.85,
+      "reason": "Brief explanation for this probability"
+    }}
+  ],
+  "total_clusters": 5,
+  "question_summary": "Brief summary of the question's main topic"
+}}
+
+Provide only the JSON output, no additional text."""
