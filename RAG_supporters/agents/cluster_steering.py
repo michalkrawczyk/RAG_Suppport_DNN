@@ -455,7 +455,7 @@ except ImportError as e:
     _IMPORT_ERROR = str(e)
     LOGGER.warning(
         f"ClusterSteeringAgent dependencies not available: {e}. "
-        "Install with: pip install langchain langgraph pydantic"
+        "Install with: pip install langchain pydantic"
     )
 
     # Stub for missing dependencies
