@@ -293,7 +293,6 @@ def compute_confidence_statistics(
         }
 
     if HAS_NUMPY:
-        import numpy as np
         return {
             "count": len(confidences),
             "mean": float(np.mean(confidences)),
