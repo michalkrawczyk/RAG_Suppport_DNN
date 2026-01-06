@@ -92,7 +92,9 @@ Output the results in the following JSON format:
 Provide only the JSON output, no additional text."""
 
 
-QUESTION_CLUSTER_RELEVANCE_PROMPT = """Given a user question and a list of cluster descriptors, assess the probability of semantic connection between the question and each cluster descriptor. Each probability should indicate how likely the question belongs to or is related to that cluster's topic.
+QUESTION_TOPIC_RELEVANCE_PROB_PROMPT = """Given a user question and a list of cluster descriptors, assess the probability of semantic connection between the question and each cluster descriptor. Each probability should indicate how likely the question belongs to or is related to that cluster's topic.
+
+NOTE: For large numbers of cluster descriptors (>50), consider batching to stay within context limits.
 
 QUESTION:
 {question}

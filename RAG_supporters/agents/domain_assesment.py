@@ -20,7 +20,7 @@ try:
     from tqdm import tqdm
 
     from prompts_templates.domain_extraction import (
-        QUESTION_CLUSTER_RELEVANCE_PROMPT,
+        QUESTION_TOPIC_RELEVANCE_PROB_PROMPT,
         QUESTION_DOMAIN_ASSESS_PROMPT,
         QUESTION_DOMAIN_GUESS_PROMPT,
         SRC_DOMAIN_EXTRACTION_PROMPT,
@@ -33,7 +33,7 @@ try:
         EXTRACT = "extract"  # Extract domains from source text
         GUESS = "guess"  # Guess domains needed for question
         ASSESS = "assess"  # Assess question against available terms
-        CLUSTER_RELEVANCE = "cluster_relevance"  # Assess question-cluster relevance probabilities
+        TOPIC_RELEVANCE_PROB = "topic_relevance_prob"  # Assess question-cluster relevance probabilities
 
     # Pydantic Models
     class DomainSuggestion(BaseModel):
@@ -214,7 +214,7 @@ try:
             self.assessment_parser = PydanticOutputParser(
                 pydantic_object=DomainAssessmentResult
             )
-            self.cluster_relevance_parser = PydanticOutputParser(
+            self.topic_relevance_prob_parser = PydanticOutputParser(
                 pydantic_object=QuestionClusterRelevanceResult
             )
 
@@ -228,8 +228,8 @@ try:
             self.assessment_fixing_parser = OutputFixingParser.from_llm(
                 parser=self.assessment_parser, llm=self.llm
             )
-            self.cluster_relevance_fixing_parser = OutputFixingParser.from_llm(
-                parser=self.cluster_relevance_parser, llm=self.llm
+            self.topic_relevance_prob_fixing_parser = OutputFixingParser.from_llm(
+                parser=self.topic_relevance_prob_parser, llm=self.llm
             )
 
             # Create prompt templates
@@ -244,10 +244,10 @@ try:
                 ["question", "available_terms"],
                 self.assessment_parser,
             )
-            self.cluster_relevance_template = self._create_prompt_template(
-                QUESTION_CLUSTER_RELEVANCE_PROMPT,
+            self.topic_relevance_prob_template = self._create_prompt_template(
+                QUESTION_TOPIC_RELEVANCE_PROB_PROMPT,
                 ["question", "cluster_descriptors"],
-                self.cluster_relevance_parser,
+                self.topic_relevance_prob_parser,
             )
 
             # Build the workflow graph
@@ -291,10 +291,10 @@ try:
                 return self.guess_parser, self.guess_fixing_parser
             elif mode == OperationMode.ASSESS:
                 return self.assessment_parser, self.assessment_fixing_parser
-            elif mode == OperationMode.CLUSTER_RELEVANCE:
+            elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                 return (
-                    self.cluster_relevance_parser,
-                    self.cluster_relevance_fixing_parser,
+                    self.topic_relevance_prob_parser,
+                    self.topic_relevance_prob_fixing_parser,
                 )
             else:
                 raise ValueError(f"Unknown operation mode: {mode}")
@@ -307,14 +307,14 @@ try:
                 return self.guess_template
             elif mode == OperationMode.ASSESS:
                 return self.assessment_template
-            elif mode == OperationMode.CLUSTER_RELEVANCE:
-                return self.cluster_relevance_template
+            elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                return self.topic_relevance_prob_template
             else:
                 raise ValueError(f"Unknown operation mode: {mode}")
 
         def _get_column_prefix(self, mode: OperationMode) -> str:
             """Get column prefix for mode to avoid overwrites."""
-            return mode.value  # Returns 'extract', 'guess', 'assess', or 'cluster_relevance'
+            return mode.value  # Returns 'extract', 'guess', 'assess', or 'topic_relevance_prob'
 
         def _build_graph(self) -> StateGraph:
             """Build the LangGraph workflow."""
@@ -355,7 +355,7 @@ try:
                     prompt = template.format(
                         question=state.question, available_terms=state.available_terms
                     )
-                elif state.mode == OperationMode.CLUSTER_RELEVANCE:
+                elif state.mode == OperationMode.TOPIC_RELEVANCE_PROB:
                     prompt = template.format(
                         question=state.question,
                         cluster_descriptors=state.cluster_descriptors,
@@ -412,7 +412,7 @@ try:
                     OperationMode.EXTRACT: DomainExtractionResult,
                     OperationMode.GUESS: DomainGuessResult,
                     OperationMode.ASSESS: DomainAssessmentResult,
-                    OperationMode.CLUSTER_RELEVANCE: QuestionClusterRelevanceResult,
+                    OperationMode.TOPIC_RELEVANCE_PROB: QuestionClusterRelevanceResult,
                 }[state.mode]
 
                 if isinstance(state.result, expected_type):
@@ -621,7 +621,7 @@ try:
             LOGGER.error(f"Final error: {final_state.get('error')}")
             return None
 
-        def assess_cluster_relevance(
+        def assess_topic_relevance_prob(
             self,
             question: str,
             cluster_descriptors: Union[List[str], List[Dict], str],
@@ -645,7 +645,7 @@ try:
             Examples
             --------
             >>> descriptors = ["machine learning", "databases", "web development"]
-            >>> result = agent.assess_cluster_relevance(
+            >>> result = agent.assess_topic_relevance_prob(
             ...     "What is gradient descent?",
             ...     descriptors
             ... )
@@ -665,7 +665,7 @@ try:
                 descriptors_str = json.dumps(cluster_descriptors, indent=2)
 
             initial_state = AgentState(
-                mode=OperationMode.CLUSTER_RELEVANCE,
+                mode=OperationMode.TOPIC_RELEVANCE_PROB,
                 question=question,
                 cluster_descriptors=descriptors_str,
                 max_retries=self.max_retries,
@@ -809,7 +809,7 @@ try:
                 show_progress=show_progress,
             )
 
-        def assess_cluster_relevance_batch(
+        def assess_topic_relevance_prob_batch(
             self,
             questions: List[str],
             cluster_descriptors: Union[List[str], List[Dict], str],
@@ -840,7 +840,7 @@ try:
                     "Batch processing not available, using sequential processing"
                 )
                 return [
-                    self.assess_cluster_relevance(q, cluster_descriptors)
+                    self.assess_topic_relevance_prob(q, cluster_descriptors)
                     for q in questions
                 ]
 
@@ -857,7 +857,7 @@ try:
 
             batch_size = batch_size or self.batch_size
             return self._batch_process(
-                OperationMode.CLUSTER_RELEVANCE,
+                OperationMode.TOPIC_RELEVANCE_PROB,
                 questions=questions,
                 cluster_descriptors=[descriptors_str] * len(questions),
                 batch_size=batch_size,
@@ -884,15 +884,15 @@ try:
             Parameters
             ----------
             mode : OperationMode
-                Operation mode (extract, guess, assess, or cluster_relevance)
+                Operation mode (extract, guess, assess, or topic_relevance_prob)
             text_sources : Optional[List[str]]
                 List of text sources for extraction mode
             questions : Optional[List[str]]
-                List of questions for guess/assess/cluster_relevance modes
+                List of questions for guess/assess/topic_relevance_prob modes
             available_terms : Optional[List[str]]
                 Available terms for assess mode
             cluster_descriptors : Optional[List[str]]
-                Cluster descriptors for cluster_relevance mode
+                Cluster descriptors for topic_relevance_prob mode
             batch_size : Optional[int]
                 Number of items to process in each batch
             show_progress : bool
@@ -914,7 +914,7 @@ try:
                 total_items = len(questions)
             elif mode == OperationMode.ASSESS:
                 total_items = len(questions)
-            elif mode == OperationMode.CLUSTER_RELEVANCE:
+            elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                 total_items = len(questions)
             else:
                 raise ValueError(f"Unknown mode: {mode}")
@@ -970,7 +970,7 @@ try:
                                     question=question, available_terms=terms
                                 )
                             )
-                    elif mode == OperationMode.CLUSTER_RELEVANCE:
+                    elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                         batch_questions = questions[batch_start:batch_end]
                         batch_descriptors = cluster_descriptors[batch_start:batch_end]
                         for question, descriptors in zip(
@@ -1059,9 +1059,9 @@ try:
                         self.assess_domains(q, t)
                         for q, t in zip(questions, available_terms)
                     ]
-                elif mode == OperationMode.CLUSTER_RELEVANCE:
+                elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                     return [
-                        self.assess_cluster_relevance(q, d)
+                        self.assess_topic_relevance_prob(q, d)
                         for q, d in zip(questions, cluster_descriptors)
                     ]
 
@@ -1100,15 +1100,15 @@ try:
             df : pd.DataFrame
                 DataFrame to process
             mode : OperationMode
-                Operation mode (EXTRACT, GUESS, ASSESS, or CLUSTER_RELEVANCE)
+                Operation mode (EXTRACT, GUESS, ASSESS, or TOPIC_RELEVANCE_PROB)
             text_source_col : str, optional
                 Column name for text sources (required for EXTRACT mode)
             question_col : str, optional
-                Column name for questions (required for GUESS, ASSESS, and CLUSTER_RELEVANCE modes)
+                Column name for questions (required for GUESS, ASSESS, and TOPIC_RELEVANCE_PROB modes)
             available_terms : Union[List[str], List[Dict], str], optional
                 Available terms for ASSESS mode
             cluster_descriptors : Union[List[str], List[Dict], str], optional
-                Cluster descriptors for CLUSTER_RELEVANCE mode
+                Cluster descriptors for TOPIC_RELEVANCE_PROB mode
             progress_bar : bool, optional
                 Show progress bar. Default is True.
             save_path : str, optional
@@ -1139,18 +1139,18 @@ try:
                 in [
                     OperationMode.GUESS,
                     OperationMode.ASSESS,
-                    OperationMode.CLUSTER_RELEVANCE,
+                    OperationMode.TOPIC_RELEVANCE_PROB,
                 ]
                 and not question_col
             ):
                 raise ValueError(
-                    "question_col required for GUESS, ASSESS, and CLUSTER_RELEVANCE modes"
+                    "question_col required for GUESS, ASSESS, and TOPIC_RELEVANCE_PROB modes"
                 )
             if mode == OperationMode.ASSESS and available_terms is None:
                 raise ValueError("available_terms required for ASSESS mode")
-            if mode == OperationMode.CLUSTER_RELEVANCE and cluster_descriptors is None:
+            if mode == OperationMode.TOPIC_RELEVANCE_PROB and cluster_descriptors is None:
                 raise ValueError(
-                    "cluster_descriptors required for CLUSTER_RELEVANCE mode"
+                    "cluster_descriptors required for TOPIC_RELEVANCE_PROB mode"
                 )
 
             # Get column prefix to avoid overwrites
@@ -1176,7 +1176,7 @@ try:
                     f"{prefix}_primary_topics",
                     f"{prefix}_error",
                 ]
-            elif mode == OperationMode.CLUSTER_RELEVANCE:
+            elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                 # Special column name as per requirements: must be "question_term_relevance_scores"
                 # This is different from other modes which use prefix-based naming
                 result_columns = [
@@ -1228,7 +1228,7 @@ try:
                     elif mode == OperationMode.ASSESS:
                         if pd.notna(row.get(f"{prefix}_total_selected")):
                             continue
-                    elif mode == OperationMode.CLUSTER_RELEVANCE:
+                    elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                         if pd.notna(row.get(f"{prefix}_total_clusters")):
                             continue
 
@@ -1329,7 +1329,7 @@ try:
                 all_inputs = [row[question_col] for row in rows]
             elif mode == OperationMode.ASSESS:
                 all_inputs = [row[question_col] for row in rows]
-            elif mode == OperationMode.CLUSTER_RELEVANCE:
+            elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                 all_inputs = [row[question_col] for row in rows]
 
             try:
@@ -1349,8 +1349,8 @@ try:
                         batch_size=batch_size,
                         show_progress=progress_bar,
                     )
-                elif mode == OperationMode.CLUSTER_RELEVANCE:
-                    batch_results = self.assess_cluster_relevance_batch(
+                elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                    batch_results = self.assess_topic_relevance_prob_batch(
                         all_inputs,
                         cluster_descriptors,
                         batch_size=batch_size,
@@ -1402,7 +1402,7 @@ try:
                             result_df.at[idx, f"{prefix}_primary_topics"] = str(
                                 result["primary_topics"]
                             )
-                        elif mode == OperationMode.CLUSTER_RELEVANCE:
+                        elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                             # Create JSON mapping using helper method
                             result_df.at[idx, "question_term_relevance_scores"] = (
                                 self._create_relevance_json_mapping(
@@ -1482,8 +1482,8 @@ try:
                         result = self.guess_domains(row[question_col])
                     elif mode == OperationMode.ASSESS:
                         result = self.assess_domains(row[question_col], available_terms)
-                    elif mode == OperationMode.CLUSTER_RELEVANCE:
-                        result = self.assess_cluster_relevance(
+                    elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                        result = self.assess_topic_relevance_prob(
                             row[question_col], cluster_descriptors
                         )
 
@@ -1517,7 +1517,7 @@ try:
                             result_df.at[idx, f"{prefix}_primary_topics"] = str(
                                 result["primary_topics"]
                             )
-                        elif mode == OperationMode.CLUSTER_RELEVANCE:
+                        elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                             # Create JSON mapping using helper method
                             result_df.at[idx, "question_term_relevance_scores"] = (
                                 self._create_relevance_json_mapping(
@@ -2002,7 +2002,7 @@ except ImportError as e:
         EXTRACT = "extract"
         GUESS = "guess"
         ASSESS = "assess"
-        CLUSTER_RELEVANCE = "cluster_relevance"
+        TOPIC_RELEVANCE_PROB = "topic_relevance_prob"
 
     class DomainAnalysisAgent:
         """
