@@ -74,7 +74,6 @@ def main():
     print("\n" + "=" * 80)
     print("LLM-Driven Cluster Steering Examples")
     print("=" * 80)
-    
     example_validation()
     
     print("\n" + "=" * 80)
