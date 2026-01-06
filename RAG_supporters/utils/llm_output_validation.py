@@ -250,10 +250,15 @@ def validate_json_file(
         else:
             all_errors.extend([f"Item {idx}: {err}" for err in errors])
 
-    LOGGER.info(
-        f"Validated {file_path.name}: {valid_count}/{total_count} valid "
-        f"({100 * valid_count / total_count:.1f}%)"
-    )
+    if total_count > 0:
+        LOGGER.info(
+            f"Validated {file_path.name}: {valid_count}/{total_count} valid "
+            f"({100 * valid_count / total_count:.1f}%)"
+        )
+    else:
+        LOGGER.info(
+            f"Validated {file_path.name}: {valid_count}/{total_count} valid (no items to validate)"
+        )
 
     return total_count, valid_count, all_errors
 
