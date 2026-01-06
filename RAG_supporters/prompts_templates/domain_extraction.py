@@ -103,7 +103,9 @@ CLUSTER DESCRIPTORS:
 {cluster_descriptors}
 
 Requirements:
-- Analyze the question's main topic, intent, and semantic content
+- Analyze the question's semantic content in relation to each cluster descriptor
+- Consider that some questions may be ambiguous or context-dependent (e.g., "What about PR" has different meanings in marketing vs IT)
+- Use the cluster descriptors themselves as context to interpret the question's potential meaning
 - For each cluster descriptor, determine the probability (0-1) that the question is semantically connected to it
 - A probability of 1.0 means the question is highly relevant to the cluster's topic
 - A probability of 0.0 means no semantic connection
