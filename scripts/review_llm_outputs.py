@@ -5,7 +5,6 @@ This script provides a command-line interface to review, edit, and approve
 LLM-generated steering texts, question rephrases, and ambiguity resolutions.
 """
 
-import argparse
 import json
 import logging
 import sys
