@@ -124,36 +124,44 @@ try:
                 self.total_selected = len(self.selected_terms)
             return self
 
-    class ClusterRelevanceScore(BaseModel):
-        """Model for a single cluster descriptor with relevance probability."""
+    class TopicRelevanceScore(BaseModel):
+        """Model for a single topic descriptor with relevance probability.
+        
+        Note: Typically used with cluster descriptors from KeywordClusterer output.
+        """
 
-        cluster_descriptor: str = Field(..., description="The cluster descriptor term")
+        topic_descriptor: str = Field(..., description="The topic descriptor term (e.g., from cluster analysis)")
         probability: float = Field(
             ..., ge=0.0, le=1.0, description="Probability of semantic connection (0-1)"
         )
         reason: str = Field(..., description="Explanation for this probability")
 
-    class QuestionClusterRelevanceResult(BaseModel):
-        """Result for question-cluster relevance assessment."""
+    class QuestionTopicRelevanceResult(BaseModel):
+        """Result for question-topic relevance assessment.
+        
+        Note: Designed to work with cluster descriptors from KeywordClusterer
+        (RAG_supporters/clustering/keyword_clustering.py). The descriptors are 
+        typically extracted from the 'clusters' dict in the clustering JSON output.
+        """
 
-        cluster_scores: List[ClusterRelevanceScore] = Field(
-            ..., description="List of cluster descriptors with probabilities"
+        topic_scores: List[TopicRelevanceScore] = Field(
+            ..., description="List of topic descriptors with probabilities"
         )
         total_clusters: int = Field(
-            ..., ge=0, description="Total number of clusters assessed"
+            ..., ge=0, description="Total number of topics/clusters assessed"
         )
-        question_summary: str = Field(
-            ..., description="Brief summary of the question's main topic"
+        question_summary: Optional[str] = Field(
+            None, description="Brief summary of the question's main topic (optional)"
         )
 
         @model_validator(mode="after")
         def validate_total_matches_length(self):
-            """Ensure total_clusters matches the length of cluster_scores list."""
-            if self.total_clusters != len(self.cluster_scores):
+            """Ensure total_clusters matches the length of topic_scores list."""
+            if self.total_clusters != len(self.topic_scores):
                 LOGGER.warning(
-                    f"total_clusters mismatch: {self.total_clusters} vs {len(self.cluster_scores)}, correcting"
+                    f"total_clusters mismatch: {self.total_clusters} vs {len(self.topic_scores)}, correcting"
                 )
-                self.total_clusters = len(self.cluster_scores)
+                self.total_clusters = len(self.topic_scores)
             return self
 
     class AgentState(BaseModel):
@@ -163,13 +171,13 @@ try:
         text_source: Optional[str] = None
         question: Optional[str] = None
         available_terms: Optional[str] = None  # JSON string of available terms
-        cluster_descriptors: Optional[str] = None  # JSON string of cluster descriptors
+        topic_descriptors: Optional[str] = None  # JSON string of cluster descriptors
         result: Optional[
             Union[
                 DomainExtractionResult,
                 DomainGuessResult,
                 DomainAssessmentResult,
-                QuestionClusterRelevanceResult,
+                QuestionTopicRelevanceResult,
             ]
         ] = None
         error: Optional[str] = None
@@ -215,7 +223,7 @@ try:
                 pydantic_object=DomainAssessmentResult
             )
             self.topic_relevance_prob_parser = PydanticOutputParser(
-                pydantic_object=QuestionClusterRelevanceResult
+                pydantic_object=QuestionTopicRelevanceResult
             )
 
             # Set up fixing parsers
@@ -246,7 +254,7 @@ try:
             )
             self.topic_relevance_prob_template = self._create_prompt_template(
                 QUESTION_TOPIC_RELEVANCE_PROB_PROMPT,
-                ["question", "cluster_descriptors"],
+                ["question", "topic_descriptors"],
                 self.topic_relevance_prob_parser,
             )
 
@@ -358,7 +366,7 @@ try:
                 elif state.mode == OperationMode.TOPIC_RELEVANCE_PROB:
                     prompt = template.format(
                         question=state.question,
-                        cluster_descriptors=state.cluster_descriptors,
+                        topic_descriptors=state.topic_descriptors,
                     )
 
                 LOGGER.debug(f"Sending prompt to LLM for mode: {state.mode}")
@@ -412,7 +420,7 @@ try:
                     OperationMode.EXTRACT: DomainExtractionResult,
                     OperationMode.GUESS: DomainGuessResult,
                     OperationMode.ASSESS: DomainAssessmentResult,
-                    OperationMode.TOPIC_RELEVANCE_PROB: QuestionClusterRelevanceResult,
+                    OperationMode.TOPIC_RELEVANCE_PROB: QuestionTopicRelevanceResult,
                 }[state.mode]
 
                 if isinstance(state.result, expected_type):
@@ -473,23 +481,23 @@ try:
             return None
 
         def _create_relevance_json_mapping(
-            self, cluster_scores: List[Dict[str, Any]]
+            self, topic_scores: List[Dict[str, Any]]
         ) -> str:
             """Create JSON mapping of cluster descriptors to probabilities.
 
             Parameters
             ----------
-            cluster_scores : List[Dict[str, Any]]
+            topic_scores : List[Dict[str, Any]]
                 List of cluster score dictionaries
 
             Returns
             -------
             str
-                JSON string mapping cluster_descriptor to probability
+                JSON string mapping topic_descriptor to probability
             """
             relevance_json = {
-                score["cluster_descriptor"]: score["probability"]
-                for score in cluster_scores
+                score["topic_descriptor"]: score["probability"]
+                for score in topic_scores
             }
             return json.dumps(relevance_json)
 
@@ -624,23 +632,32 @@ try:
         def assess_topic_relevance_prob(
             self,
             question: str,
-            cluster_descriptors: Union[List[str], List[Dict], str],
+            topic_descriptors: Union[List[str], List[Dict], str],
         ) -> Optional[Dict[str, Any]]:
             """
-            Assess relevance probabilities between a question and cluster descriptors.
+            Assess relevance probabilities between a question and topic descriptors.
+            
+            This method is designed to work with cluster descriptors from KeywordClusterer
+            (RAG_supporters/clustering/keyword_clustering.py). The descriptors can be
+            extracted from the 'clusters' dict in the clustering JSON output, where each
+            cluster key contains a list of topic keywords.
+            
+            Note: Topic descriptors are typically shared across all questions for 
+            performance and memory efficiency.
 
             Parameters
             ----------
             question : str
                 The question to analyze
-            cluster_descriptors : Union[List[str], List[Dict], str]
-                List of cluster descriptors (as strings, dicts, or JSON string)
+            topic_descriptors : Union[List[str], List[Dict], str]
+                List of topic descriptors (as strings, dicts, or JSON string).
+                Can also accept the raw KeywordClusterer JSON format with 'clusters' dict.
 
             Returns
             -------
             Optional[Dict[str, Any]]
-                Dictionary with cluster_scores, total_clusters, and question_summary.
-                Each cluster_score contains cluster_descriptor, probability, and reason.
+                Dictionary with topic_scores, total_clusters, and question_summary (optional).
+                Each topic_score contains topic_descriptor, probability, and reason.
 
             Examples
             --------
@@ -649,25 +666,25 @@ try:
             ...     "What is gradient descent?",
             ...     descriptors
             ... )
-            >>> print(result['cluster_scores'])
-            [{'cluster_descriptor': 'machine learning', 'probability': 0.95, ...}]
+            >>> print(result['topic_scores'])
+            [{'topic_descriptor': 'machine learning', 'probability': 0.95, ...}]
             """
-            # Convert cluster_descriptors to JSON string if needed
-            if isinstance(cluster_descriptors, str):
+            # Convert topic_descriptors to JSON string if needed
+            if isinstance(topic_descriptors, str):
                 # Validate JSON string
                 try:
-                    json.loads(cluster_descriptors)
-                    descriptors_str = cluster_descriptors
+                    json.loads(topic_descriptors)
+                    descriptors_str = topic_descriptors
                 except json.JSONDecodeError as e:
-                    LOGGER.error(f"Invalid JSON in cluster_descriptors: {e}")
-                    raise ValueError(f"Invalid JSON in cluster_descriptors: {e}")
+                    LOGGER.error(f"Invalid JSON in topic_descriptors: {e}")
+                    raise ValueError(f"Invalid JSON in topic_descriptors: {e}")
             else:
-                descriptors_str = json.dumps(cluster_descriptors, indent=2)
+                descriptors_str = json.dumps(topic_descriptors, indent=2)
 
             initial_state = AgentState(
                 mode=OperationMode.TOPIC_RELEVANCE_PROB,
                 question=question,
-                cluster_descriptors=descriptors_str,
+                topic_descriptors=descriptors_str,
                 max_retries=self.max_retries,
             )
 
@@ -812,19 +829,24 @@ try:
         def assess_topic_relevance_prob_batch(
             self,
             questions: List[str],
-            cluster_descriptors: Union[List[str], List[Dict], str],
+            topic_descriptors: Union[List[str], List[Dict], str],
             batch_size: Optional[int] = None,
             show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
             """
-            Assess cluster relevance for multiple questions against the same cluster descriptors.
+            Assess topic relevance for multiple questions against the same topic descriptors.
+            
+            Performance Note: Topic descriptors are shared across all questions for memory
+            efficiency. This is the typical use case, as cluster descriptors from 
+            KeywordClusterer are usually consistent across a dataset.
 
             Parameters
             ----------
             questions : List[str]
                 List of questions to analyze
-            cluster_descriptors : Union[List[str], List[Dict], str]
-                Cluster descriptors (same for all questions)
+            topic_descriptors : Union[List[str], List[Dict], str]
+                Topic descriptors (same for all questions, for performance/memory efficiency).
+                Can be from KeywordClusterer 'clusters' dict.
             batch_size : int, optional
                 Batch size for chunking. If None, uses self.batch_size
             show_progress : bool, optional
@@ -833,33 +855,33 @@ try:
             Returns
             -------
             List[Optional[Dict[str, Any]]]
-                List of cluster relevance results
+                List of topic relevance results
             """
             if not self._is_openai_llm:
                 LOGGER.info(
                     "Batch processing not available, using sequential processing"
                 )
                 return [
-                    self.assess_topic_relevance_prob(q, cluster_descriptors)
+                    self.assess_topic_relevance_prob(q, topic_descriptors)
                     for q in questions
                 ]
 
-            # Convert and validate cluster_descriptors once
-            if isinstance(cluster_descriptors, str):
+            # Convert and validate topic_descriptors once
+            if isinstance(topic_descriptors, str):
                 try:
-                    json.loads(cluster_descriptors)
-                    descriptors_str = cluster_descriptors
+                    json.loads(topic_descriptors)
+                    descriptors_str = topic_descriptors
                 except json.JSONDecodeError as e:
-                    LOGGER.error(f"Invalid JSON in cluster_descriptors: {e}")
-                    raise ValueError(f"Invalid JSON in cluster_descriptors: {e}")
+                    LOGGER.error(f"Invalid JSON in topic_descriptors: {e}")
+                    raise ValueError(f"Invalid JSON in topic_descriptors: {e}")
             else:
-                descriptors_str = json.dumps(cluster_descriptors, indent=2)
+                descriptors_str = json.dumps(topic_descriptors, indent=2)
 
             batch_size = batch_size or self.batch_size
             return self._batch_process(
                 OperationMode.TOPIC_RELEVANCE_PROB,
                 questions=questions,
-                cluster_descriptors=[descriptors_str] * len(questions),
+                topic_descriptors=[descriptors_str] * len(questions),
                 batch_size=batch_size,
                 show_progress=show_progress,
             )
@@ -870,7 +892,7 @@ try:
             text_sources: Optional[List[str]] = None,
             questions: Optional[List[str]] = None,
             available_terms: Optional[List[str]] = None,
-            cluster_descriptors: Optional[List[str]] = None,
+            topic_descriptors: Optional[List[str]] = None,
             batch_size: Optional[int] = None,
             show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
@@ -891,7 +913,7 @@ try:
                 List of questions for guess/assess/topic_relevance_prob modes
             available_terms : Optional[List[str]]
                 Available terms for assess mode
-            cluster_descriptors : Optional[List[str]]
+            topic_descriptors : Optional[List[str]]
                 Cluster descriptors for topic_relevance_prob mode
             batch_size : Optional[int]
                 Number of items to process in each batch
@@ -972,13 +994,13 @@ try:
                             )
                     elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                         batch_questions = questions[batch_start:batch_end]
-                        batch_descriptors = cluster_descriptors[batch_start:batch_end]
+                        batch_descriptors = topic_descriptors[batch_start:batch_end]
                         for question, descriptors in zip(
                             batch_questions, batch_descriptors
                         ):
                             prompts.append(
                                 template.format(
-                                    question=question, cluster_descriptors=descriptors
+                                    question=question, topic_descriptors=descriptors
                                 )
                             )
 
@@ -1062,7 +1084,7 @@ try:
                 elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                     return [
                         self.assess_topic_relevance_prob(q, d)
-                        for q, d in zip(questions, cluster_descriptors)
+                        for q, d in zip(questions, topic_descriptors)
                     ]
 
             LOGGER.info(
@@ -1078,7 +1100,7 @@ try:
             text_source_col: Optional[str] = None,
             question_col: Optional[str] = None,
             available_terms: Optional[Union[List[str], List[Dict], str]] = None,
-            cluster_descriptors: Optional[Union[List[str], List[Dict], str]] = None,
+            topic_descriptors: Optional[Union[List[str], List[Dict], str]] = None,
             progress_bar: bool = True,
             save_path: Optional[str] = None,
             skip_existing: bool = True,
@@ -1107,7 +1129,7 @@ try:
                 Column name for questions (required for GUESS, ASSESS, and TOPIC_RELEVANCE_PROB modes)
             available_terms : Union[List[str], List[Dict], str], optional
                 Available terms for ASSESS mode
-            cluster_descriptors : Union[List[str], List[Dict], str], optional
+            topic_descriptors : Union[List[str], List[Dict], str], optional
                 Cluster descriptors for TOPIC_RELEVANCE_PROB mode
             progress_bar : bool, optional
                 Show progress bar. Default is True.
@@ -1148,9 +1170,9 @@ try:
                 )
             if mode == OperationMode.ASSESS and available_terms is None:
                 raise ValueError("available_terms required for ASSESS mode")
-            if mode == OperationMode.TOPIC_RELEVANCE_PROB and cluster_descriptors is None:
+            if mode == OperationMode.TOPIC_RELEVANCE_PROB and topic_descriptors is None:
                 raise ValueError(
-                    "cluster_descriptors required for TOPIC_RELEVANCE_PROB mode"
+                    "topic_descriptors required for TOPIC_RELEVANCE_PROB mode"
                 )
 
             # Get column prefix to avoid overwrites
@@ -1181,7 +1203,7 @@ try:
                 # This is different from other modes which use prefix-based naming
                 result_columns = [
                     "question_term_relevance_scores",  # Required name from specification
-                    f"{prefix}_cluster_scores",
+                    f"{prefix}_topic_scores",
                     f"{prefix}_total_clusters",
                     f"{prefix}_question_summary",
                     f"{prefix}_error",
@@ -1268,7 +1290,7 @@ try:
                     text_source_col,
                     question_col,
                     available_terms,
-                    cluster_descriptors,
+                    topic_descriptors,
                     batch_size,
                     progress_bar,
                     save_path,
@@ -1284,7 +1306,7 @@ try:
                     text_source_col,
                     question_col,
                     available_terms,
-                    cluster_descriptors,
+                    topic_descriptors,
                     progress_bar,
                     save_path,
                     checkpoint_batch_size,
@@ -1306,7 +1328,7 @@ try:
             text_col,
             question_col,
             available_terms,
-            cluster_descriptors,
+            topic_descriptors,
             batch_size,
             progress_bar,
             save_path,
@@ -1352,7 +1374,7 @@ try:
                 elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                     batch_results = self.assess_topic_relevance_prob_batch(
                         all_inputs,
-                        cluster_descriptors,
+                        topic_descriptors,
                         batch_size=batch_size,
                         show_progress=progress_bar,
                     )
@@ -1406,17 +1428,19 @@ try:
                             # Create JSON mapping using helper method
                             result_df.at[idx, "question_term_relevance_scores"] = (
                                 self._create_relevance_json_mapping(
-                                    result["cluster_scores"]
+                                    result["topic_scores"]
                                 )
                             )
-                            result_df.at[idx, f"{prefix}_cluster_scores"] = str(
-                                result["cluster_scores"]
+                            result_df.at[idx, f"{prefix}_topic_scores"] = str(
+                                result["topic_scores"]
                             )
                             result_df.at[idx, f"{prefix}_total_clusters"] = result[
                                 "total_clusters"
                             ]
-                            result_df.at[idx, f"{prefix}_question_summary"] = result[
-                                "question_summary"
+                            # question_summary is optional
+                            if result.get("question_summary"):
+                                result_df.at[idx, f"{prefix}_question_summary"] = result[
+                                    "question_summary"
                             ]
                         processed += 1
                     else:
@@ -1458,7 +1482,7 @@ try:
             text_col,
             question_col,
             available_terms,
-            cluster_descriptors,
+            topic_descriptors,
             progress_bar,
             save_path,
             checkpoint_size,
@@ -1484,7 +1508,7 @@ try:
                         result = self.assess_domains(row[question_col], available_terms)
                     elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                         result = self.assess_topic_relevance_prob(
-                            row[question_col], cluster_descriptors
+                            row[question_col], topic_descriptors
                         )
 
                     if result is not None:
@@ -1521,17 +1545,19 @@ try:
                             # Create JSON mapping using helper method
                             result_df.at[idx, "question_term_relevance_scores"] = (
                                 self._create_relevance_json_mapping(
-                                    result["cluster_scores"]
+                                    result["topic_scores"]
                                 )
                             )
-                            result_df.at[idx, f"{prefix}_cluster_scores"] = str(
-                                result["cluster_scores"]
+                            result_df.at[idx, f"{prefix}_topic_scores"] = str(
+                                result["topic_scores"]
                             )
                             result_df.at[idx, f"{prefix}_total_clusters"] = result[
                                 "total_clusters"
                             ]
-                            result_df.at[idx, f"{prefix}_question_summary"] = result[
-                                "question_summary"
+                            # question_summary is optional
+                            if result.get("question_summary"):
+                                result_df.at[idx, f"{prefix}_question_summary"] = result[
+                                    "question_summary"
                             ]
                         processed += 1
                     else:
