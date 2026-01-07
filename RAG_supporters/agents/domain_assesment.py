@@ -501,6 +501,125 @@ try:
             }
             return json.dumps(relevance_json)
 
+        def _parse_topic_descriptors(
+            self, topic_descriptors: Union[List[str], List[Dict], str, Dict]
+        ) -> List[str]:
+            """Parse and extract topic descriptors from various input formats.
+            
+            Handles:
+            - List of strings: ["topic1", "topic2"]
+            - JSON string: '["topic1", "topic2"]'
+            - File path: "path/to/clusters.json"
+            - KeywordClusterer dict: {"clusters": {"0": ["kw1", "kw2"]}, ...}
+            - KeywordClusterer dict with topic_descriptors in cluster_stats
+
+            Parameters
+            ----------
+            topic_descriptors : Union[List[str], List[Dict], str, Dict]
+                Topic descriptors in any supported format
+
+            Returns
+            -------
+            List[str]
+                Flat list of topic descriptor strings
+
+            Raises
+            ------
+            ValueError
+                If the input format is invalid or file not found
+            """
+            import os
+            from pathlib import Path
+
+            # Case 1: Already a list of strings
+            if isinstance(topic_descriptors, list):
+                if all(isinstance(x, str) for x in topic_descriptors):
+                    return topic_descriptors
+                # List of dicts - try to extract strings
+                LOGGER.warning(
+                    "List of dicts provided, expected list of strings. "
+                    "Converting to JSON string representation."
+                )
+                return [str(item) for item in topic_descriptors]
+
+            # Case 2: String input - could be JSON string or file path
+            if isinstance(topic_descriptors, str):
+                # Check if it's a file path
+                if os.path.isfile(topic_descriptors):
+                    LOGGER.info(f"Loading topic descriptors from file: {topic_descriptors}")
+                    try:
+                        with open(topic_descriptors, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        # Recursively parse the loaded data
+                        return self._parse_topic_descriptors(data)
+                    except Exception as e:
+                        LOGGER.error(f"Failed to load file {topic_descriptors}: {e}")
+                        raise ValueError(f"Failed to load topic descriptors from file: {e}")
+
+                # Try to parse as JSON string
+                try:
+                    parsed = json.loads(topic_descriptors)
+                    # Recursively parse the JSON content
+                    return self._parse_topic_descriptors(parsed)
+                except json.JSONDecodeError:
+                    # Not a valid JSON string, treat as single descriptor
+                    LOGGER.warning(
+                        f"String is neither a file nor valid JSON, treating as single descriptor"
+                    )
+                    return [topic_descriptors]
+
+            # Case 3: Dict - could be KeywordClusterer format
+            if isinstance(topic_descriptors, dict):
+                descriptors = []
+
+                # Try KeywordClusterer format: {"clusters": {"0": [...], "1": [...]}}
+                if "clusters" in topic_descriptors:
+                    LOGGER.info("Detected KeywordClusterer 'clusters' format")
+                    for cluster_id, keywords in topic_descriptors["clusters"].items():
+                        if isinstance(keywords, list):
+                            descriptors.extend(keywords)
+                        else:
+                            LOGGER.warning(
+                                f"Cluster {cluster_id} keywords not a list, skipping"
+                            )
+
+                # Also try to extract from cluster_stats if available
+                if "cluster_stats" in topic_descriptors:
+                    LOGGER.info("Found 'cluster_stats', extracting topic_descriptors")
+                    for cluster_id, stats in topic_descriptors["cluster_stats"].items():
+                        if isinstance(stats, dict) and "topic_descriptors" in stats:
+                            topic_descs = stats["topic_descriptors"]
+                            if isinstance(topic_descs, list):
+                                descriptors.extend(topic_descs)
+
+                # If we found descriptors, return unique ones
+                if descriptors:
+                    # Remove duplicates while preserving order
+                    seen = set()
+                    unique_descriptors = []
+                    for desc in descriptors:
+                        if desc not in seen:
+                            seen.add(desc)
+                            unique_descriptors.append(desc)
+                    LOGGER.info(
+                        f"Extracted {len(unique_descriptors)} unique topic descriptors "
+                        f"from KeywordClusterer format"
+                    )
+                    return unique_descriptors
+
+                # If no recognized format, treat keys as descriptors
+                LOGGER.warning(
+                    "Dict provided but no 'clusters' or 'cluster_stats' found. "
+                    "Using dict keys as descriptors."
+                )
+                return list(topic_descriptors.keys())
+
+            # Unknown format
+            raise ValueError(
+                f"Unsupported topic_descriptors format: {type(topic_descriptors)}. "
+                f"Expected list of strings, JSON string, file path, or KeywordClusterer dict."
+            )
+
         # Public API methods
 
         def extract_domains(self, text_source: str) -> Optional[Dict[str, Any]]:
@@ -632,15 +751,17 @@ try:
         def assess_topic_relevance_prob(
             self,
             question: str,
-            topic_descriptors: Union[List[str], List[Dict], str],
+            topic_descriptors: Union[List[str], List[Dict], str, Dict],
         ) -> Optional[Dict[str, Any]]:
             """
             Assess relevance probabilities between a question and topic descriptors.
             
             This method is designed to work with cluster descriptors from KeywordClusterer
-            (RAG_supporters/clustering/keyword_clustering.py). The descriptors can be
-            extracted from the 'clusters' dict in the clustering JSON output, where each
-            cluster key contains a list of topic keywords.
+            (RAG_supporters/clustering/keyword_clustering.py). It automatically handles:
+            - List of strings: ["topic1", "topic2"]
+            - JSON string: '["topic1", "topic2"]'
+            - File path to JSON: "path/to/clusters.json"
+            - KeywordClusterer dict format: {"clusters": {"0": ["kw1", "kw2"]}, ...}
             
             Note: Topic descriptors are typically shared across all questions for 
             performance and memory efficiency.
@@ -649,9 +770,12 @@ try:
             ----------
             question : str
                 The question to analyze
-            topic_descriptors : Union[List[str], List[Dict], str]
-                List of topic descriptors (as strings, dicts, or JSON string).
-                Can also accept the raw KeywordClusterer JSON format with 'clusters' dict.
+            topic_descriptors : Union[List[str], List[Dict], str, Dict]
+                Topic descriptors in any supported format:
+                - List of strings (direct input)
+                - JSON string (will be parsed)
+                - File path to JSON file (will be loaded and parsed)
+                - KeywordClusterer dict with 'clusters' or 'cluster_stats' keys
 
             Returns
             -------
@@ -661,25 +785,34 @@ try:
 
             Examples
             --------
+            >>> # Example 1: List of strings
             >>> descriptors = ["machine learning", "databases", "web development"]
             >>> result = agent.assess_topic_relevance_prob(
             ...     "What is gradient descent?",
             ...     descriptors
             ... )
-            >>> print(result['topic_scores'])
-            [{'topic_descriptor': 'machine learning', 'probability': 0.95, ...}]
+            
+            >>> # Example 2: File path
+            >>> result = agent.assess_topic_relevance_prob(
+            ...     "What is gradient descent?",
+            ...     "path/to/keyword_clusters.json"
+            ... )
+            
+            >>> # Example 3: KeywordClusterer dict
+            >>> clustering_data = {
+            ...     "clusters": {"0": ["ml", "ai"], "1": ["db", "sql"]},
+            ...     "cluster_stats": {"0": {"topic_descriptors": ["machine learning"]}}
+            ... }
+            >>> result = agent.assess_topic_relevance_prob(
+            ...     "What is gradient descent?",
+            ...     clustering_data
+            ... )
             """
-            # Convert topic_descriptors to JSON string if needed
-            if isinstance(topic_descriptors, str):
-                # Validate JSON string
-                try:
-                    json.loads(topic_descriptors)
-                    descriptors_str = topic_descriptors
-                except json.JSONDecodeError as e:
-                    LOGGER.error(f"Invalid JSON in topic_descriptors: {e}")
-                    raise ValueError(f"Invalid JSON in topic_descriptors: {e}")
-            else:
-                descriptors_str = json.dumps(topic_descriptors, indent=2)
+            # Parse topic_descriptors using helper method
+            descriptors_list = self._parse_topic_descriptors(topic_descriptors)
+            
+            # Convert to JSON string for the agent
+            descriptors_str = json.dumps(descriptors_list, indent=2)
 
             initial_state = AgentState(
                 mode=OperationMode.TOPIC_RELEVANCE_PROB,
@@ -829,7 +962,7 @@ try:
         def assess_topic_relevance_prob_batch(
             self,
             questions: List[str],
-            topic_descriptors: Union[List[str], List[Dict], str],
+            topic_descriptors: Union[List[str], List[Dict], str, Dict],
             batch_size: Optional[int] = None,
             show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
@@ -839,14 +972,23 @@ try:
             Performance Note: Topic descriptors are shared across all questions for memory
             efficiency. This is the typical use case, as cluster descriptors from 
             KeywordClusterer are usually consistent across a dataset.
+            
+            Automatically handles:
+            - List of strings
+            - JSON string
+            - File path to JSON
+            - KeywordClusterer dict format
 
             Parameters
             ----------
             questions : List[str]
                 List of questions to analyze
-            topic_descriptors : Union[List[str], List[Dict], str]
-                Topic descriptors (same for all questions, for performance/memory efficiency).
-                Can be from KeywordClusterer 'clusters' dict.
+            topic_descriptors : Union[List[str], List[Dict], str, Dict]
+                Topic descriptors (same for all questions). Supports:
+                - List of strings
+                - JSON string
+                - File path to KeywordClusterer JSON
+                - KeywordClusterer dict with 'clusters' or 'cluster_stats'
             batch_size : int, optional
                 Batch size for chunking. If None, uses self.batch_size
             show_progress : bool, optional
@@ -866,16 +1008,9 @@ try:
                     for q in questions
                 ]
 
-            # Convert and validate topic_descriptors once
-            if isinstance(topic_descriptors, str):
-                try:
-                    json.loads(topic_descriptors)
-                    descriptors_str = topic_descriptors
-                except json.JSONDecodeError as e:
-                    LOGGER.error(f"Invalid JSON in topic_descriptors: {e}")
-                    raise ValueError(f"Invalid JSON in topic_descriptors: {e}")
-            else:
-                descriptors_str = json.dumps(topic_descriptors, indent=2)
+            # Parse topic_descriptors once using helper method
+            descriptors_list = self._parse_topic_descriptors(topic_descriptors)
+            descriptors_str = json.dumps(descriptors_list, indent=2)
 
             batch_size = batch_size or self.batch_size
             return self._batch_process(
@@ -1100,7 +1235,7 @@ try:
             text_source_col: Optional[str] = None,
             question_col: Optional[str] = None,
             available_terms: Optional[Union[List[str], List[Dict], str]] = None,
-            topic_descriptors: Optional[Union[List[str], List[Dict], str]] = None,
+            topic_descriptors: Optional[Union[List[str], List[Dict], str, Dict]] = None,
             progress_bar: bool = True,
             save_path: Optional[str] = None,
             skip_existing: bool = True,
@@ -1129,8 +1264,12 @@ try:
                 Column name for questions (required for GUESS, ASSESS, and TOPIC_RELEVANCE_PROB modes)
             available_terms : Union[List[str], List[Dict], str], optional
                 Available terms for ASSESS mode
-            topic_descriptors : Union[List[str], List[Dict], str], optional
-                Cluster descriptors for TOPIC_RELEVANCE_PROB mode
+            topic_descriptors : Union[List[str], List[Dict], str, Dict], optional
+                Topic descriptors for TOPIC_RELEVANCE_PROB mode. Supports:
+                - List of strings
+                - JSON string
+                - File path to KeywordClusterer JSON
+                - KeywordClusterer dict with 'clusters' or 'cluster_stats'
             progress_bar : bool, optional
                 Show progress bar. Default is True.
             save_path : str, optional
