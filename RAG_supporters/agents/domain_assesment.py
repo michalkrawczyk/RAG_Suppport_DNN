@@ -157,11 +157,15 @@ try:
         @model_validator(mode="after")
         def validate_total_matches_length(self):
             """Ensure total_clusters matches the length of topic_scores list."""
-            if self.total_clusters != len(self.topic_scores):
+            actual_count = len(self.topic_scores)
+            if self.total_clusters != actual_count:
                 LOGGER.warning(
-                    f"total_clusters mismatch: {self.total_clusters} vs {len(self.topic_scores)}, correcting"
+                    f"LLM returned incorrect total_clusters: claimed {self.total_clusters} "
+                    f"but actually returned {actual_count} topic scores. "
+                    f"This means LLM either: (1) miscounted, or (2) skipped some topic descriptors. "
+                    f"Correcting total_clusters to {actual_count}."
                 )
-                self.total_clusters = len(self.topic_scores)
+                self.total_clusters = actual_count
             return self
 
     class AgentState(BaseModel):
@@ -197,6 +201,7 @@ try:
             llm: BaseChatModel,
             max_retries: int = 3,
             batch_size: int = 10,
+            max_tokens: Optional[int] = None,
         ):
             """
             Initialize the domain analysis agent.
@@ -209,10 +214,14 @@ try:
                 Maximum number of retries for parsing. Default is 3.
             batch_size : int, optional
                 Default batch size for batch processing. Default is 10.
+            max_tokens : int, optional
+                Maximum tokens for LLM responses. If None, uses LLM's default.
+                Recommended: 100000 for TOPIC_RELEVANCE_PROB with many descriptors.
             """
             self.llm = llm
             self.max_retries = max_retries
             self.batch_size = batch_size
+            self.max_tokens = max_tokens
 
             # Set up parsers for each mode
             self.extraction_parser = PydanticOutputParser(
@@ -372,7 +381,13 @@ try:
                 LOGGER.debug(f"Sending prompt to LLM for mode: {state.mode}")
 
                 # Get response from LLM
-                response = self.llm.invoke(prompt)
+                if self.max_tokens is not None:
+                    response = self.llm.invoke(
+                        prompt,
+                        max_tokens=self.max_tokens
+                    )
+                else:
+                    response = self.llm.invoke(prompt)
 
                 # Extract content
                 if hasattr(response, "content"):
@@ -810,6 +825,25 @@ try:
             """
             # Parse topic_descriptors using helper method
             descriptors_list = self._parse_topic_descriptors(topic_descriptors)
+            expected_count = len(descriptors_list)
+            
+            LOGGER.info(
+                f"TOPIC_RELEVANCE_PROB mode: Expecting {expected_count} topic descriptors in result"
+            )
+            
+            # Warn if the number is very large
+            if expected_count > 100:
+                LOGGER.warning(
+                    f"Large number of topic descriptors ({expected_count}). "
+                    f"LLM may struggle to process all of them in one request. "
+                    f"Consider: (1) using fewer topic descriptors, (2) increasing LLM's max_tokens, "
+                    f"or (3) implementing batch processing."
+                )
+            elif expected_count > 50:
+                LOGGER.info(
+                    f"Processing {expected_count} topic descriptors. "
+                    f"If you experience incomplete results, consider reducing the number or using batch processing."
+                )
             
             # Convert to JSON string for the agent
             descriptors_str = json.dumps(descriptors_list, indent=2)
@@ -825,6 +859,17 @@ try:
 
             result = self._extract_result_dict(final_state.get("result"))
             if result is not None:
+                # Validate result has correct number of topic_scores
+                actual_count = len(result.get("topic_scores", []))
+                if actual_count != expected_count:
+                    LOGGER.error(
+                        f"MISMATCH: Expected {expected_count} topic scores but got {actual_count}. "
+                        f"This indicates LLM failed to provide scores for all topic descriptors."
+                    )
+                else:
+                    LOGGER.info(
+                        f"✓ Received all {expected_count} topic scores as expected"
+                    )
                 return result
 
             LOGGER.error(
@@ -1141,7 +1186,13 @@ try:
 
                     try:
                         # Use LangChain's batch method for this chunk
-                        responses = self.llm.batch(prompts)
+                        if self.max_tokens is not None:
+                            responses = self.llm.batch(
+                                prompts,
+                                config={"max_tokens": self.max_tokens}
+                            )
+                        else:
+                            responses = self.llm.batch(prompts)
 
                         # Parse each response in the batch
                         for i, response in enumerate(responses):
