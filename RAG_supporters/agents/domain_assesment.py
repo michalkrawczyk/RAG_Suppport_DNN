@@ -157,15 +157,11 @@ try:
         @model_validator(mode="after")
         def validate_total_matches_length(self):
             """Ensure total_clusters matches the length of topic_scores list."""
-            actual_count = len(self.topic_scores)
-            if self.total_clusters != actual_count:
+            if self.total_clusters != len(self.topic_scores):
                 LOGGER.warning(
-                    f"LLM returned incorrect total_clusters: claimed {self.total_clusters} "
-                    f"but actually returned {actual_count} topic scores. "
-                    f"This means LLM either: (1) miscounted, or (2) skipped some topic descriptors. "
-                    f"Correcting total_clusters to {actual_count}."
+                    f"total_clusters mismatch: {self.total_clusters} vs {len(self.topic_scores)}, correcting"
                 )
-                self.total_clusters = actual_count
+                self.total_clusters = len(self.topic_scores)
             return self
 
     class AgentState(BaseModel):
@@ -201,7 +197,6 @@ try:
             llm: BaseChatModel,
             max_retries: int = 3,
             batch_size: int = 10,
-            max_tokens: Optional[int] = None,
         ):
             """
             Initialize the domain analysis agent.
@@ -214,14 +209,10 @@ try:
                 Maximum number of retries for parsing. Default is 3.
             batch_size : int, optional
                 Default batch size for batch processing. Default is 10.
-            max_tokens : int, optional
-                Maximum tokens for LLM responses. If None, uses LLM's default.
-                Recommended: 100000 for TOPIC_RELEVANCE_PROB with many descriptors.
             """
             self.llm = llm
             self.max_retries = max_retries
             self.batch_size = batch_size
-            self.max_tokens = max_tokens
 
             # Set up parsers for each mode
             self.extraction_parser = PydanticOutputParser(
@@ -381,13 +372,7 @@ try:
                 LOGGER.debug(f"Sending prompt to LLM for mode: {state.mode}")
 
                 # Get response from LLM
-                if self.max_tokens is not None:
-                    response = self.llm.invoke(
-                        prompt,
-                        max_tokens=self.max_tokens
-                    )
-                else:
-                    response = self.llm.invoke(prompt)
+                response = self.llm.invoke(prompt)
 
                 # Extract content
                 if hasattr(response, "content"):
@@ -525,8 +510,7 @@ try:
             - List of strings: ["topic1", "topic2"]
             - JSON string: '["topic1", "topic2"]'
             - File path: "path/to/clusters.json"
-            - KeywordClusterer dict: {"clusters": {"0": ["kw1", "kw2"]}, ...}
-            - KeywordClusterer dict with topic_descriptors in cluster_stats
+            - KeywordClusterer dict: {"cluster_stats": {"0": {"topic_descriptors": [...]}, ...}}
 
             Parameters
             ----------
@@ -587,27 +571,25 @@ try:
             if isinstance(topic_descriptors, dict):
                 descriptors = []
 
-                # Try KeywordClusterer format: {"clusters": {"0": [...], "1": [...]}}
-                if "clusters" in topic_descriptors:
-                    LOGGER.info("Detected KeywordClusterer 'clusters' format")
-                    for cluster_id, keywords in topic_descriptors["clusters"].items():
-                        if isinstance(keywords, list):
-                            descriptors.extend(keywords)
-                        else:
-                            LOGGER.warning(
-                                f"Cluster {cluster_id} keywords not a list, skipping"
-                            )
-
-                # Also try to extract from cluster_stats if available
+                # Try KeywordClusterer format with cluster_stats (preferred)
+                # cluster_stats structure: {"0": {"topic_descriptors": [...], "size": ..., ...}}
                 if "cluster_stats" in topic_descriptors:
-                    LOGGER.info("Found 'cluster_stats', extracting topic_descriptors")
+                    LOGGER.info("Detected KeywordClusterer 'cluster_stats' format")
                     for cluster_id, stats in topic_descriptors["cluster_stats"].items():
                         if isinstance(stats, dict) and "topic_descriptors" in stats:
                             topic_descs = stats["topic_descriptors"]
                             if isinstance(topic_descs, list):
                                 descriptors.extend(topic_descs)
+                            else:
+                                LOGGER.warning(
+                                    f"Cluster {cluster_id} topic_descriptors not a list, skipping"
+                                )
+                        else:
+                            LOGGER.warning(
+                                f"Cluster {cluster_id} has no topic_descriptors, skipping"
+                            )
 
-                # If we found descriptors, return unique ones
+                # If we found descriptors from cluster_stats, return unique ones
                 if descriptors:
                     # Remove duplicates while preserving order
                     seen = set()
@@ -618,13 +600,32 @@ try:
                             unique_descriptors.append(desc)
                     LOGGER.info(
                         f"Extracted {len(unique_descriptors)} unique topic descriptors "
-                        f"from KeywordClusterer format"
+                        f"from KeywordClusterer cluster_stats"
                     )
                     return unique_descriptors
 
+                # Fallback: If no cluster_stats but has clusters, warn user
+                if "clusters" in topic_descriptors:
+                    LOGGER.warning(
+                        "Found 'clusters' key but no 'cluster_stats' with topic_descriptors. "
+                        "Please ensure KeywordClusterer JSON includes cluster_stats with topic_descriptors. "
+                        "Falling back to all keywords from clusters (may be large)."
+                    )
+                    for cluster_id, keywords in topic_descriptors["clusters"].items():
+                        if isinstance(keywords, list):
+                            descriptors.extend(keywords)
+                    if descriptors:
+                        seen = set()
+                        unique_descriptors = []
+                        for desc in descriptors:
+                            if desc not in seen:
+                                seen.add(desc)
+                                unique_descriptors.append(desc)
+                        return unique_descriptors
+
                 # If no recognized format, treat keys as descriptors
                 LOGGER.warning(
-                    "Dict provided but no 'clusters' or 'cluster_stats' found. "
+                    "Dict provided but no 'cluster_stats' or 'clusters' found. "
                     "Using dict keys as descriptors."
                 )
                 return list(topic_descriptors.keys())
@@ -776,7 +777,7 @@ try:
             - List of strings: ["topic1", "topic2"]
             - JSON string: '["topic1", "topic2"]'
             - File path to JSON: "path/to/clusters.json"
-            - KeywordClusterer dict format: {"clusters": {"0": ["kw1", "kw2"]}, ...}
+            - KeywordClusterer dict format: {"cluster_stats": {"0": {"topic_descriptors": [...]}, ...}}
             
             Note: Topic descriptors are typically shared across all questions for 
             performance and memory efficiency.
@@ -790,7 +791,7 @@ try:
                 - List of strings (direct input)
                 - JSON string (will be parsed)
                 - File path to JSON file (will be loaded and parsed)
-                - KeywordClusterer dict with 'clusters' or 'cluster_stats' keys
+                - KeywordClusterer dict with 'cluster_stats' containing 'topic_descriptors'
 
             Returns
             -------
@@ -815,8 +816,10 @@ try:
             
             >>> # Example 3: KeywordClusterer dict
             >>> clustering_data = {
-            ...     "clusters": {"0": ["ml", "ai"], "1": ["db", "sql"]},
-            ...     "cluster_stats": {"0": {"topic_descriptors": ["machine learning"]}}
+            ...     "cluster_stats": {
+            ...         "0": {"topic_descriptors": ["machine learning", "AI"], "size": 50},
+            ...         "1": {"topic_descriptors": ["databases", "SQL"], "size": 30}
+            ...     }
             ... }
             >>> result = agent.assess_topic_relevance_prob(
             ...     "What is gradient descent?",
@@ -825,25 +828,6 @@ try:
             """
             # Parse topic_descriptors using helper method
             descriptors_list = self._parse_topic_descriptors(topic_descriptors)
-            expected_count = len(descriptors_list)
-            
-            LOGGER.info(
-                f"TOPIC_RELEVANCE_PROB mode: Expecting {expected_count} topic descriptors in result"
-            )
-            
-            # Warn if the number is very large
-            if expected_count > 100:
-                LOGGER.warning(
-                    f"Large number of topic descriptors ({expected_count}). "
-                    f"LLM may struggle to process all of them in one request. "
-                    f"Consider: (1) using fewer topic descriptors, (2) increasing LLM's max_tokens, "
-                    f"or (3) implementing batch processing."
-                )
-            elif expected_count > 50:
-                LOGGER.info(
-                    f"Processing {expected_count} topic descriptors. "
-                    f"If you experience incomplete results, consider reducing the number or using batch processing."
-                )
             
             # Convert to JSON string for the agent
             descriptors_str = json.dumps(descriptors_list, indent=2)
@@ -859,17 +843,6 @@ try:
 
             result = self._extract_result_dict(final_state.get("result"))
             if result is not None:
-                # Validate result has correct number of topic_scores
-                actual_count = len(result.get("topic_scores", []))
-                if actual_count != expected_count:
-                    LOGGER.error(
-                        f"MISMATCH: Expected {expected_count} topic scores but got {actual_count}. "
-                        f"This indicates LLM failed to provide scores for all topic descriptors."
-                    )
-                else:
-                    LOGGER.info(
-                        f"✓ Received all {expected_count} topic scores as expected"
-                    )
                 return result
 
             LOGGER.error(
@@ -1022,7 +995,7 @@ try:
             - List of strings
             - JSON string
             - File path to JSON
-            - KeywordClusterer dict format
+            - KeywordClusterer dict with cluster_stats containing topic_descriptors
 
             Parameters
             ----------
@@ -1033,7 +1006,7 @@ try:
                 - List of strings
                 - JSON string
                 - File path to KeywordClusterer JSON
-                - KeywordClusterer dict with 'clusters' or 'cluster_stats'
+                - KeywordClusterer dict with 'cluster_stats' containing 'topic_descriptors'
             batch_size : int, optional
                 Batch size for chunking. If None, uses self.batch_size
             show_progress : bool, optional
@@ -1186,13 +1159,7 @@ try:
 
                     try:
                         # Use LangChain's batch method for this chunk
-                        if self.max_tokens is not None:
-                            responses = self.llm.batch(
-                                prompts,
-                                config={"max_tokens": self.max_tokens}
-                            )
-                        else:
-                            responses = self.llm.batch(prompts)
+                        responses = self.llm.batch(prompts)
 
                         # Parse each response in the batch
                         for i, response in enumerate(responses):
