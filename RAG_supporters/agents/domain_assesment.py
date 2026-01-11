@@ -988,7 +988,7 @@ try:
             Assess topic relevance for multiple questions against the same topic descriptors.
             
             Performance Note: Topic descriptors are shared across all questions for memory
-            efficiency. This is the typical use case, as cluster descriptors from 
+            efficiency. This is the typical use case, as topic descriptors from 
             KeywordClusterer are usually consistent across a dataset.
             
             Automatically handles:
