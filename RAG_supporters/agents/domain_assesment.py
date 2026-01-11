@@ -846,7 +846,7 @@ try:
                 return result
 
             LOGGER.error(
-                f"Failed to assess cluster relevance after {self.max_retries} retries"
+                f"Failed to assess topic relevance after {self.max_retries} retries"
             )
             LOGGER.error(f"Final error: {final_state.get('error')}")
             return None
