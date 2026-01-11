@@ -551,7 +551,7 @@ try:
                             data = json.load(f)
                         # Recursively parse the loaded data
                         return self._parse_topic_descriptors(data)
-                    except Exception as e:
+                    except (OSError, IOError, json.JSONDecodeError, UnicodeDecodeError) as e:
                         LOGGER.error(f"Failed to load file {topic_descriptors}: {e}")
                         raise ValueError(f"Failed to load topic descriptors from file: {e}")
 
