@@ -171,7 +171,7 @@ try:
         text_source: Optional[str] = None
         question: Optional[str] = None
         available_terms: Optional[str] = None  # JSON string of available terms
-        topic_descriptors: Optional[str] = None  # JSON string of cluster descriptors
+        topic_descriptors: Optional[str] = None  # JSON string of topic descriptors
         result: Optional[
             Union[
                 DomainExtractionResult,
