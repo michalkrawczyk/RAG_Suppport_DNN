@@ -33,7 +33,7 @@ try:
         EXTRACT = "extract"  # Extract domains from source text
         GUESS = "guess"  # Guess domains needed for question
         ASSESS = "assess"  # Assess question against available terms
-        TOPIC_RELEVANCE_PROB = "topic_relevance_prob"  # Assess question-cluster relevance probabilities
+        TOPIC_RELEVANCE_PROB = "topic_relevance_prob"  # Assess question-topic relevance probabilities
 
     # Pydantic Models
     class DomainSuggestion(BaseModel):
