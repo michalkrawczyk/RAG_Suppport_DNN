@@ -1067,7 +1067,7 @@ try:
             available_terms : Optional[List[str]]
                 Available terms for assess mode
             topic_descriptors : Optional[List[str]]
-                Cluster descriptors for topic_relevance_prob mode
+                Topic descriptors for topic_relevance_prob mode
             batch_size : Optional[int]
                 Number of items to process in each batch
             show_progress : bool
