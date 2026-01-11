@@ -139,16 +139,16 @@ try:
     class QuestionTopicRelevanceResult(BaseModel):
         """Result for question-topic relevance assessment.
         
-        Note: Designed to work with cluster descriptors from KeywordClusterer
-        (RAG_supporters/clustering/keyword_clustering.py). The descriptors are 
-        typically extracted from the 'clusters' dict in the clustering JSON output.
+        Note: Designed to work with topic descriptors from KeywordClusterer
+        (RAG_supporters/clustering/keyword_clustering.py). When using KeywordClusterer,
+        the topic_descriptors represent the descriptors of the created clusters.
         """
 
         topic_scores: List[TopicRelevanceScore] = Field(
             ..., description="List of topic descriptors with probabilities"
         )
-        total_clusters: int = Field(
-            ..., ge=0, description="Total number of topics/clusters assessed"
+        total_topics: int = Field(
+            ..., ge=0, description="Total number of topics assessed"
         )
         question_summary: Optional[str] = Field(
             None, description="Brief summary of the question's main topic (optional)"
@@ -156,12 +156,12 @@ try:
 
         @model_validator(mode="after")
         def validate_total_matches_length(self):
-            """Ensure total_clusters matches the length of topic_scores list."""
-            if self.total_clusters != len(self.topic_scores):
+            """Ensure total_topics matches the length of topic_scores list."""
+            if self.total_topics != len(self.topic_scores):
                 LOGGER.warning(
-                    f"total_clusters mismatch: {self.total_clusters} vs {len(self.topic_scores)}, correcting"
+                    f"total_topics mismatch: {self.total_topics} vs {len(self.topic_scores)}, correcting"
                 )
-                self.total_clusters = len(self.topic_scores)
+                self.total_topics = len(self.topic_scores)
             return self
 
     class AgentState(BaseModel):
@@ -483,12 +483,12 @@ try:
         def _create_relevance_json_mapping(
             self, topic_scores: List[Dict[str, Any]]
         ) -> str:
-            """Create JSON mapping of cluster descriptors to probabilities.
+            """Create JSON mapping of topic descriptors to probabilities.
 
             Parameters
             ----------
             topic_scores : List[Dict[str, Any]]
-                List of cluster score dictionaries
+                List of topic score dictionaries
 
             Returns
             -------
@@ -528,7 +528,6 @@ try:
                 If the input format is invalid or file not found
             """
             import os
-            from pathlib import Path
 
             # Case 1: Already a list of strings
             if isinstance(topic_descriptors, list):
@@ -591,13 +590,7 @@ try:
 
                 # If we found descriptors from cluster_stats, return unique ones
                 if descriptors:
-                    # Remove duplicates while preserving order
-                    seen = set()
-                    unique_descriptors = []
-                    for desc in descriptors:
-                        if desc not in seen:
-                            seen.add(desc)
-                            unique_descriptors.append(desc)
+                    unique_descriptors = list(dict.fromkeys(descriptors))
                     LOGGER.info(
                         f"Extracted {len(unique_descriptors)} unique topic descriptors "
                         f"from KeywordClusterer cluster_stats"
@@ -615,20 +608,22 @@ try:
                         if isinstance(keywords, list):
                             descriptors.extend(keywords)
                     if descriptors:
-                        seen = set()
-                        unique_descriptors = []
-                        for desc in descriptors:
-                            if desc not in seen:
-                                seen.add(desc)
-                                unique_descriptors.append(desc)
+                        unique_descriptors = list(dict.fromkeys(descriptors))
                         return unique_descriptors
+                    else:
+                        # No descriptors found in KeywordClusterer format
+                        raise ValueError(
+                            "KeywordClusterer dict found but no topic descriptors extracted. "
+                            "Ensure 'clusters' contains non-empty keyword lists or "
+                            "'cluster_stats' contains 'topic_descriptors'."
+                        )
 
-                # If no recognized format, treat keys as descriptors
-                LOGGER.warning(
-                    "Dict provided but no 'cluster_stats' or 'clusters' found. "
-                    "Using dict keys as descriptors."
+                # If no recognized format, warn and raise error
+                raise ValueError(
+                    "Dict provided but no 'cluster_stats' or 'clusters' keys found. "
+                    "Expected KeywordClusterer format with 'clusters' or 'cluster_stats' keys. "
+                    f"Found keys: {list(topic_descriptors.keys())}"
                 )
-                return list(topic_descriptors.keys())
 
             # Unknown format
             raise ValueError(
@@ -796,7 +791,7 @@ try:
             Returns
             -------
             Optional[Dict[str, Any]]
-                Dictionary with topic_scores, total_clusters, and question_summary (optional).
+                Dictionary with topic_scores, total_topics, and question_summary (optional).
                 Each topic_score contains topic_descriptor, probability, and reason.
 
             Examples
@@ -1361,7 +1356,7 @@ try:
                 result_columns = [
                     "question_term_relevance_scores",  # Required name from specification
                     f"{prefix}_topic_scores",
-                    f"{prefix}_total_clusters",
+                    f"{prefix}_total_topics",
                     f"{prefix}_question_summary",
                     f"{prefix}_error",
                 ]
@@ -1408,7 +1403,7 @@ try:
                         if pd.notna(row.get(f"{prefix}_total_selected")):
                             continue
                     elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
-                        if pd.notna(row.get(f"{prefix}_total_clusters")):
+                        if pd.notna(row.get(f"{prefix}_total_topics")):
                             continue
 
                 # Check for empty inputs
@@ -1591,14 +1586,14 @@ try:
                             result_df.at[idx, f"{prefix}_topic_scores"] = str(
                                 result["topic_scores"]
                             )
-                            result_df.at[idx, f"{prefix}_total_clusters"] = result[
-                                "total_clusters"
+                            result_df.at[idx, f"{prefix}_total_topics"] = result[
+                                "total_topics"
                             ]
                             # question_summary is optional
                             if result.get("question_summary"):
-                                result_df.at[idx, f"{prefix}_question_summary"] = result[
-                                    "question_summary"
-                            ]
+                                result_df.at[idx, f"{prefix}_question_summary"] = (
+                                    result["question_summary"]
+                                )
                         processed += 1
                     else:
                         result_df.at[idx, f"{prefix}_error"] = "Analysis failed"
@@ -1708,14 +1703,14 @@ try:
                             result_df.at[idx, f"{prefix}_topic_scores"] = str(
                                 result["topic_scores"]
                             )
-                            result_df.at[idx, f"{prefix}_total_clusters"] = result[
-                                "total_clusters"
+                            result_df.at[idx, f"{prefix}_total_topics"] = result[
+                                "total_topics"
                             ]
                             # question_summary is optional
                             if result.get("question_summary"):
-                                result_df.at[idx, f"{prefix}_question_summary"] = result[
-                                    "question_summary"
-                            ]
+                                result_df.at[idx, f"{prefix}_question_summary"] = (
+                                    result["question_summary"]
+                                )
                         processed += 1
                     else:
                         result_df.at[idx, f"{prefix}_error"] = "Analysis failed"

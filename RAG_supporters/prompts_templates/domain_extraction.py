@@ -92,7 +92,7 @@ Output the results in the following JSON format:
 Provide only the JSON output, no additional text."""
 
 
-QUESTION_TOPIC_RELEVANCE_PROB_PROMPT = """Given a user question and a list of topic descriptors, assess the probability of semantic connection between the question and each topic descriptor. Each probability should indicate how likely the question belongs to or is related to that cluster's topic.
+QUESTION_TOPIC_RELEVANCE_PROB_PROMPT = """Given a user question and a list of topic descriptors, assess the probability of semantic connection between the question and each topic descriptor. Each probability should indicate how likely the question belongs to or is related to that topic.
 
 NOTE: For large numbers of topic descriptors (>50), consider batching to stay within context limits.
 
@@ -107,7 +107,7 @@ Requirements:
 - Consider that some questions may be ambiguous or context-dependent (e.g., "What about PR" has different meanings in marketing vs IT)
 - Use the topic descriptors themselves as context to interpret the question's potential meaning
 - For each topic descriptor, determine the probability (0-1) that the question is semantically connected to it
-- A probability of 1.0 means the question is highly relevant to the cluster's topic
+- A probability of 1.0 means the question is highly relevant to the topic
 - A probability of 0.0 means no semantic connection
 - Provide probabilities for ALL topic descriptors provided
 - Include a brief explanation for each probability assessment (1-2 sentences maximum)
@@ -122,7 +122,7 @@ Output the results in the following JSON format:
       "reason": "Brief explanation for this probability (1-2 sentences max)"
     }}
   ],
-  "total_clusters": 5,
+  "total_topics": 5,
   "question_summary": "Brief summary of the question's main topic (optional)"
 }}
 
