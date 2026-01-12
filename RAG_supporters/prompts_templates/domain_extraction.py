@@ -1,4 +1,4 @@
-""" Prompt templates for domain extraction and analysis tasks. Used for training Knowledge Subspace Classifiers."""
+"""Prompt templates for domain extraction and analysis tasks. Used for training Knowledge Subspace Classifiers."""
 
 SRC_DOMAIN_EXTRACTION_PROMPT = """Given the following text source, analyze its main topics, themes, and key concepts. Then propose up to 10 relevant domains, subdomains, or keywords that would be suitable for categorizing or tagging this content.
 
@@ -94,19 +94,21 @@ Provide only the JSON output, no additional text."""
 
 def QUESTION_TOPIC_RELEVANCE_PROB_PROMPT(include_reason: bool = False) -> str:
     """Generate prompt for assessing topic relevance probabilities.
-    
+
     Parameters
     ----------
     include_reason : bool, optional
         If True, includes 'reason' field in each topic assessment. Default is False.
-    
+
     Returns
     -------
     str
         The formatted prompt template string
     """
-    reason_field = ', "reason": "Brief explanation for this probability"' if include_reason else ''
-    
+    reason_field = (
+        ', "reason": "Brief explanation for this probability"' if include_reason else ""
+    )
+
     return f"""Given a user question and a list of topic descriptors, assess the probability of semantic connection between the question and each topic descriptor. Each probability should indicate how likely the question belongs to or is related to that topic.
 
 NOTE: For large numbers of topic descriptors (>50), consider batching to stay within context limits.

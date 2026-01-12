@@ -33,7 +33,9 @@ try:
         EXTRACT = "extract"  # Extract domains from source text
         GUESS = "guess"  # Guess domains needed for question
         ASSESS = "assess"  # Assess question against available terms
-        TOPIC_RELEVANCE_PROB = "topic_relevance_prob"  # Assess question-topic relevance probabilities
+        TOPIC_RELEVANCE_PROB = (
+            "topic_relevance_prob"  # Assess question-topic relevance probabilities
+        )
 
     # Pydantic Models
     class DomainSuggestion(BaseModel):
@@ -126,19 +128,23 @@ try:
 
     class TopicRelevanceScore(BaseModel):
         """Model for a single topic descriptor with relevance probability.
-        
+
         Note: Typically used with cluster descriptors from KeywordClusterer output.
         """
 
-        topic_descriptor: str = Field(..., description="The topic descriptor term (e.g., from cluster analysis)")
+        topic_descriptor: str = Field(
+            ..., description="The topic descriptor term (e.g., from cluster analysis)"
+        )
         probability: float = Field(
             ..., ge=0.0, le=1.0, description="Probability of semantic connection (0-1)"
         )
-        reason: Optional[str] = Field(None, description="Optional explanation for this probability")
+        reason: Optional[str] = Field(
+            None, description="Optional explanation for this probability"
+        )
 
     class QuestionTopicRelevanceResult(BaseModel):
         """Result for question-topic relevance assessment.
-        
+
         Note: Designed to work with topic descriptors from KeywordClusterer
         (RAG_supporters/clustering/keyword_clustering.py). When using KeywordClusterer,
         the topic_descriptors represent the descriptors of the created clusters.
@@ -211,7 +217,7 @@ try:
             batch_size : int, optional
                 Default batch size for batch processing. Default is 10.
             include_reason : bool, optional
-                If True, include reasoning explanations in topic relevance assessments. 
+                If True, include reasoning explanations in topic relevance assessments.
                 (For now) Only applies to assess_topic_relevance_prob operations (TOPIC_RELEVANCE_PROB mode).
                 Default is False.
             """
@@ -259,7 +265,9 @@ try:
                 self.assessment_parser,
             )
             self.topic_relevance_prob_template = self._create_prompt_template(
-                QUESTION_TOPIC_RELEVANCE_PROB_PROMPT(include_reason=self.include_reason),
+                QUESTION_TOPIC_RELEVANCE_PROB_PROMPT(
+                    include_reason=self.include_reason
+                ),
                 ["question", "topic_descriptors"],
                 self.topic_relevance_prob_parser,
             )
@@ -328,7 +336,9 @@ try:
 
         def _get_column_prefix(self, mode: OperationMode) -> str:
             """Get column prefix for mode to avoid overwrites."""
-            return mode.value  # Returns 'extract', 'guess', 'assess', or 'topic_relevance_prob'
+            return (
+                mode.value
+            )  # Returns 'extract', 'guess', 'assess', or 'topic_relevance_prob'
 
         def _build_graph(self) -> StateGraph:
             """Build the LangGraph workflow."""
@@ -511,7 +521,7 @@ try:
             self, topic_descriptors: Union[List[str], List[Dict], str, Dict]
         ) -> List[str]:
             """Parse and extract topic descriptors from various input formats.
-            
+
             Handles:
             - List of strings: ["topic1", "topic2"]
             - JSON string: '["topic1", "topic2"]'
@@ -550,15 +560,24 @@ try:
             if isinstance(topic_descriptors, str):
                 # Check if it's a file path
                 if os.path.isfile(topic_descriptors):
-                    LOGGER.info(f"Loading topic descriptors from file: {topic_descriptors}")
+                    LOGGER.info(
+                        f"Loading topic descriptors from file: {topic_descriptors}"
+                    )
                     try:
                         with open(topic_descriptors, "r", encoding="utf-8") as f:
                             data = json.load(f)
                         # Recursively parse the loaded data
                         return self._parse_topic_descriptors(data)
-                    except (OSError, IOError, json.JSONDecodeError, UnicodeDecodeError) as e:
+                    except (
+                        OSError,
+                        IOError,
+                        json.JSONDecodeError,
+                        UnicodeDecodeError,
+                    ) as e:
                         LOGGER.error(f"Failed to load file {topic_descriptors}: {e}")
-                        raise ValueError(f"Failed to load topic descriptors from file: {e}")
+                        raise ValueError(
+                            f"Failed to load topic descriptors from file: {e}"
+                        )
 
                 # Try to parse as JSON string
                 try:
@@ -772,15 +791,15 @@ try:
         ) -> Optional[Dict[str, Any]]:
             """
             Assess relevance probabilities between a question and topic descriptors.
-            
+
             This method is designed to work with cluster descriptors from KeywordClusterer
             (RAG_supporters/clustering/keyword_clustering.py). It automatically handles:
             - List of strings: ["topic1", "topic2"]
             - JSON string: '["topic1", "topic2"]'
             - File path to JSON: "path/to/clusters.json"
             - KeywordClusterer dict format: {"cluster_stats": {"0": {"topic_descriptors": [...]}, ...}}
-            
-            Note: Topic descriptors are typically shared across all questions for 
+
+            Note: Topic descriptors are typically shared across all questions for
             performance and memory efficiency.
 
             Parameters
@@ -808,13 +827,13 @@ try:
             ...     "What is gradient descent?",
             ...     descriptors
             ... )
-            
+
             >>> # Example 2: File path
             >>> result = agent.assess_topic_relevance_prob(
             ...     "What is gradient descent?",
             ...     "path/to/keyword_clusters.json"
             ... )
-            
+
             >>> # Example 3: KeywordClusterer dict
             >>> clustering_data = {
             ...     "cluster_stats": {
@@ -829,7 +848,7 @@ try:
             """
             # Parse topic_descriptors using helper method
             descriptors_list = self._parse_topic_descriptors(topic_descriptors)
-            
+
             # Convert to JSON string for the agent
             descriptors_str = json.dumps(descriptors_list, indent=2)
 
@@ -987,11 +1006,11 @@ try:
         ) -> List[Optional[Dict[str, Any]]]:
             """
             Assess topic relevance for multiple questions against the same topic descriptors.
-            
+
             Performance Note: Topic descriptors are shared across all questions for memory
-            efficiency. This is the typical use case, as topic descriptors from 
+            efficiency. This is the typical use case, as topic descriptors from
             KeywordClusterer are usually consistent across a dataset.
-            
+
             Automatically handles:
             - List of strings
             - JSON string
@@ -1152,7 +1171,8 @@ try:
                         for question in batch_questions:
                             prompts.append(
                                 template.format(
-                                    question=question, topic_descriptors=topic_descriptors
+                                    question=question,
+                                    topic_descriptors=topic_descriptors,
                                 )
                             )
 
