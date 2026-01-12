@@ -283,6 +283,8 @@ class KeywordClusterer:
         self,
         n_descriptors: int = 10,
         metric: str = "euclidean",
+        ignore_n_closest_topics: int = 0,
+        min_descriptor_distance: Optional[float] = None,
     ) -> Dict[int, List[str]]:
         """
         Extract topic descriptors (n closest keywords) for each cluster.
@@ -296,6 +298,14 @@ class KeywordClusterer:
             Number of closest keywords to use as descriptors per topic
         metric : str
             Distance metric: 'euclidean' or 'cosine'
+        ignore_n_closest_topics : int
+            Number of closest keywords to skip when building descriptors.
+            Useful to reduce influence of dominant topics and improve diversity.
+            Default: 0 (no skipping)
+        min_descriptor_distance : Optional[float]
+            Minimum distance threshold for including keywords in descriptors.
+            Keywords closer than this threshold to the centroid will be excluded
+            to avoid overlap and increase distinctiveness. Default: None (no filtering)
 
         Returns
         -------
@@ -309,6 +319,13 @@ class KeywordClusterer:
         >>> topics = clusterer.extract_topic_descriptors(n_descriptors=5)
         >>> print(topics[0])  # Top 5 keywords for cluster 0
         ['machine learning', 'deep learning', 'neural networks', ...]
+        
+        >>> # Skip the closest keyword and require minimum distance
+        >>> topics = clusterer.extract_topic_descriptors(
+        ...     n_descriptors=5,
+        ...     ignore_n_closest_topics=1,
+        ...     min_descriptor_distance=0.1
+        ... )
         """
         if self.cluster_labels is None:
             raise ValueError("Model not fitted. Call fit() first.")
@@ -330,16 +347,41 @@ class KeywordClusterer:
                     f"Unknown metric: {metric}. Choose 'euclidean' or 'cosine'"
                 )
 
-            # Get indices of n closest keywords
-            closest_indices = np.argsort(distances)[:n_descriptors]
-
+            # Sort by distance and get indices
+            sorted_indices = np.argsort(distances)
+            
+            # Apply filtering based on parameters
+            filtered_indices = []
+            skip_count = ignore_n_closest_topics
+            
+            for idx in sorted_indices:
+                distance = distances[idx]
+                
+                # Skip if we're still ignoring closest topics
+                if skip_count > 0:
+                    skip_count -= 1
+                    continue
+                
+                # Skip if distance is below minimum threshold
+                if min_descriptor_distance is not None and distance < min_descriptor_distance:
+                    continue
+                
+                # Add this keyword to filtered list
+                filtered_indices.append(idx)
+                
+                # Stop once we have enough descriptors
+                if len(filtered_indices) >= n_descriptors:
+                    break
+            
             # Get the corresponding keywords
-            descriptors = [self.keywords[idx] for idx in closest_indices]
+            descriptors = [self.keywords[idx] for idx in filtered_indices]
             topics[cluster_id] = descriptors
 
         self.topics = topics
         LOGGER.info(
-            f"Extracted {n_descriptors} descriptors for each of {len(topics)} topics"
+            f"Extracted {n_descriptors} descriptors for each of {len(topics)} topics "
+            f"(ignore_n_closest={ignore_n_closest_topics}, "
+            f"min_distance={min_descriptor_distance})"
         )
 
         return topics
@@ -1045,6 +1087,8 @@ def cluster_keywords_from_embeddings(
     n_descriptors: int = 10,
     output_path: Optional[str] = None,
     random_state: int = 42,
+    ignore_n_closest_topics: int = 0,
+    min_descriptor_distance: Optional[float] = None,
     **kwargs,
 ) -> Tuple[KeywordClusterer, Dict[int, List[str]]]:
     """
@@ -1069,6 +1113,12 @@ def cluster_keywords_from_embeddings(
         Path to save results (if None, results are not saved)
     random_state : int
         Random state for reproducibility
+    ignore_n_closest_topics : int
+        Number of closest keywords to skip when building descriptors.
+        Default: 0 (no skipping)
+    min_descriptor_distance : Optional[float]
+        Minimum distance threshold for including keywords in descriptors.
+        Default: None (no filtering)
     **kwargs
         Additional arguments for the clustering algorithm
 
@@ -1091,6 +1141,15 @@ def cluster_keywords_from_embeddings(
     ... )
     >>> print(f"Found {len(topics)} topics")
     Found 2 topics
+    
+    >>> # With filtering options
+    >>> clusterer, topics = cluster_keywords_from_embeddings(
+    ...     embeddings,
+    ...     n_clusters=2,
+    ...     n_descriptors=5,
+    ...     ignore_n_closest_topics=1,
+    ...     min_descriptor_distance=0.1
+    ... )
     """
     # Create and fit clusterer
     clusterer = KeywordClusterer(
@@ -1102,7 +1161,11 @@ def cluster_keywords_from_embeddings(
     clusterer.fit(keyword_embeddings)
 
     # Extract topic descriptors
-    topics = clusterer.extract_topic_descriptors(n_descriptors=n_descriptors)
+    topics = clusterer.extract_topic_descriptors(
+        n_descriptors=n_descriptors,
+        ignore_n_closest_topics=ignore_n_closest_topics,
+        min_descriptor_distance=min_descriptor_distance,
+    )
 
     # Save if output path provided
     if output_path:

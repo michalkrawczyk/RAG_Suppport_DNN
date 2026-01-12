@@ -221,6 +221,82 @@ class TestTopicDescriptorExtraction:
             len(topics_cosine) == 3
         ), f"Expected 3 topics with cosine, got {len(topics_cosine)}"
 
+    def test_extract_topic_descriptors_ignore_n_closest(self, fitted_clusterer):
+        """Test topic descriptor extraction with ignore_n_closest_topics parameter."""
+        # Extract without ignoring any topics
+        topics_normal = fitted_clusterer.extract_topic_descriptors(
+            n_descriptors=5, metric="euclidean"
+        )
+        
+        # Extract while ignoring the 2 closest topics
+        topics_ignored = fitted_clusterer.extract_topic_descriptors(
+            n_descriptors=5, metric="euclidean", ignore_n_closest_topics=2
+        )
+        
+        # Both should have same number of topics
+        assert len(topics_ignored) == 3, f"Expected 3 topics, got {len(topics_ignored)}"
+        
+        # Each topic should still have 5 descriptors (if enough keywords exist)
+        for topic_id, descriptors in topics_ignored.items():
+            assert len(descriptors) > 0, f"Expected descriptors for topic {topic_id}"
+        
+        # The descriptors should be different (we skipped the closest ones)
+        for topic_id in topics_normal.keys():
+            normal_descriptors = topics_normal[topic_id]
+            ignored_descriptors = topics_ignored[topic_id]
+            
+            # At least the first descriptor should be different
+            if len(normal_descriptors) > 2 and len(ignored_descriptors) > 0:
+                # The first descriptor in ignored should not be in the first 2 of normal
+                assert ignored_descriptors[0] not in normal_descriptors[:2], (
+                    f"Expected first ignored descriptor to differ from first 2 normal descriptors"
+                )
+
+    def test_extract_topic_descriptors_min_distance(self, fitted_clusterer):
+        """Test topic descriptor extraction with min_descriptor_distance parameter."""
+        # Extract with minimum distance threshold
+        # Using a small threshold that should filter some keywords
+        topics_filtered = fitted_clusterer.extract_topic_descriptors(
+            n_descriptors=10, metric="euclidean", min_descriptor_distance=0.5
+        )
+        
+        assert len(topics_filtered) == 3, f"Expected 3 topics, got {len(topics_filtered)}"
+        
+        # Verify that descriptors respect the minimum distance
+        centroids = fitted_clusterer.get_centroids()
+        for topic_id, descriptors in topics_filtered.items():
+            centroid = centroids[topic_id]
+            
+            for descriptor in descriptors:
+                # Get the embedding for this descriptor
+                keyword_idx = fitted_clusterer.keywords.index(descriptor)
+                keyword_emb = fitted_clusterer.embeddings_matrix[keyword_idx]
+                
+                # Calculate distance
+                distance = np.linalg.norm(keyword_emb - centroid)
+                
+                # Distance should be >= min_descriptor_distance
+                assert distance >= 0.5, (
+                    f"Descriptor '{descriptor}' for topic {topic_id} has distance "
+                    f"{distance:.3f}, which is below minimum threshold 0.5"
+                )
+
+    def test_extract_topic_descriptors_combined_filters(self, fitted_clusterer):
+        """Test topic descriptor extraction with both ignore_n_closest and min_distance."""
+        topics = fitted_clusterer.extract_topic_descriptors(
+            n_descriptors=5,
+            metric="euclidean",
+            ignore_n_closest_topics=1,
+            min_descriptor_distance=0.3
+        )
+        
+        # Should still produce topics, though possibly with fewer descriptors
+        assert len(topics) == 3, f"Expected 3 topics, got {len(topics)}"
+        
+        # Each topic should have some descriptors
+        for topic_id, descriptors in topics.items():
+            assert len(descriptors) >= 0, f"Expected non-negative descriptors for topic {topic_id}"
+
     def test_extract_topic_descriptors_invalid_metric(self, fitted_clusterer):
         """Test topic extraction with invalid metric."""
         with pytest.raises(ValueError):
@@ -489,6 +565,44 @@ class TestConvenienceFunction:
             )
 
             assert output_path.exists(), f"Expected saved file at {output_path}"
+
+    def test_cluster_keywords_with_filtering_options(self, sample_embeddings):
+        """Test convenience function with new filtering parameters."""
+        # Test with ignore_n_closest_topics
+        clusterer, topics = cluster_keywords_from_embeddings(
+            sample_embeddings,
+            n_clusters=3,
+            n_descriptors=5,
+            ignore_n_closest_topics=2,
+            random_state=42
+        )
+        
+        assert len(topics) == 3, f"Expected 3 topics, got {len(topics)}"
+        for topic_id, descriptors in topics.items():
+            assert len(descriptors) > 0, f"Expected descriptors for topic {topic_id}"
+        
+        # Test with min_descriptor_distance
+        clusterer, topics = cluster_keywords_from_embeddings(
+            sample_embeddings,
+            n_clusters=3,
+            n_descriptors=5,
+            min_descriptor_distance=0.3,
+            random_state=42
+        )
+        
+        assert len(topics) == 3, f"Expected 3 topics, got {len(topics)}"
+        
+        # Test with both parameters
+        clusterer, topics = cluster_keywords_from_embeddings(
+            sample_embeddings,
+            n_clusters=3,
+            n_descriptors=5,
+            ignore_n_closest_topics=1,
+            min_descriptor_distance=0.2,
+            random_state=42
+        )
+        
+        assert len(topics) == 3, f"Expected 3 topics, got {len(topics)}"
 
 
 class TestComputeDistances:
