@@ -110,7 +110,6 @@ Requirements:
 - A probability of 1.0 means the question is highly relevant to the topic
 - A probability of 0.0 means no semantic connection
 - Provide probabilities for ALL topic descriptors provided
-- Include a brief explanation for each probability assessment (1-2 sentences maximum)
 - Base probabilities on semantic similarity, topic matching, and contextual relevance
 
 Output the results in the following JSON format:
@@ -118,8 +117,7 @@ Output the results in the following JSON format:
   "topic_scores": [
     {{
       "topic_descriptor": "example-descriptor",
-      "probability": 0.85,
-      "reason": "Brief explanation for this probability (1-2 sentences max)"
+      "probability": 0.85
     }}
   ],
   "total_topics": 5,

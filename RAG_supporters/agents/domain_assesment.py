@@ -134,7 +134,7 @@ try:
         probability: float = Field(
             ..., ge=0.0, le=1.0, description="Probability of semantic connection (0-1)"
         )
-        reason: str = Field(..., description="Explanation for this probability")
+        reason: Optional[str] = Field(None, description="Optional explanation for this probability")
 
     class QuestionTopicRelevanceResult(BaseModel):
         """Result for question-topic relevance assessment.
