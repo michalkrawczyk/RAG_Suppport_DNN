@@ -92,15 +92,30 @@ Output the results in the following JSON format:
 Provide only the JSON output, no additional text."""
 
 
-QUESTION_TOPIC_RELEVANCE_PROB_PROMPT = """Given a user question and a list of topic descriptors, assess the probability of semantic connection between the question and each topic descriptor. Each probability should indicate how likely the question belongs to or is related to that topic.
+def QUESTION_TOPIC_RELEVANCE_PROB_PROMPT(include_reason: bool = False) -> str:
+    """Generate prompt for assessing topic relevance probabilities.
+    
+    Parameters
+    ----------
+    include_reason : bool, optional
+        If True, includes 'reason' field in each topic assessment. Default is False.
+    
+    Returns
+    -------
+    str
+        The formatted prompt template string
+    """
+    reason_field = ', "reason": "Brief explanation for this probability"' if include_reason else ''
+    
+    return f"""Given a user question and a list of topic descriptors, assess the probability of semantic connection between the question and each topic descriptor. Each probability should indicate how likely the question belongs to or is related to that topic.
 
 NOTE: For large numbers of topic descriptors (>50), consider batching to stay within context limits.
 
 QUESTION:
-{question}
+{{question}}
 
 TOPIC DESCRIPTORS:
-{topic_descriptors}
+{{topic_descriptors}}
 
 Requirements:
 - Analyze the question's semantic content in relation to each topic descriptor
@@ -110,18 +125,18 @@ Requirements:
 - A probability of 1.0 means the question is highly relevant to the topic
 - A probability of 0.0 means no semantic connection
 - Provide probabilities for ALL topic descriptors provided
-- Base probabilities on semantic similarity, topic matching, and contextual relevance
+- Base probabilities on semantic similarity, topic matching, and contextual relevance{' and reasoning' if include_reason else ''}
 
 Output the results in the following JSON format:
-{{
+{{{{
   "topic_scores": [
-    {{
+    {{{{
       "topic_descriptor": "example-descriptor",
-      "probability": 0.85
-    }}
+      "probability": 0.85{reason_field}
+    }}}}
   ],
   "total_topics": 5,
   "question_summary": "Brief summary of the question's main topic (optional)"
-}}
+}}}}
 
 Provide only the JSON output, no additional text."""

@@ -197,6 +197,7 @@ try:
             llm: BaseChatModel,
             max_retries: int = 3,
             batch_size: int = 10,
+            include_reason: bool = False,
         ):
             """
             Initialize the domain analysis agent.
@@ -209,10 +210,15 @@ try:
                 Maximum number of retries for parsing. Default is 3.
             batch_size : int, optional
                 Default batch size for batch processing. Default is 10.
+            include_reason : bool, optional
+                If True, include reasoning explanations in topic relevance assessments. 
+                (For now) Only applies to assess_topic_relevance_prob operations (TOPIC_RELEVANCE_PROB mode).
+                Default is False.
             """
             self.llm = llm
             self.max_retries = max_retries
             self.batch_size = batch_size
+            self.include_reason = include_reason
 
             # Set up parsers for each mode
             self.extraction_parser = PydanticOutputParser(
@@ -253,7 +259,7 @@ try:
                 self.assessment_parser,
             )
             self.topic_relevance_prob_template = self._create_prompt_template(
-                QUESTION_TOPIC_RELEVANCE_PROB_PROMPT,
+                QUESTION_TOPIC_RELEVANCE_PROB_PROMPT(include_reason=self.include_reason),
                 ["question", "topic_descriptors"],
                 self.topic_relevance_prob_parser,
             )
