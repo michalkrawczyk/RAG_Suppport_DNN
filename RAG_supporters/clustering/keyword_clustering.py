@@ -310,7 +310,9 @@ class KeywordClusterer:
         Returns
         -------
         Dict[int, List[str]]
-            Dictionary mapping cluster/topic IDs to lists of descriptor keywords
+            Dictionary mapping cluster/topic IDs to lists of descriptor keywords.
+            Note: If filtering parameters are too restrictive, some topics may have
+            fewer descriptors than requested (or even empty lists).
 
         Examples
         --------
@@ -376,11 +378,19 @@ class KeywordClusterer:
             # Get the corresponding keywords
             descriptors = [self.keywords[idx] for idx in filtered_indices]
             topics[cluster_id] = descriptors
+            
+            # Warn if we got fewer descriptors than requested
+            if len(descriptors) < n_descriptors:
+                LOGGER.warning(
+                    f"Topic {cluster_id}: Only {len(descriptors)} descriptors found "
+                    f"(requested {n_descriptors}). Consider reducing ignore_n_closest_topics "
+                    f"or min_descriptor_distance to get more descriptors."
+                )
 
         self.topics = topics
         LOGGER.info(
-            f"Extracted {n_descriptors} descriptors for each of {len(topics)} topics "
-            f"(ignore_n_closest={ignore_n_closest_topics}, "
+            f"Extracted descriptors for {len(topics)} topics "
+            f"(target: {n_descriptors}, ignore_n_closest={ignore_n_closest_topics}, "
             f"min_distance={min_descriptor_distance})"
         )
 
