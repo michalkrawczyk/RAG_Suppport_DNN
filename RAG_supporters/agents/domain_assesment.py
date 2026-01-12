@@ -20,6 +20,7 @@ try:
     from tqdm import tqdm
 
     from prompts_templates.domain_extraction import (
+        QUESTION_TOPIC_RELEVANCE_PROB_PROMPT,
         QUESTION_DOMAIN_ASSESS_PROMPT,
         QUESTION_DOMAIN_GUESS_PROMPT,
         SRC_DOMAIN_EXTRACTION_PROMPT,
@@ -32,6 +33,9 @@ try:
         EXTRACT = "extract"  # Extract domains from source text
         GUESS = "guess"  # Guess domains needed for question
         ASSESS = "assess"  # Assess question against available terms
+        TOPIC_RELEVANCE_PROB = (
+            "topic_relevance_prob"  # Assess question-topic relevance probabilities
+        )
 
     # Pydantic Models
     class DomainSuggestion(BaseModel):
@@ -122,6 +126,50 @@ try:
                 self.total_selected = len(self.selected_terms)
             return self
 
+    class TopicRelevanceScore(BaseModel):
+        """Model for a single topic descriptor with relevance probability.
+
+        Note: Typically used with cluster descriptors from KeywordClusterer output.
+        """
+
+        topic_descriptor: str = Field(
+            ..., description="The topic descriptor term (e.g., from cluster analysis)"
+        )
+        probability: float = Field(
+            ..., ge=0.0, le=1.0, description="Probability of semantic connection (0-1)"
+        )
+        reason: Optional[str] = Field(
+            None, description="Optional explanation for this probability"
+        )
+
+    class QuestionTopicRelevanceResult(BaseModel):
+        """Result for question-topic relevance assessment.
+
+        Note: Designed to work with topic descriptors from KeywordClusterer
+        (RAG_supporters/clustering/keyword_clustering.py). When using KeywordClusterer,
+        the topic_descriptors represent the descriptors of the created clusters.
+        """
+
+        topic_scores: List[TopicRelevanceScore] = Field(
+            ..., description="List of topic descriptors with probabilities"
+        )
+        total_topics: int = Field(
+            ..., ge=0, description="Total number of topics assessed"
+        )
+        question_summary: Optional[str] = Field(
+            None, description="Brief summary of the question's main topic (optional)"
+        )
+
+        @model_validator(mode="after")
+        def validate_total_matches_length(self):
+            """Ensure total_topics matches the length of topic_scores list."""
+            if self.total_topics != len(self.topic_scores):
+                LOGGER.warning(
+                    f"total_topics mismatch: {self.total_topics} vs {len(self.topic_scores)}, correcting"
+                )
+                self.total_topics = len(self.topic_scores)
+            return self
+
     class AgentState(BaseModel):
         """State for the LangGraph domain analysis agent."""
 
@@ -129,8 +177,14 @@ try:
         text_source: Optional[str] = None
         question: Optional[str] = None
         available_terms: Optional[str] = None  # JSON string of available terms
+        topic_descriptors: Optional[str] = None  # JSON string of topic descriptors
         result: Optional[
-            Union[DomainExtractionResult, DomainGuessResult, DomainAssessmentResult]
+            Union[
+                DomainExtractionResult,
+                DomainGuessResult,
+                DomainAssessmentResult,
+                QuestionTopicRelevanceResult,
+            ]
         ] = None
         error: Optional[str] = None
         retry_count: int = 0
@@ -149,6 +203,7 @@ try:
             llm: BaseChatModel,
             max_retries: int = 3,
             batch_size: int = 10,
+            include_reason: bool = False,
         ):
             """
             Initialize the domain analysis agent.
@@ -161,10 +216,15 @@ try:
                 Maximum number of retries for parsing. Default is 3.
             batch_size : int, optional
                 Default batch size for batch processing. Default is 10.
+            include_reason : bool, optional
+                If True, include reasoning explanations in topic relevance assessments.
+                (For now) Only applies to assess_topic_relevance_prob operations (TOPIC_RELEVANCE_PROB mode).
+                Default is False.
             """
             self.llm = llm
             self.max_retries = max_retries
             self.batch_size = batch_size
+            self.include_reason = include_reason
 
             # Set up parsers for each mode
             self.extraction_parser = PydanticOutputParser(
@@ -173,6 +233,9 @@ try:
             self.guess_parser = PydanticOutputParser(pydantic_object=DomainGuessResult)
             self.assessment_parser = PydanticOutputParser(
                 pydantic_object=DomainAssessmentResult
+            )
+            self.topic_relevance_prob_parser = PydanticOutputParser(
+                pydantic_object=QuestionTopicRelevanceResult
             )
 
             # Set up fixing parsers
@@ -184,6 +247,9 @@ try:
             )
             self.assessment_fixing_parser = OutputFixingParser.from_llm(
                 parser=self.assessment_parser, llm=self.llm
+            )
+            self.topic_relevance_prob_fixing_parser = OutputFixingParser.from_llm(
+                parser=self.topic_relevance_prob_parser, llm=self.llm
             )
 
             # Create prompt templates
@@ -197,6 +263,13 @@ try:
                 QUESTION_DOMAIN_ASSESS_PROMPT,
                 ["question", "available_terms"],
                 self.assessment_parser,
+            )
+            self.topic_relevance_prob_template = self._create_prompt_template(
+                QUESTION_TOPIC_RELEVANCE_PROB_PROMPT(
+                    include_reason=self.include_reason
+                ),
+                ["question", "topic_descriptors"],
+                self.topic_relevance_prob_parser,
             )
 
             # Build the workflow graph
@@ -240,6 +313,11 @@ try:
                 return self.guess_parser, self.guess_fixing_parser
             elif mode == OperationMode.ASSESS:
                 return self.assessment_parser, self.assessment_fixing_parser
+            elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                return (
+                    self.topic_relevance_prob_parser,
+                    self.topic_relevance_prob_fixing_parser,
+                )
             else:
                 raise ValueError(f"Unknown operation mode: {mode}")
 
@@ -251,12 +329,16 @@ try:
                 return self.guess_template
             elif mode == OperationMode.ASSESS:
                 return self.assessment_template
+            elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                return self.topic_relevance_prob_template
             else:
                 raise ValueError(f"Unknown operation mode: {mode}")
 
         def _get_column_prefix(self, mode: OperationMode) -> str:
             """Get column prefix for mode to avoid overwrites."""
-            return mode.value  # Returns 'extract', 'guess', or 'assess'
+            return (
+                mode.value
+            )  # Returns 'extract', 'guess', 'assess', or 'topic_relevance_prob'
 
         def _build_graph(self) -> StateGraph:
             """Build the LangGraph workflow."""
@@ -296,6 +378,11 @@ try:
                 elif state.mode == OperationMode.ASSESS:
                     prompt = template.format(
                         question=state.question, available_terms=state.available_terms
+                    )
+                elif state.mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                    prompt = template.format(
+                        question=state.question,
+                        topic_descriptors=state.topic_descriptors,
                     )
 
                 LOGGER.debug(f"Sending prompt to LLM for mode: {state.mode}")
@@ -349,6 +436,7 @@ try:
                     OperationMode.EXTRACT: DomainExtractionResult,
                     OperationMode.GUESS: DomainGuessResult,
                     OperationMode.ASSESS: DomainAssessmentResult,
+                    OperationMode.TOPIC_RELEVANCE_PROB: QuestionTopicRelevanceResult,
                 }[state.mode]
 
                 if isinstance(state.result, expected_type):
@@ -407,6 +495,166 @@ try:
                 return result.model_dump()
             LOGGER.warning(f"Unexpected result type: {type(result)}")
             return None
+
+        def _create_relevance_json_mapping(
+            self, topic_scores: List[Dict[str, Any]]
+        ) -> str:
+            """Create JSON mapping of topic descriptors to probabilities.
+
+            Parameters
+            ----------
+            topic_scores : List[Dict[str, Any]]
+                List of topic score dictionaries
+
+            Returns
+            -------
+            str
+                JSON string mapping topic_descriptor to probability
+            """
+            relevance_json = {
+                score["topic_descriptor"]: score["probability"]
+                for score in topic_scores
+            }
+            return json.dumps(relevance_json)
+
+        def _parse_topic_descriptors(
+            self, topic_descriptors: Union[List[str], List[Dict], str, Dict]
+        ) -> List[str]:
+            """Parse and extract topic descriptors from various input formats.
+
+            Handles:
+            - List of strings: ["topic1", "topic2"]
+            - JSON string: '["topic1", "topic2"]'
+            - File path: "path/to/clusters.json"
+            - KeywordClusterer dict: {"cluster_stats": {"0": {"topic_descriptors": [...]}, ...}}
+
+            Parameters
+            ----------
+            topic_descriptors : Union[List[str], List[Dict], str, Dict]
+                Topic descriptors in any supported format
+
+            Returns
+            -------
+            List[str]
+                Flat list of topic descriptor strings
+
+            Raises
+            ------
+            ValueError
+                If the input format is invalid or file not found
+            """
+            import os
+
+            # Case 1: Already a list of strings
+            if isinstance(topic_descriptors, list):
+                if all(isinstance(x, str) for x in topic_descriptors):
+                    return topic_descriptors
+                # List of dicts - try to extract strings
+                LOGGER.warning(
+                    "List of dicts provided, expected list of strings. "
+                    "Converting to JSON string representation."
+                )
+                return [str(item) for item in topic_descriptors]
+
+            # Case 2: String input - could be JSON string or file path
+            if isinstance(topic_descriptors, str):
+                # Check if it's a file path
+                if os.path.isfile(topic_descriptors):
+                    LOGGER.info(
+                        f"Loading topic descriptors from file: {topic_descriptors}"
+                    )
+                    try:
+                        with open(topic_descriptors, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        # Recursively parse the loaded data
+                        return self._parse_topic_descriptors(data)
+                    except (
+                        OSError,
+                        IOError,
+                        json.JSONDecodeError,
+                        UnicodeDecodeError,
+                    ) as e:
+                        LOGGER.error(f"Failed to load file {topic_descriptors}: {e}")
+                        raise ValueError(
+                            f"Failed to load topic descriptors from file: {e}"
+                        )
+
+                # Try to parse as JSON string
+                try:
+                    parsed = json.loads(topic_descriptors)
+                    # Recursively parse the JSON content
+                    return self._parse_topic_descriptors(parsed)
+                except json.JSONDecodeError:
+                    # Not a valid JSON string, treat as single descriptor
+                    LOGGER.warning(
+                        f"String is neither a file nor valid JSON, treating as single descriptor"
+                    )
+                    return [topic_descriptors]
+
+            # Case 3: Dict - could be KeywordClusterer format
+            if isinstance(topic_descriptors, dict):
+                descriptors = []
+
+                # Try KeywordClusterer format with cluster_stats (preferred)
+                # cluster_stats structure: {"0": {"topic_descriptors": [...], "size": ..., ...}}
+                if "cluster_stats" in topic_descriptors:
+                    LOGGER.info("Detected KeywordClusterer 'cluster_stats' format")
+                    for cluster_id, stats in topic_descriptors["cluster_stats"].items():
+                        if isinstance(stats, dict) and "topic_descriptors" in stats:
+                            topic_descs = stats["topic_descriptors"]
+                            if isinstance(topic_descs, list):
+                                descriptors.extend(topic_descs)
+                            else:
+                                LOGGER.warning(
+                                    f"Cluster {cluster_id} topic_descriptors not a list, skipping"
+                                )
+                        else:
+                            LOGGER.warning(
+                                f"Cluster {cluster_id} has no topic_descriptors, skipping"
+                            )
+
+                # If we found descriptors from cluster_stats, return unique ones
+                if descriptors:
+                    unique_descriptors = list(dict.fromkeys(descriptors))
+                    LOGGER.info(
+                        f"Extracted {len(unique_descriptors)} unique topic descriptors "
+                        f"from KeywordClusterer cluster_stats"
+                    )
+                    return unique_descriptors
+
+                # Fallback: If no cluster_stats but has clusters, warn user
+                if "clusters" in topic_descriptors:
+                    LOGGER.warning(
+                        "Found 'clusters' key but no 'cluster_stats' with topic_descriptors. "
+                        "Please ensure KeywordClusterer JSON includes cluster_stats with topic_descriptors. "
+                        "Falling back to all keywords from clusters (may be large)."
+                    )
+                    for cluster_id, keywords in topic_descriptors["clusters"].items():
+                        if isinstance(keywords, list):
+                            descriptors.extend(keywords)
+                    if descriptors:
+                        unique_descriptors = list(dict.fromkeys(descriptors))
+                        return unique_descriptors
+                    else:
+                        # No descriptors found in KeywordClusterer format
+                        raise ValueError(
+                            "KeywordClusterer dict found but no topic descriptors extracted. "
+                            "Ensure 'clusters' contains non-empty keyword lists or "
+                            "'cluster_stats' contains 'topic_descriptors'."
+                        )
+
+                # If no recognized format, warn and raise error
+                raise ValueError(
+                    "Dict provided but no 'cluster_stats' or 'clusters' keys found. "
+                    "Expected KeywordClusterer format with 'clusters' or 'cluster_stats' keys. "
+                    f"Found keys: {list(topic_descriptors.keys())}"
+                )
+
+            # Unknown format
+            raise ValueError(
+                f"Unsupported topic_descriptors format: {type(topic_descriptors)}. "
+                f"Expected list of strings, JSON string, file path, or KeywordClusterer dict."
+            )
 
         # Public API methods
 
@@ -536,6 +784,93 @@ try:
             LOGGER.error(f"Final error: {final_state.get('error')}")
             return None
 
+        def assess_topic_relevance_prob(
+            self,
+            question: str,
+            topic_descriptors: Union[List[str], List[Dict], str, Dict],
+        ) -> Optional[Dict[str, Any]]:
+            """
+            Assess relevance probabilities between a question and topic descriptors.
+
+            This method is designed to work with cluster descriptors from KeywordClusterer
+            (RAG_supporters/clustering/keyword_clustering.py). It automatically handles:
+            - List of strings: ["topic1", "topic2"]
+            - JSON string: '["topic1", "topic2"]'
+            - File path to JSON: "path/to/clusters.json"
+            - KeywordClusterer dict format: {"cluster_stats": {"0": {"topic_descriptors": [...]}, ...}}
+
+            Note: Topic descriptors are typically shared across all questions for
+            performance and memory efficiency.
+
+            Parameters
+            ----------
+            question : str
+                The question to analyze
+            topic_descriptors : Union[List[str], List[Dict], str, Dict]
+                Topic descriptors in any supported format:
+                - List of strings (direct input)
+                - JSON string (will be parsed)
+                - File path to JSON file (will be loaded and parsed)
+                - KeywordClusterer dict with 'cluster_stats' containing 'topic_descriptors'
+
+            Returns
+            -------
+            Optional[Dict[str, Any]]
+                Dictionary with topic_scores, total_topics, and question_summary (optional).
+                Each topic_score contains topic_descriptor, probability, and reason.
+
+            Examples
+            --------
+            >>> # Example 1: List of strings
+            >>> descriptors = ["machine learning", "databases", "web development"]
+            >>> result = agent.assess_topic_relevance_prob(
+            ...     "What is gradient descent?",
+            ...     descriptors
+            ... )
+
+            >>> # Example 2: File path
+            >>> result = agent.assess_topic_relevance_prob(
+            ...     "What is gradient descent?",
+            ...     "path/to/keyword_clusters.json"
+            ... )
+
+            >>> # Example 3: KeywordClusterer dict
+            >>> clustering_data = {
+            ...     "cluster_stats": {
+            ...         "0": {"topic_descriptors": ["machine learning", "AI"], "size": 50},
+            ...         "1": {"topic_descriptors": ["databases", "SQL"], "size": 30}
+            ...     }
+            ... }
+            >>> result = agent.assess_topic_relevance_prob(
+            ...     "What is gradient descent?",
+            ...     clustering_data
+            ... )
+            """
+            # Parse topic_descriptors using helper method
+            descriptors_list = self._parse_topic_descriptors(topic_descriptors)
+
+            # Convert to JSON string for the agent
+            descriptors_str = json.dumps(descriptors_list, indent=2)
+
+            initial_state = AgentState(
+                mode=OperationMode.TOPIC_RELEVANCE_PROB,
+                question=question,
+                topic_descriptors=descriptors_str,
+                max_retries=self.max_retries,
+            )
+
+            final_state = self.graph.invoke(initial_state.model_dump())
+
+            result = self._extract_result_dict(final_state.get("result"))
+            if result is not None:
+                return result
+
+            LOGGER.error(
+                f"Failed to assess topic relevance after {self.max_retries} retries"
+            )
+            LOGGER.error(f"Final error: {final_state.get('error')}")
+            return None
+
         def extract_domains_batch(
             self,
             text_sources: List[str],
@@ -662,12 +997,75 @@ try:
                 show_progress=show_progress,
             )
 
+        def assess_topic_relevance_prob_batch(
+            self,
+            questions: List[str],
+            topic_descriptors: Union[List[str], List[Dict], str, Dict],
+            batch_size: Optional[int] = None,
+            show_progress: bool = True,
+        ) -> List[Optional[Dict[str, Any]]]:
+            """
+            Assess topic relevance for multiple questions against the same topic descriptors.
+
+            Performance Note: Topic descriptors are shared across all questions for memory
+            efficiency. This is the typical use case, as topic descriptors from
+            KeywordClusterer are usually consistent across a dataset.
+
+            Automatically handles:
+            - List of strings
+            - JSON string
+            - File path to JSON
+            - KeywordClusterer dict with cluster_stats containing topic_descriptors
+
+            Parameters
+            ----------
+            questions : List[str]
+                List of questions to analyze
+            topic_descriptors : Union[List[str], List[Dict], str, Dict]
+                Topic descriptors (same for all questions). Supports:
+                - List of strings
+                - JSON string
+                - File path to KeywordClusterer JSON
+                - KeywordClusterer dict with 'cluster_stats' containing 'topic_descriptors'
+            batch_size : int, optional
+                Batch size for chunking. If None, uses self.batch_size
+            show_progress : bool, optional
+                Show progress bar. Default is True.
+
+            Returns
+            -------
+            List[Optional[Dict[str, Any]]]
+                List of topic relevance results
+            """
+            if not self._is_openai_llm:
+                LOGGER.info(
+                    "Batch processing not available, using sequential processing"
+                )
+                return [
+                    self.assess_topic_relevance_prob(q, topic_descriptors)
+                    for q in questions
+                ]
+
+            # Parse topic_descriptors once using helper method
+            descriptors_list = self._parse_topic_descriptors(topic_descriptors)
+            descriptors_str = json.dumps(descriptors_list, indent=2)
+
+            batch_size = batch_size or self.batch_size
+            return self._batch_process(
+                OperationMode.TOPIC_RELEVANCE_PROB,
+                questions=questions,
+                topic_descriptors=descriptors_str,
+                batch_size=batch_size,
+                show_progress=show_progress,
+            )
+
         def _batch_process(
             self,
             mode: OperationMode,
             text_sources: Optional[List[str]] = None,
             questions: Optional[List[str]] = None,
             available_terms: Optional[List[str]] = None,
+            topic_descriptors: Optional[str] = None,
             batch_size: Optional[int] = None,
             show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
@@ -681,13 +1079,15 @@ try:
             Parameters
             ----------
             mode : OperationMode
-                Operation mode (extract, guess, or assess)
+                Operation mode (extract, guess, assess, or topic_relevance_prob)
             text_sources : Optional[List[str]]
                 List of text sources for extraction mode
             questions : Optional[List[str]]
-                List of questions for guess/assess modes
+                List of questions for guess/assess/topic_relevance_prob modes
             available_terms : Optional[List[str]]
-                Available terms for assess mode
+                Available terms for assess mode (one per question)
+            topic_descriptors : Optional[str]
+                Topic descriptors JSON string for topic_relevance_prob mode (shared across all questions)
             batch_size : Optional[int]
                 Number of items to process in each batch
             show_progress : bool
@@ -708,6 +1108,8 @@ try:
             elif mode == OperationMode.GUESS:
                 total_items = len(questions)
             elif mode == OperationMode.ASSESS:
+                total_items = len(questions)
+            elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                 total_items = len(questions)
             else:
                 raise ValueError(f"Unknown mode: {mode}")
@@ -761,6 +1163,16 @@ try:
                             prompts.append(
                                 template.format(
                                     question=question, available_terms=terms
+                                )
+                            )
+                    elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                        batch_questions = questions[batch_start:batch_end]
+                        # topic_descriptors is a single string shared across all questions
+                        for question in batch_questions:
+                            prompts.append(
+                                template.format(
+                                    question=question,
+                                    topic_descriptors=topic_descriptors,
                                 )
                             )
 
@@ -841,6 +1253,11 @@ try:
                         self.assess_domains(q, t)
                         for q, t in zip(questions, available_terms)
                     ]
+                elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                    return [
+                        self.assess_topic_relevance_prob(q, d)
+                        for q, d in zip(questions, topic_descriptors)
+                    ]
 
             LOGGER.info(
                 f"Batch processing complete: {successful_parses} successful, "
@@ -855,6 +1272,7 @@ try:
             text_source_col: Optional[str] = None,
             question_col: Optional[str] = None,
             available_terms: Optional[Union[List[str], List[Dict], str]] = None,
+            topic_descriptors: Optional[Union[List[str], List[Dict], str, Dict]] = None,
             progress_bar: bool = True,
             save_path: Optional[str] = None,
             skip_existing: bool = True,
@@ -876,13 +1294,19 @@ try:
             df : pd.DataFrame
                 DataFrame to process
             mode : OperationMode
-                Operation mode (EXTRACT, GUESS, or ASSESS)
+                Operation mode (EXTRACT, GUESS, ASSESS, or TOPIC_RELEVANCE_PROB)
             text_source_col : str, optional
                 Column name for text sources (required for EXTRACT mode)
             question_col : str, optional
-                Column name for questions (required for GUESS and ASSESS modes)
+                Column name for questions (required for GUESS, ASSESS, and TOPIC_RELEVANCE_PROB modes)
             available_terms : Union[List[str], List[Dict], str], optional
                 Available terms for ASSESS mode
+            topic_descriptors : Union[List[str], List[Dict], str, Dict], optional
+                Topic descriptors for TOPIC_RELEVANCE_PROB mode. Supports:
+                - List of strings
+                - JSON string
+                - File path to KeywordClusterer JSON
+                - KeywordClusterer dict with 'clusters' or 'cluster_stats'
             progress_bar : bool, optional
                 Show progress bar. Default is True.
             save_path : str, optional
@@ -908,10 +1332,24 @@ try:
             # Validate required columns
             if mode == OperationMode.EXTRACT and not text_source_col:
                 raise ValueError("text_source_col required for EXTRACT mode")
-            if mode in [OperationMode.GUESS, OperationMode.ASSESS] and not question_col:
-                raise ValueError("question_col required for GUESS and ASSESS modes")
+            if (
+                mode
+                in [
+                    OperationMode.GUESS,
+                    OperationMode.ASSESS,
+                    OperationMode.TOPIC_RELEVANCE_PROB,
+                ]
+                and not question_col
+            ):
+                raise ValueError(
+                    "question_col required for GUESS, ASSESS, and TOPIC_RELEVANCE_PROB modes"
+                )
             if mode == OperationMode.ASSESS and available_terms is None:
                 raise ValueError("available_terms required for ASSESS mode")
+            if mode == OperationMode.TOPIC_RELEVANCE_PROB and topic_descriptors is None:
+                raise ValueError(
+                    "topic_descriptors required for TOPIC_RELEVANCE_PROB mode"
+                )
 
             # Get column prefix to avoid overwrites
             prefix = self._get_column_prefix(mode)
@@ -928,12 +1366,22 @@ try:
                     ),
                     f"{prefix}_error",
                 ]
-            else:  # ASSESS
+            elif mode == OperationMode.ASSESS:
                 result_columns = [
                     f"{prefix}_selected_terms",
                     f"{prefix}_total_selected",
                     f"{prefix}_question_intent",
                     f"{prefix}_primary_topics",
+                    f"{prefix}_error",
+                ]
+            elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                # Special column name as per requirements: must be "question_term_relevance_scores"
+                # This is different from other modes which use prefix-based naming
+                result_columns = [
+                    "question_term_relevance_scores",  # Required name from specification
+                    f"{prefix}_topic_scores",
+                    f"{prefix}_total_topics",
+                    f"{prefix}_question_summary",
                     f"{prefix}_error",
                 ]
 
@@ -975,8 +1423,11 @@ try:
                     if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
                         if pd.notna(row.get(f"{prefix}_total_suggestions")):
                             continue
-                    else:  # ASSESS
+                    elif mode == OperationMode.ASSESS:
                         if pd.notna(row.get(f"{prefix}_total_selected")):
+                            continue
+                    elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                        if pd.notna(row.get(f"{prefix}_total_topics")):
                             continue
 
                 # Check for empty inputs
@@ -1015,6 +1466,7 @@ try:
                     text_source_col,
                     question_col,
                     available_terms,
+                    topic_descriptors,
                     batch_size,
                     progress_bar,
                     save_path,
@@ -1030,6 +1482,7 @@ try:
                     text_source_col,
                     question_col,
                     available_terms,
+                    topic_descriptors,
                     progress_bar,
                     save_path,
                     checkpoint_batch_size,
@@ -1051,6 +1504,7 @@ try:
             text_col,
             question_col,
             available_terms,
+            topic_descriptors,
             batch_size,
             progress_bar,
             save_path,
@@ -1071,7 +1525,9 @@ try:
                 all_inputs = [row[text_col] for row in rows]
             elif mode == OperationMode.GUESS:
                 all_inputs = [row[question_col] for row in rows]
-            else:  # ASSESS
+            elif mode == OperationMode.ASSESS:
+                all_inputs = [row[question_col] for row in rows]
+            elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                 all_inputs = [row[question_col] for row in rows]
 
             try:
@@ -1084,10 +1540,17 @@ try:
                     batch_results = self.guess_domains_batch(
                         all_inputs, batch_size=batch_size, show_progress=progress_bar
                     )
-                else:  # ASSESS
+                elif mode == OperationMode.ASSESS:
                     batch_results = self.assess_domains_batch(
                         all_inputs,
                         available_terms,
+                        batch_size=batch_size,
+                        show_progress=progress_bar,
+                    )
+                elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                    batch_results = self.assess_topic_relevance_prob_batch(
+                        all_inputs,
+                        topic_descriptors,
                         batch_size=batch_size,
                         show_progress=progress_bar,
                     )
@@ -1124,7 +1587,7 @@ try:
                                 result_df.at[idx, f"{prefix}_question_category"] = (
                                     result.get("question_category")
                                 )
-                        else:  # ASSESS
+                        elif mode == OperationMode.ASSESS:
                             result_df.at[idx, f"{prefix}_selected_terms"] = str(
                                 result["selected_terms"]
                             )
@@ -1137,6 +1600,24 @@ try:
                             result_df.at[idx, f"{prefix}_primary_topics"] = str(
                                 result["primary_topics"]
                             )
+                        elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                            # Create JSON mapping using helper method
+                            result_df.at[idx, "question_term_relevance_scores"] = (
+                                self._create_relevance_json_mapping(
+                                    result["topic_scores"]
+                                )
+                            )
+                            result_df.at[idx, f"{prefix}_topic_scores"] = str(
+                                result["topic_scores"]
+                            )
+                            result_df.at[idx, f"{prefix}_total_topics"] = result[
+                                "total_topics"
+                            ]
+                            # question_summary is optional
+                            if result.get("question_summary"):
+                                result_df.at[idx, f"{prefix}_question_summary"] = (
+                                    result["question_summary"]
+                                )
                         processed += 1
                     else:
                         result_df.at[idx, f"{prefix}_error"] = "Analysis failed"
@@ -1177,6 +1658,7 @@ try:
             text_col,
             question_col,
             available_terms,
+            topic_descriptors,
             progress_bar,
             save_path,
             checkpoint_size,
@@ -1198,8 +1680,12 @@ try:
                         result = self.extract_domains(row[text_col])
                     elif mode == OperationMode.GUESS:
                         result = self.guess_domains(row[question_col])
-                    else:  # ASSESS
+                    elif mode == OperationMode.ASSESS:
                         result = self.assess_domains(row[question_col], available_terms)
+                    elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                        result = self.assess_topic_relevance_prob(
+                            row[question_col], topic_descriptors
+                        )
 
                     if result is not None:
                         if mode in [OperationMode.EXTRACT, OperationMode.GUESS]:
@@ -1218,7 +1704,7 @@ try:
                                 result_df.at[idx, f"{prefix}_question_category"] = (
                                     result.get("question_category")
                                 )
-                        else:  # ASSESS
+                        elif mode == OperationMode.ASSESS:
                             result_df.at[idx, f"{prefix}_selected_terms"] = str(
                                 result["selected_terms"]
                             )
@@ -1231,6 +1717,24 @@ try:
                             result_df.at[idx, f"{prefix}_primary_topics"] = str(
                                 result["primary_topics"]
                             )
+                        elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                            # Create JSON mapping using helper method
+                            result_df.at[idx, "question_term_relevance_scores"] = (
+                                self._create_relevance_json_mapping(
+                                    result["topic_scores"]
+                                )
+                            )
+                            result_df.at[idx, f"{prefix}_topic_scores"] = str(
+                                result["topic_scores"]
+                            )
+                            result_df.at[idx, f"{prefix}_total_topics"] = result[
+                                "total_topics"
+                            ]
+                            # question_summary is optional
+                            if result.get("question_summary"):
+                                result_df.at[idx, f"{prefix}_question_summary"] = (
+                                    result["question_summary"]
+                                )
                         processed += 1
                     else:
                         result_df.at[idx, f"{prefix}_error"] = "Analysis failed"
@@ -1700,6 +2204,7 @@ except ImportError as e:
         EXTRACT = "extract"
         GUESS = "guess"
         ASSESS = "assess"
+        TOPIC_RELEVANCE_PROB = "topic_relevance_prob"
 
     class DomainAnalysisAgent:
         """
