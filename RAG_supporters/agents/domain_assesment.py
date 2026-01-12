@@ -1029,7 +1029,7 @@ try:
             return self._batch_process(
                 OperationMode.TOPIC_RELEVANCE_PROB,
                 questions=questions,
-                topic_descriptors=[descriptors_str] * len(questions),
+                topic_descriptors=descriptors_str,
                 batch_size=batch_size,
                 show_progress=show_progress,
             )
@@ -1040,7 +1040,7 @@ try:
             text_sources: Optional[List[str]] = None,
             questions: Optional[List[str]] = None,
             available_terms: Optional[List[str]] = None,
-            topic_descriptors: Optional[List[str]] = None,
+            topic_descriptors: Optional[str] = None,
             batch_size: Optional[int] = None,
             show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
@@ -1060,9 +1060,9 @@ try:
             questions : Optional[List[str]]
                 List of questions for guess/assess/topic_relevance_prob modes
             available_terms : Optional[List[str]]
-                Available terms for assess mode
-            topic_descriptors : Optional[List[str]]
-                Topic descriptors for topic_relevance_prob mode
+                Available terms for assess mode (one per question)
+            topic_descriptors : Optional[str]
+                Topic descriptors JSON string for topic_relevance_prob mode (shared across all questions)
             batch_size : Optional[int]
                 Number of items to process in each batch
             show_progress : bool
@@ -1142,13 +1142,11 @@ try:
                             )
                     elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                         batch_questions = questions[batch_start:batch_end]
-                        batch_descriptors = topic_descriptors[batch_start:batch_end]
-                        for question, descriptors in zip(
-                            batch_questions, batch_descriptors
-                        ):
+                        # topic_descriptors is a single string shared across all questions
+                        for question in batch_questions:
                             prompts.append(
                                 template.format(
-                                    question=question, topic_descriptors=descriptors
+                                    question=question, topic_descriptors=topic_descriptors
                                 )
                             )
 
