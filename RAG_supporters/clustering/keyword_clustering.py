@@ -323,7 +323,7 @@ class KeywordClusterer:
         >>> topics = clusterer.extract_topic_descriptors(n_descriptors=5)
         >>> print(topics[0])  # Top 5 keywords for cluster 0
         ['machine learning', 'deep learning', 'neural networks', ...]
-        
+
         >>> # Skip the closest keyword and require minimum distance
         >>> topics = clusterer.extract_topic_descriptors(
         ...     n_descriptors=5,
@@ -362,15 +362,15 @@ class KeywordClusterer:
 
                 if ignore_n_closest_keywords > 0:
                     first_idx += ignore_n_closest_keywords
-                
-                filtered_indices = sorted_indices[first_idx:first_idx + n_descriptors]
+
+                filtered_indices = sorted_indices[first_idx : first_idx + n_descriptors]
             else:
                 filtered_indices = sorted_indices[:n_descriptors]
-            
+
             # Get the corresponding keywords
             descriptors = [self.keywords[idx] for idx in filtered_indices]
             topics[cluster_id] = descriptors
-            
+
             # Warn if we got fewer descriptors than requested
             if len(descriptors) < n_descriptors:
                 LOGGER.warning(
@@ -1146,7 +1146,7 @@ def cluster_keywords_from_embeddings(
     ... )
     >>> print(f"Found {len(topics)} topics")
     Found 2 topics
-    
+
     >>> # With filtering options
     >>> clusterer, topics = cluster_keywords_from_embeddings(
     ...     embeddings,
