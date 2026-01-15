@@ -352,7 +352,6 @@ class KeywordClusterer:
             # Sort by distance and get indices & Apply filtering
             sorted_indices = np.argsort(distances)
             if min_descriptor_distance is not None or ignore_n_closest_topics > 0:
-                # filtered_distances = np.ones_like(distances, dtype=bool)
                 first_idx = 0
 
                 if min_descriptor_distance is not None:
