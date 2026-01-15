@@ -299,13 +299,15 @@ class KeywordClusterer:
         metric : str
             Distance metric: 'euclidean' or 'cosine'
         ignore_n_closest_topics : int
-            Number of closest keywords to skip when building descriptors.
+            Number of additional closest keywords to skip after applying distance filter.
+            This skips keywords beyond those already filtered by min_descriptor_distance.
             Useful to reduce influence of dominant topics and improve diversity.
             Default: 0 (no skipping)
         min_descriptor_distance : Optional[float]
             Minimum distance threshold for including keywords in descriptors.
-            Keywords closer than this threshold to the centroid will be excluded
-            to avoid overlap and increase distinctiveness. Default: None (no filtering)
+            Keywords with distance <= this threshold are excluded first, then
+            ignore_n_closest_topics additional keywords are skipped from the remaining.
+            Default: None (no filtering)
 
         Returns
         -------
@@ -1114,10 +1116,13 @@ def cluster_keywords_from_embeddings(
     random_state : int
         Random state for reproducibility
     ignore_n_closest_topics : int
-        Number of closest keywords to skip when building descriptors.
+        Number of additional closest keywords to skip after applying distance filter.
+        This skips keywords beyond those already filtered by min_descriptor_distance.
         Default: 0 (no skipping)
     min_descriptor_distance : Optional[float]
         Minimum distance threshold for including keywords in descriptors.
+        Keywords with distance <= this threshold are excluded first, then
+        ignore_n_closest_topics additional keywords are skipped from the remaining.
         Default: None (no filtering)
     **kwargs
         Additional arguments for the clustering algorithm
