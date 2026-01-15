@@ -349,31 +349,22 @@ class KeywordClusterer:
                     f"Unknown metric: {metric}. Choose 'euclidean' or 'cosine'"
                 )
 
-            # Sort by distance and get indices
+            # Sort by distance and get indices & Apply filtering
             sorted_indices = np.argsort(distances)
-            
-            # Apply filtering based on parameters
-            filtered_indices = []
-            skip_count = ignore_n_closest_topics
-            
-            for idx in sorted_indices:
-                distance = distances[idx]
+            if min_descriptor_distance is not None or ignore_n_closest_topics > 0:
+                # filtered_distances = np.ones_like(distances, dtype=bool)
+                first_idx = 0
+
+                if min_descriptor_distance is not None:
+                    filtered_distances = distances > min_descriptor_distance
+                    first_idx += np.count_nonzero(~filtered_distances)
+
+                if ignore_n_closest_topics > 0:
+                    first_idx += ignore_n_closest_topics
                 
-                # Skip if we're still ignoring closest topics
-                if skip_count > 0:
-                    skip_count -= 1
-                    continue
-                
-                # Skip if distance is below minimum threshold
-                if min_descriptor_distance is not None and distance < min_descriptor_distance:
-                    continue
-                
-                # Add this keyword to filtered list
-                filtered_indices.append(idx)
-                
-                # Stop once we have enough descriptors
-                if len(filtered_indices) >= n_descriptors:
-                    break
+                filtered_indices = sorted_indices[first_idx:first_idx + n_descriptors]
+            else:
+                filtered_indices = sorted_indices[:n_descriptors]
             
             # Get the corresponding keywords
             descriptors = [self.keywords[idx] for idx in filtered_indices]
