@@ -222,7 +222,7 @@ class TestTopicDescriptorExtraction:
         ), f"Expected 3 topics with cosine, got {len(topics_cosine)}"
 
     def test_extract_topic_descriptors_ignore_n_closest(self, fitted_clusterer):
-        """Test topic descriptor extraction with ignore_n_closest_topics parameter."""
+        """Test topic descriptor extraction with ignore_n_closest_keywords parameter."""
         # Extract without ignoring any topics
         topics_normal = fitted_clusterer.extract_topic_descriptors(
             n_descriptors=5, metric="euclidean"
@@ -230,7 +230,7 @@ class TestTopicDescriptorExtraction:
         
         # Extract while ignoring the 2 closest topics
         topics_ignored = fitted_clusterer.extract_topic_descriptors(
-            n_descriptors=5, metric="euclidean", ignore_n_closest_topics=2
+            n_descriptors=5, metric="euclidean", ignore_n_closest_keywords=2
         )
         
         # Both should have same number of topics
@@ -286,7 +286,7 @@ class TestTopicDescriptorExtraction:
         topics = fitted_clusterer.extract_topic_descriptors(
             n_descriptors=5,
             metric="euclidean",
-            ignore_n_closest_topics=1,
+            ignore_n_closest_keywords=1,
             min_descriptor_distance=0.3
         )
         
@@ -568,12 +568,12 @@ class TestConvenienceFunction:
 
     def test_cluster_keywords_with_filtering_options(self, sample_embeddings):
         """Test convenience function with new filtering parameters."""
-        # Test with ignore_n_closest_topics
+        # Test with ignore_n_closest_keywords
         clusterer, topics = cluster_keywords_from_embeddings(
             sample_embeddings,
             n_clusters=3,
             n_descriptors=5,
-            ignore_n_closest_topics=2,
+            ignore_n_closest_keywords=2,
             random_state=42
         )
         
@@ -597,7 +597,7 @@ class TestConvenienceFunction:
             sample_embeddings,
             n_clusters=3,
             n_descriptors=5,
-            ignore_n_closest_topics=1,
+            ignore_n_closest_keywords=1,
             min_descriptor_distance=0.2,
             random_state=42
         )
