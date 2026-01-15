@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from .keyword_clustering import KeywordClusterer, cluster_keywords_from_embeddings
+from RAG_supporters.clustering.keyword_clustering import KeywordClusterer, cluster_keywords_from_embeddings
 
 
 @pytest.fixture
