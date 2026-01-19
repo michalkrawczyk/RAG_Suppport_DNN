@@ -121,19 +121,25 @@ LOGGER = logging.getLogger(__name__)
 ### Docstrings
 
 - Use triple-quoted strings for all docstrings
-- Follow Google/NumPy style for parameters, returns, and examples
+- Follow **NumPy docstring style** for parameters, returns, and examples
 - Include type information in docstrings
 - Example:
   ```python
   def compare_text_sources(self, question: str, source1: str, source2: str) -> Dict[str, Any]:
       """Compare two text sources for a given question.
       
-      Args:
-          question: The question to evaluate sources against
-          source1: First source text
-          source2: Second source text
+      Parameters
+      ----------
+      question : str
+          The question to evaluate sources against
+      source1 : str
+          First source text
+      source2 : str
+          Second source text
           
-      Returns:
+      Returns
+      -------
+      Dict[str, Any]
           Dictionary containing comparison results with keys:
           - 'selected_source': 1 or 2
           - 'reason': Explanation of selection
