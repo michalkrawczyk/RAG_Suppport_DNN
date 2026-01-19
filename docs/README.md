@@ -78,9 +78,17 @@ Each agent documentation includes:
 
 ## Other Documentation
 
+### Utilities
+
+- **[TOPIC_DISTANCE_CALCULATOR.md](./TOPIC_DISTANCE_CALCULATOR.md)** - Calculate embedding distances to topic keywords without LLM
+- **[CLUSTERING_AND_ASSIGNMENT.md](./CLUSTERING_AND_ASSIGNMENT.md)** - Guide for keyword clustering and cluster assignment
 - **[DATASET_SPLITTING.md](./DATASET_SPLITTING.md)** - Guide for splitting datasets with persistent sample tracking
+
+### Datasets
+
 - **[SAMPLE_GENERATION_GUIDE.md](../RAG_supporters/dataset/SAMPLE_GENERATION_GUIDE.md)** - Guide for generating RAG dataset samples
 - **[QUICK_REFERENCE.md](../RAG_supporters/dataset/QUICK_REFERENCE.md)** - Quick reference for dataset utilities
+- **[DOMAIN_ASSESSMENT_CLUSTERING_DATASET_EXAMPLE.md](./DOMAIN_ASSESSMENT_CLUSTERING_DATASET_EXAMPLE.md)** - Domain assessment with clustering examples
 
 ## Contributing
 
