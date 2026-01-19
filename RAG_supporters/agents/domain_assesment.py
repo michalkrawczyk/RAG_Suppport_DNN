@@ -60,7 +60,7 @@ try:
         primary_theme: str = Field(..., description="Main identified theme")
 
         @model_validator(mode="after")
-        def validate_total_suggestions_length(self):
+        def validate_suggestions_length(self):
             """Ensure total_suggestions matches the length of suggestions list."""
             if self.total_suggestions != len(self.suggestions):
                 LOGGER.warning(
@@ -83,7 +83,7 @@ try:
         )
 
         @model_validator(mode="after")
-        def validate_total_suggestions_length(self):
+        def validate_suggestions_length(self):
             """Ensure total_suggestions matches the length of suggestions list."""
             if self.total_suggestions != len(self.suggestions):
                 LOGGER.warning(
@@ -161,7 +161,7 @@ try:
         )
 
         @model_validator(mode="after")
-        def validate_total_topics_length(self):
+        def validate_topic_scores_length(self):
             """Ensure total_topics matches the length of topic_scores list."""
             if self.total_topics != len(self.topic_scores):
                 LOGGER.warning(
