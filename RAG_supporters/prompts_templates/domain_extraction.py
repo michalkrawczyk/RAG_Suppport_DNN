@@ -127,7 +127,7 @@ Requirements:
 - A probability of 1.0 means the question is highly relevant to the topic
 - A probability of 0.0 means no semantic connection
 - Provide probabilities for ALL topic descriptors provided
-- Base probabilities on semantic similarity, topic matching, and contextual relevance{' and reasoning' if include_reason else ''}
+- Base probabilities on semantic similarity, topic matching, and contextual relevance (and provide reasoning for each assessment when requested)
 
 Output the results in the following JSON format:
 {{{{
