@@ -1257,8 +1257,8 @@ try:
                     ]
                 elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                     return [
-                        self.assess_topic_relevance_prob(q, d)
-                        for q, d in zip(questions, topic_descriptors)
+                        self.assess_topic_relevance_prob(q, topic_descriptors)
+                        for q in questions
                     ]
 
             LOGGER.info(
