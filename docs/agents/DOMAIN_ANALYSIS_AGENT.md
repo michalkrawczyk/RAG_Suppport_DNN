@@ -20,7 +20,7 @@ The agent provides four powerful operation modes:
 - **LangGraph Architecture**: Robust workflow with automatic retry logic
 - **Flexible Input**: Works with text, DataFrames, and CSV files
 - **OpenAI Batch Support**: Optimized batch processing for OpenAI models
-- **Configurable Reasoning**: Optional reasoning explanations for topic relevance assessments
+- **Configurable Reasoning**: Optional reasoning explanations (via `include_reason` parameter, applies only to TOPIC_RELEVANCE_PROB mode)
 
 ## Installation
 
