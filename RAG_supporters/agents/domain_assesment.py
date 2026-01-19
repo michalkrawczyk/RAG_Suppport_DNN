@@ -818,7 +818,8 @@ try:
             -------
             Optional[Dict[str, Any]]
                 Dictionary with topic_scores, total_topics, and question_summary (optional).
-                Each topic_score contains topic_descriptor, probability, and reason.
+                Each topic_score contains topic_descriptor, probability, and optionally
+                reason (if the agent was initialized with ``include_reason=True``).
 
             Examples
             --------
