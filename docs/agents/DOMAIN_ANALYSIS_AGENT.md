@@ -6,19 +6,21 @@ The `DomainAnalysisAgent` is a unified LangGraph-based agent for comprehensive d
 
 ### What It Does
 
-The agent provides three powerful operation modes:
+The agent provides four powerful operation modes:
 - **EXTRACT Mode**: Extract domains, subdomains, and keywords from source text
 - **GUESS Mode**: Identify domains needed to answer a given question
 - **ASSESS Mode**: Evaluate which available domain terms are most relevant to a question
+- **TOPIC_RELEVANCE_PROB Mode**: Assess probabilistic relevance between questions and topic descriptors
 
 ### Key Features
 
-- **Three Operation Modes**: Extract, Guess, and Assess domain information
+- **Four Operation Modes**: Extract, Guess, Assess, and Topic Relevance Probability
 - **Structured Output**: Returns validated Pydantic models with scores and reasoning
 - **Batch Processing**: Efficiently process multiple texts or questions
 - **LangGraph Architecture**: Robust workflow with automatic retry logic
 - **Flexible Input**: Works with text, DataFrames, and CSV files
 - **OpenAI Batch Support**: Optimized batch processing for OpenAI models
+- **KeywordClusterer Integration**: Seamless integration with clustering output
 
 ## Installation
 
@@ -144,6 +146,66 @@ print(f"Selected terms: {[t['term'] for t in result['selected_terms']]}")
 }
 ```
 
+### TOPIC_RELEVANCE_PROB Mode - Topic Relevance Probability Assessment
+
+Assess probabilistic relevance between questions and topic descriptors, designed for clustering and topic analysis workflows.
+
+**Use Cases:**
+- Assigning questions to topic clusters
+- Topic-based question routing
+- Semantic relevance scoring
+- Integration with KeywordClusterer
+
+**Example:**
+```python
+from RAG_supporters.clustering.keyword_clustering import KeywordClusterer
+
+# Option 1: Using topic descriptors directly
+topic_descriptors = [
+    "machine learning and AI",
+    "web development and APIs", 
+    "database systems and SQL"
+]
+
+result = agent.assess_topic_relevance_prob(
+    "How does gradient descent optimize neural networks?",
+    topic_descriptors
+)
+print(f"Question summary: {result['question_summary']}")
+for score in result['topic_scores']:
+    print(f"{score['topic_descriptor']}: {score['probability']}")
+```
+
+**Output:**
+```python
+{
+    'topic_scores': [
+        {'topic_descriptor': 'machine learning and AI', 'probability': 0.95, 'reason': '...'},
+        {'topic_descriptor': 'web development and APIs', 'probability': 0.1, 'reason': '...'},
+        {'topic_descriptor': 'database systems and SQL', 'probability': 0.2, 'reason': '...'}
+    ],
+    'total_topics': 3,
+    'question_summary': 'Question about neural network optimization'
+}
+```
+
+**Integration with KeywordClusterer:**
+```python
+# Option 2: Load from KeywordClusterer JSON file
+result = agent.assess_topic_relevance_prob(
+    "What is a REST API?",
+    "path/to/keyword_clusters.json"  # Automatically parses cluster descriptors
+)
+
+# Option 3: Use KeywordClusterer object directly
+clusterer = KeywordClusterer(...)
+clustering_data = clusterer.get_cluster_stats()
+result = agent.assess_topic_relevance_prob(
+    "What is a REST API?",
+    clustering_data  # Extracts topic_descriptors automatically
+)
+```
+
 ## Basic Usage
 
 ### Initialize the Agent
@@ -185,6 +247,11 @@ results = agent.guess_domains_batch(questions)
 questions = ["Q1?", "Q2?"]
 available_terms = ["physics", "chemistry", "biology"]
 results = agent.assess_domains_batch(questions, available_terms)
+
+# Batch assess topic relevance
+questions = ["Q1?", "Q2?", "Q3?"]
+topic_descriptors = ["machine learning", "databases", "web development"]
+results = agent.assess_topic_relevance_prob_batch(questions, topic_descriptors)
 ```
 
 ## DataFrame/CSV Processing
@@ -247,6 +314,34 @@ result_df = agent.process_dataframe(
 )
 
 print(result_df[['question_text', 'primary_topics', 'total_selected']].head())
+```
+
+### Process DataFrame - Topic Relevance Probability Mode
+
+```python
+# Your DataFrame with questions
+df = pd.read_csv("questions.csv")
+
+# Topic descriptors from clustering or manual definition
+topic_descriptors = [
+    "machine learning and AI",
+    "web development",
+    "database systems"
+]
+
+# Or load from KeywordClusterer JSON file
+# topic_descriptors = "path/to/keyword_clusters.json"
+
+# Assess topic relevance for each question
+result_df = agent.process_dataframe(
+    df,
+    mode=OperationMode.TOPIC_RELEVANCE_PROB,
+    question_col="question_text",
+    topic_descriptors=topic_descriptors,
+    save_path="questions_with_topic_scores.csv"
+)
+
+print(result_df[['question_text', 'question_summary', 'total_topics']].head())
 ```
 
 ## Advanced Usage
@@ -452,6 +547,56 @@ print(f"Subdomains: {len(domain_taxonomy.get('subdomain', []))}")
 print(f"Keywords: {len(domain_taxonomy.get('keyword', []))}")
 ```
 
+### Example 4: Topic-Based Question Clustering
+
+```python
+import pandas as pd
+from langchain_openai import ChatOpenAI
+from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent, OperationMode
+
+# Initialize agent (optionally with reasoning for transparency)
+llm = ChatOpenAI(model="gpt-4", temperature=0.3)
+agent = DomainAnalysisAgent(llm=llm, include_reason=False)
+
+# Load questions to cluster
+questions = pd.DataFrame({
+    "id": [1, 2, 3, 4, 5],
+    "question_text": [
+        "How do convolutional neural networks work?",
+        "What is a REST API?",
+        "How does SQL JOIN work?",
+        "What is backpropagation in neural networks?",
+        "How to build a web application with Flask?"
+    ]
+})
+
+# Define topic descriptors (could also come from KeywordClusterer)
+topic_descriptors = [
+    "machine learning and neural networks",
+    "web development and APIs",
+    "database systems and SQL queries"
+]
+
+# Assess topic relevance for each question
+result_df = agent.process_dataframe(
+    questions,
+    mode=OperationMode.TOPIC_RELEVANCE_PROB,
+    question_col="question_text",
+    topic_descriptors=topic_descriptors
+)
+
+# Assign questions to best-matching topic
+import json
+for idx, row in result_df.iterrows():
+    topic_scores = json.loads(row['topic_scores'])
+    best_topic = max(topic_scores, key=lambda x: x['probability'])
+    print(f"\nQuestion: {row['question_text']}")
+    print(f"Best Topic: {best_topic['topic_descriptor']}")
+    print(f"Confidence: {best_topic['probability']:.2f}")
+    if best_topic.get('reason'):
+        print(f"Reason: {best_topic['reason']}")
+```
+
 ## Expected Data Formats
 
 ### For EXTRACT Mode
@@ -489,6 +634,19 @@ Output columns added:
 - `primary_topics`: Primary topics identified (as string)
 - `domain_analysis_error`: Error message if any
 
+### For TOPIC_RELEVANCE_PROB Mode
+
+Input DataFrame columns:
+- `question_col`: Column containing questions
+- `topic_descriptors`: Topic descriptors to assess against (same for all rows)
+  - Can be list of strings, JSON file path, or KeywordClusterer dict
+
+Output columns added:
+- `topic_scores`: List of topic scores with probabilities (as JSON string)
+- `total_topics`: Number of topics assessed
+- `question_summary`: Optional brief summary of question's main topic
+- `domain_analysis_error`: Error message if any
+
 ## Workflow Architecture
 
 The agent uses LangGraph for robust processing:
@@ -500,10 +658,11 @@ The agent uses LangGraph for robust processing:
 ### State Management
 
 The agent maintains state through `AgentState` containing:
-- `mode`: Operation mode (EXTRACT, GUESS, or ASSESS)
+- `mode`: Operation mode (EXTRACT, GUESS, ASSESS, or TOPIC_RELEVANCE_PROB)
 - `text_source`: Source text (for EXTRACT)
-- `question`: Question text (for GUESS and ASSESS)
+- `question`: Question text (for GUESS, ASSESS, and TOPIC_RELEVANCE_PROB)
 - `available_terms`: Available terms JSON (for ASSESS)
+- `topic_descriptors`: Topic descriptors JSON (for TOPIC_RELEVANCE_PROB)
 - `result`: Parsed result
 - `error`: Error message if any
 - `retry_count`: Current retry count
@@ -519,7 +678,8 @@ class DomainAnalysisAgent:
         self,
         llm: BaseChatModel,
         max_retries: int = 3,
-        batch_size: int = 10
+        batch_size: int = 10,
+        include_reason: bool = False
     )
 ```
 
@@ -527,6 +687,7 @@ class DomainAnalysisAgent:
 - `llm`: Language model for analysis
 - `max_retries`: Maximum retries for parsing errors (default: 3)
 - `batch_size`: Default batch size for batch processing (default: 10)
+- `include_reason`: Include reasoning in topic relevance assessments (default: False)
 
 #### Single Operation Methods
 
@@ -563,6 +724,27 @@ Assess which available terms are most relevant to a question.
 
 **Returns:** Dictionary with `selected_terms`, `total_selected`, `question_intent`, and `primary_topics`
 
+##### assess_topic_relevance_prob
+
+```python
+assess_topic_relevance_prob(
+    question: str,
+    topic_descriptors: Union[List[str], List[Dict], str, Dict]
+) -> Optional[Dict[str, Any]]
+```
+
+Assess probabilistic relevance between a question and topic descriptors.
+
+**Parameters:**
+- `question`: The question to analyze
+- `topic_descriptors`: Topic descriptors in any supported format:
+  - List of strings: `["topic1", "topic2"]`
+  - JSON string: `'["topic1", "topic2"]'`
+  - File path to JSON: `"path/to/clusters.json"`
+  - KeywordClusterer dict with `cluster_stats`
+
+**Returns:** Dictionary with `topic_scores`, `total_topics`, and `question_summary` (optional)
+
 #### Batch Processing Methods
 
 ##### extract_domains_batch
@@ -596,6 +778,27 @@ assess_domains_batch(
 
 Assess multiple questions against available terms in batch.
 
+##### assess_topic_relevance_prob_batch
+
+```python
+assess_topic_relevance_prob_batch(
+    questions: List[str],
+    topic_descriptors: Union[List[str], List[Dict], str, Dict],
+    batch_size: Optional[int] = None,
+    show_progress: bool = True
+) -> List[Optional[Dict[str, Any]]]
+```
+
+Assess topic relevance for multiple questions against the same topic descriptors.
+
+**Parameters:**
+- `questions`: List of questions to analyze
+- `topic_descriptors`: Topic descriptors (same for all questions, supports all formats)
+- `batch_size`: Batch size for chunking (default: uses agent's batch_size)
+- `show_progress`: Show progress bar (default: True)
+
+**Returns:** List of topic relevance results
+
 #### DataFrame Processing
 
 ##### process_dataframe
@@ -607,6 +810,7 @@ process_dataframe(
     text_source_col: Optional[str] = None,
     question_col: Optional[str] = None,
     available_terms: Optional[Union[List[str], List[Dict], str]] = None,
+    topic_descriptors: Optional[Union[List[str], List[Dict], str, Dict]] = None,
     progress_bar: bool = True,
     save_path: Optional[str] = None,
     skip_existing: bool = True,
@@ -620,10 +824,11 @@ Process entire DataFrame based on operation mode.
 
 **Parameters:**
 - `df`: DataFrame to process
-- `mode`: OperationMode (EXTRACT, GUESS, or ASSESS)
+- `mode`: OperationMode (EXTRACT, GUESS, ASSESS, or TOPIC_RELEVANCE_PROB)
 - `text_source_col`: Column name for text sources (EXTRACT mode)
-- `question_col`: Column name for questions (GUESS and ASSESS modes)
+- `question_col`: Column name for questions (GUESS, ASSESS, and TOPIC_RELEVANCE_PROB modes)
 - `available_terms`: Available terms (ASSESS mode)
+- `topic_descriptors`: Topic descriptors (TOPIC_RELEVANCE_PROB mode)
 - `progress_bar`: Show progress bar (default: True)
 - `save_path`: Path to save results
 - `skip_existing`: Skip rows with existing results (default: True)
@@ -639,6 +844,7 @@ Process entire DataFrame based on operation mode.
    - Use EXTRACT for categorizing content
    - Use GUESS for question routing
    - Use ASSESS for matching questions to knowledge bases
+   - Use TOPIC_RELEVANCE_PROB for clustering and topic-based assignment
 
 2. **Set Reasonable Temperature**: Use 0.3-0.5 for consistent results
 
@@ -651,6 +857,12 @@ Process entire DataFrame based on operation mode.
 6. **Monitor Costs**: Each operation requires 1 LLM call (+ retries if parsing fails)
 
 7. **Handle Structured Output**: Results contain stringified Python objects; use `eval()` or `json.loads()` carefully
+
+8. **Topic Relevance Reasoning**: Set `include_reason=False` (default) to reduce token usage and cost; only enable when transparency is needed
+
+9. **Topic Descriptor Reuse**: When using TOPIC_RELEVANCE_PROB mode, topic descriptors are shared across all questions for efficiency
+
+10. **KeywordClusterer Integration**: Use file paths or dict objects directly to avoid manual parsing
 
 ## Performance Considerations
 

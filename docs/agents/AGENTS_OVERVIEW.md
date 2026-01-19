@@ -132,24 +132,27 @@ result = agent.compare_text_sources(
 
 **Purpose:** Unified agent for domain extraction, guessing, and assessment.
 
-**Three Operation Modes:**
+**Four Operation Modes:**
 
 1. **EXTRACT Mode**: Extract domains from text sources
 2. **GUESS Mode**: Identify domains needed for questions
 3. **ASSESS Mode**: Evaluate relevance of available terms to questions
+4. **TOPIC_RELEVANCE_PROB Mode**: Assess probabilistic relevance between questions and topic descriptors
 
 **Key Features:**
-- Multi-mode operation
+- Multi-mode operation (4 modes)
 - Structured Pydantic output
 - Batch processing
 - LangGraph workflow
 - Automatic retry logic
+- KeywordClusterer integration
 
 **Use Cases:**
 - Document categorization
 - Question routing
 - Knowledge base organization
 - Domain taxonomy building
+- Topic-based question clustering
 
 **Quick Example:**
 ```python
@@ -169,6 +172,12 @@ result = agent.guess_domains("How does gradient descent work?")
 result = agent.assess_domains(
     question="What is photosynthesis?",
     available_terms=["biology", "chemistry", "physics"]
+)
+
+# Assess topic relevance probabilities
+result = agent.assess_topic_relevance_prob(
+    question="How does gradient descent work?",
+    topic_descriptors=["machine learning", "web development", "databases"]
 )
 ```
 
