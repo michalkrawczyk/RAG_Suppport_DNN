@@ -587,7 +587,8 @@ try:
                 except json.JSONDecodeError:
                     # Not a valid JSON string, treat as single descriptor
                     LOGGER.warning(
-                        f"String is neither a file nor valid JSON, treating as single descriptor"
+                        f"String '{topic_descriptors[:50]}...' is neither a file nor valid JSON, "
+                        "treating as single descriptor"
                     )
                     return [topic_descriptors]
 
