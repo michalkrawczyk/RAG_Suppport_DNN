@@ -154,15 +154,11 @@ The utility adds the following columns to the input DataFrame:
 
 ### Question Distance Columns
 
-- `question_topic_distances`: List of distances from question embedding to each cluster centroid
-- `question_closest_topic`: Integer ID of the closest topic cluster
 - `question_closest_topic_keywords`: JSON string of topic descriptors for the closest cluster
 - `question_term_distance_scores`: **JSON mapping {topic_descriptor: distance}** - Similar to TOPIC_RELEVANCE_PROB's format
 
 ### Source Distance Columns
 
-- `source_topic_distances`: List of distances from source embedding to each cluster centroid
-- `source_closest_topic`: Integer ID of the closest topic cluster
 - `source_closest_topic_keywords`: JSON string of topic descriptors for the closest cluster
 - `source_term_distance_scores`: **JSON mapping {topic_descriptor: distance}** - Similar to TOPIC_RELEVANCE_PROB's format
 
@@ -172,12 +168,8 @@ Example output row (simplified for readability):
 |--------|---------------|
 | question_text | "What is ML?" |
 | source_text | "ML is AI subset" |
-| question_topic_distances | [0.12, 0.45, 0.78] |
-| question_closest_topic | 0 |
 | question_closest_topic_keywords | ["machine learning", "AI"] |
 | **question_term_distance_scores** | **{"machine learning": 0.12, "AI": 0.12}** |
-| source_topic_distances | [0.15, 0.52, 0.81] |
-| source_closest_topic | 0 |
 | source_closest_topic_keywords | ["machine learning", "AI"] |
 | **source_term_distance_scores** | **{"machine learning": 0.15, "AI": 0.15}** |
 
@@ -287,8 +279,8 @@ result_df = calculate_topic_distances_from_csv(
 
 # Step 4: Analyze results
 print(f"Processed {len(result_df)} rows")
-print(f"Question closest topics: {result_df['question_closest_topic'].tolist()}")
-print(f"Source closest topics: {result_df['source_closest_topic'].tolist()}")
+print(f"Question closest keywords: {result_df['question_closest_topic_keywords'].head()}")
+print(f"Source closest keywords: {result_df['source_closest_topic_keywords'].head()}")
 ```
 
 ### Integration with Domain Assessment Pipeline
@@ -318,9 +310,18 @@ result_df = calculate_topic_distances_from_csv(
     output_path="distances.csv"
 )
 
-# Step 3: Filter by topic relevance
-ml_questions = result_df[result_df['question_closest_topic'] == 0]
-print(f"Found {len(ml_questions)} questions about machine learning")
+# Step 3: Filter by topic relevance using JSON mapping
+import json
+
+# Get questions with low distance to "machine learning" topic
+ml_questions = []
+for idx, row in result_df.iterrows():
+    if pd.notna(row['question_term_distance_scores']):
+        scores = json.loads(row['question_term_distance_scores'])
+        if 'machine learning' in scores and scores['machine learning'] < 0.3:
+            ml_questions.append(idx)
+
+print(f"Found {len(ml_questions)} questions highly relevant to machine learning")
 ```
 
 ## See Also

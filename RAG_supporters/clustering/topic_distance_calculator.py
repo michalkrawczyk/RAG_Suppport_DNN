@@ -264,10 +264,6 @@ class TopicDistanceCalculator:
         -------
         pd.DataFrame
             DataFrame with added columns for distances to each topic cluster:
-            - question_topic_distances: list of distances for question
-            - source_topic_distances: list of distances for source
-            - question_closest_topic: cluster ID of closest topic for question
-            - source_closest_topic: cluster ID of closest topic for source
             - question_closest_topic_keywords: topic descriptors for closest cluster
             - source_closest_topic_keywords: topic descriptors for closest cluster
             - question_term_distance_scores: JSON mapping {topic_descriptor: distance} for question
@@ -293,10 +289,6 @@ class TopicDistanceCalculator:
             raise ValueError(f"Missing required columns: {missing_cols}")
 
         # Initialize result columns
-        df["question_topic_distances"] = None
-        df["source_topic_distances"] = None
-        df["question_closest_topic"] = None
-        df["source_closest_topic"] = None
         df["question_closest_topic_keywords"] = None
         df["source_closest_topic_keywords"] = None
         df["question_term_distance_scores"] = None  # JSON mapping {topic: distance}
@@ -327,9 +319,7 @@ class TopicDistanceCalculator:
 
             if question_embedding is not None:
                 question_distances = self._compute_distances_to_centroids(question_embedding)
-                df.at[idx, "question_topic_distances"] = question_distances.tolist()
                 closest_topic = int(np.argmin(question_distances))
-                df.at[idx, "question_closest_topic"] = closest_topic
                 if closest_topic in self.topic_descriptors:
                     df.at[idx, "question_closest_topic_keywords"] = json.dumps(
                         self.topic_descriptors[closest_topic]
@@ -356,9 +346,7 @@ class TopicDistanceCalculator:
 
             if source_embedding is not None:
                 source_distances = self._compute_distances_to_centroids(source_embedding)
-                df.at[idx, "source_topic_distances"] = source_distances.tolist()
                 closest_topic = int(np.argmin(source_distances))
-                df.at[idx, "source_closest_topic"] = closest_topic
                 if closest_topic in self.topic_descriptors:
                     df.at[idx, "source_closest_topic_keywords"] = json.dumps(
                         self.topic_descriptors[closest_topic]
@@ -426,10 +414,6 @@ def calculate_topic_distances_from_csv(
     -------
     pd.DataFrame
         DataFrame with added distance columns:
-        - question_topic_distances: list of distances for question
-        - source_topic_distances: list of distances for source
-        - question_closest_topic: cluster ID of closest topic for question
-        - source_closest_topic: cluster ID of closest topic for source
         - question_closest_topic_keywords: topic descriptors for closest cluster
         - source_closest_topic_keywords: topic descriptors for closest cluster
         - question_term_distance_scores: JSON mapping {topic_descriptor: distance} for question

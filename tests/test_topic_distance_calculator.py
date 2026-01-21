@@ -114,12 +114,8 @@ def test_topic_distance_calculator_with_csv():
             show_progress=False,
         )
 
-        # Verify output - check all 8 output columns
+        # Verify output - check all 4 output columns
         assert len(result_df) == 2
-        assert "question_topic_distances" in result_df.columns
-        assert "source_topic_distances" in result_df.columns
-        assert "question_closest_topic" in result_df.columns
-        assert "source_closest_topic" in result_df.columns
         assert "question_closest_topic_keywords" in result_df.columns
         assert "source_closest_topic_keywords" in result_df.columns
         assert "question_term_distance_scores" in result_df.columns
