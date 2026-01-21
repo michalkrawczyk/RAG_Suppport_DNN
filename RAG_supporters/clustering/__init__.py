@@ -19,9 +19,15 @@ with configurable temperature scaling and thresholds.
 
 from .clustering_data import ClusteringData
 from .keyword_clustering import KeywordClusterer, cluster_keywords_from_embeddings
+from .topic_distance_calculator import (
+    TopicDistanceCalculator,
+    calculate_topic_distances_from_csv,
+)
 
 __all__ = [
     "ClusteringData",
     "KeywordClusterer",
     "cluster_keywords_from_embeddings",
+    "TopicDistanceCalculator",
+    "calculate_topic_distances_from_csv",
 ]

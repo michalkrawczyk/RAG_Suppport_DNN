@@ -378,7 +378,7 @@ def calculate_topic_distances_from_csv(
     Examples
     --------
     >>> from RAG_supporters.embeddings import KeywordEmbedder
-    >>> from RAG_supporters.utils.topic_distance_calculator import calculate_topic_distances_from_csv
+    >>> from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
     >>>
     >>> # Using text embedding
     >>> embedder = KeywordEmbedder()

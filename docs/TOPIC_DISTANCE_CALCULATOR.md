@@ -28,7 +28,7 @@ pip install numpy pandas scikit-learn tqdm
 
 ```python
 from RAG_supporters.embeddings import KeywordEmbedder
-from RAG_supporters.utils.topic_distance_calculator import calculate_topic_distances_from_csv
+from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
 
 # Initialize embedder
 embedder = KeywordEmbedder(model_name="sentence-transformers/all-MiniLM-L6-v2")
@@ -50,7 +50,7 @@ result_df = calculate_topic_distances_from_csv(
 If your CSV contains IDs for questions and sources, you can fetch embeddings directly from the database:
 
 ```python
-from RAG_supporters.utils.topic_distance_calculator import calculate_topic_distances_from_csv
+from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
 
 # Process CSV with database lookup
 result_df = calculate_topic_distances_from_csv(
@@ -69,7 +69,7 @@ result_df = calculate_topic_distances_from_csv(
 For more control, use the `TopicDistanceCalculator` class directly:
 
 ```python
-from RAG_supporters.utils.topic_distance_calculator import TopicDistanceCalculator
+from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
 from RAG_supporters.embeddings import KeywordEmbedder
 
 # Initialize calculator
@@ -238,7 +238,7 @@ The utility handles various error conditions:
 
 ```python
 from RAG_supporters.embeddings import KeywordEmbedder
-from RAG_supporters.utils.topic_distance_calculator import calculate_topic_distances_from_csv
+from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
 import pandas as pd
 
 # Step 1: Prepare your data
@@ -283,7 +283,7 @@ print(f"Source closest topics: {result_df['source_closest_topic'].tolist()}")
 ```python
 from RAG_supporters.clustering import cluster_keywords_from_embeddings
 from RAG_supporters.embeddings import KeywordEmbedder
-from RAG_supporters.utils.topic_distance_calculator import calculate_topic_distances_from_csv
+from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
 
 # Step 1: Create keyword clusters
 embedder = KeywordEmbedder()

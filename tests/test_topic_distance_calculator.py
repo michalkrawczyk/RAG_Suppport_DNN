@@ -11,7 +11,7 @@ import pytest
 
 def test_topic_distance_calculator_basic():
     """Test basic functionality of TopicDistanceCalculator."""
-    from RAG_supporters.utils.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
 
     # Create mock KeywordClusterer data
     mock_clusterer_data = {
@@ -52,7 +52,7 @@ def test_topic_distance_calculator_basic():
 
 def test_topic_distance_calculator_with_csv():
     """Test CSV processing with topic distance calculator."""
-    from RAG_supporters.utils.topic_distance_calculator import calculate_topic_distances_from_csv
+    from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
 
     # Create temporary files
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -127,7 +127,7 @@ def test_topic_distance_calculator_with_csv():
 
 def test_compute_distances():
     """Test distance computation."""
-    from RAG_supporters.utils.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
 
     # Create mock data
     mock_clusterer_data = {
@@ -155,7 +155,7 @@ def test_compute_distances():
 
 def test_invalid_metric():
     """Test that invalid metric raises ValueError."""
-    from RAG_supporters.utils.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
 
     mock_clusterer_data = {
         "centroids": [[1.0, 0.0, 0.0]],
@@ -171,7 +171,7 @@ def test_invalid_metric():
 
 def test_missing_centroids():
     """Test that missing centroids in JSON raises ValueError."""
-    from RAG_supporters.utils.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
 
     mock_clusterer_data = {
         "cluster_stats": {},
@@ -187,7 +187,7 @@ def test_missing_centroids():
 
 def test_missing_required_columns():
     """Test that missing required columns in CSV raises ValueError."""
-    from RAG_supporters.utils.topic_distance_calculator import calculate_topic_distances_from_csv
+    from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -226,7 +226,7 @@ def test_missing_required_columns():
 
 def test_embedder_none_when_needed():
     """Test that missing embedder raises ValueError when text embedding is needed."""
-    from RAG_supporters.utils.topic_distance_calculator import calculate_topic_distances_from_csv
+    from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -260,7 +260,7 @@ def test_embedder_none_when_needed():
 
 def test_database_none_when_using_ids():
     """Test that missing database raises ValueError when using ID columns."""
-    from RAG_supporters.utils.topic_distance_calculator import calculate_topic_distances_from_csv
+    from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -297,7 +297,7 @@ def test_database_none_when_using_ids():
 
 def test_unsupported_embedder_interface():
     """Test that embedder with unsupported interface raises ValueError."""
-    from RAG_supporters.utils.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
