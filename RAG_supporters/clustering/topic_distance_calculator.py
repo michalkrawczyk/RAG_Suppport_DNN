@@ -314,6 +314,12 @@ class TopicDistanceCalculator:
         # Initialize result lists for better performance
         question_distance_scores = []
         source_distance_scores = []
+        
+        # Track processing statistics
+        successful_questions = 0
+        successful_sources = 0
+        skipped_questions = 0
+        skipped_sources = 0
 
         # Process each row
         iterator = range(len(df))
@@ -343,6 +349,9 @@ class TopicDistanceCalculator:
                 question_distances = self._compute_distances_to_centroids(question_embedding)
                 # Create JSON mapping {topic: distance}
                 question_score = self._create_distance_json_mapping(question_distances)
+                successful_questions += 1
+            else:
+                skipped_questions += 1
             
             question_distance_scores.append(question_score)
 
@@ -366,12 +375,22 @@ class TopicDistanceCalculator:
                 source_distances = self._compute_distances_to_centroids(source_embedding)
                 # Create JSON mapping {topic: distance}
                 source_score = self._create_distance_json_mapping(source_distances)
+                successful_sources += 1
+            else:
+                skipped_sources += 1
             
             source_distance_scores.append(source_score)
         
         # Assign results to dataframe columns
         df["question_term_distance_scores"] = question_distance_scores
         df["source_term_distance_scores"] = source_distance_scores
+        
+        # Log processing summary
+        LOGGER.info(
+            f"Processing complete: {len(df)} total rows. "
+            f"Questions: {successful_questions} processed, {skipped_questions} skipped. "
+            f"Sources: {successful_sources} processed, {skipped_sources} skipped."
+        )
 
         # Save if output path provided
         if output_path:
