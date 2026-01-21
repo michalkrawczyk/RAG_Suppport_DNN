@@ -33,6 +33,7 @@ class TopicDistanceCalculator:
         keyword_clusterer_json: Union[str, Path, Dict],
         embedder: Optional[Any] = None,
         metric: str = "cosine",
+        enable_cache: bool = True,
     ):
         """
         Initialize the topic distance calculator.
@@ -42,13 +43,24 @@ class TopicDistanceCalculator:
         keyword_clusterer_json : Union[str, Path, Dict]
             Path to KeywordClusterer JSON file or loaded dict with centroids and topic_descriptors
         embedder : Optional[Any]
-            Embedding model for encoding text (e.g., KeywordEmbedder instance).
+            KeywordEmbedder instance for encoding text.
             Required if text needs to be embedded (not fetching from database).
+            If not a KeywordEmbedder, will be wrapped automatically.
         metric : str
             Distance metric: "cosine" or "euclidean". Default is "cosine".
+        enable_cache : bool
+            Whether to cache embeddings for repeated texts. Default is True.
+            Disable for memory-constrained environments or unique texts.
         """
+        # Wrap embedder in KeywordEmbedder if necessary
+        if embedder is not None:
+            from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+            if not isinstance(embedder, KeywordEmbedder):
+                LOGGER.info("Wrapping provided embedder in KeywordEmbedder")
+                embedder = KeywordEmbedder(embedding_model=embedder)
         self.embedder = embedder
         self.metric = metric
+        self._enable_cache = enable_cache
         self._embedding_cache = {}  # Cache for text embeddings to avoid re-embedding same texts
 
         if metric not in ["cosine", "euclidean"]:
@@ -63,6 +75,48 @@ class TopicDistanceCalculator:
 
         # Extract centroids and topic descriptors
         self._load_centroids_and_topics()
+
+    def clear_cache(self) -> int:
+        """
+        Clear the embedding cache.
+        
+        Returns
+        -------
+        int
+            Number of cached entries that were cleared
+        """
+        cache_size = len(self._embedding_cache)
+        self._embedding_cache.clear()
+        LOGGER.info(f"Cleared {cache_size} cached embeddings")
+        return cache_size
+    
+    @property
+    def cache_size(self) -> int:
+        """
+        Get the current size of the embedding cache.
+        
+        Returns
+        -------
+        int
+            Number of cached embeddings
+        """
+        return len(self._embedding_cache)
+    
+    @property
+    def cache_info(self) -> Dict[str, Any]:
+        """
+        Get detailed information about the embedding cache.
+        
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary with cache statistics including size and enabled status
+        """
+        return {
+            "enabled": self._enable_cache,
+            "size": len(self._embedding_cache),
+            "texts": list(self._embedding_cache.keys())[:5] if len(self._embedding_cache) <= 5 else list(self._embedding_cache.keys())[:5] + ["..."],
+        }
 
     def _load_centroids_and_topics(self):
         """Load centroids and topic descriptors from KeywordClusterer data."""
@@ -167,7 +221,7 @@ class TopicDistanceCalculator:
 
     def _get_embedding_from_text(self, text: str) -> np.ndarray:
         """
-        Get embedding for text using the embedder.
+        Get embedding for text using KeywordEmbedder.
         
         Uses caching to avoid re-embedding the same text multiple times.
 
@@ -184,31 +238,21 @@ class TopicDistanceCalculator:
         if self.embedder is None:
             raise ValueError(
                 "Embedder is required to embed text. "
-                "Provide an embedder during initialization or use database IDs."
+                "Provide a KeywordEmbedder during initialization or use database IDs."
             )
         
-        # Check cache first
-        if text in self._embedding_cache:
+        # Check cache first (if enabled)
+        if self._enable_cache and text in self._embedding_cache:
             return self._embedding_cache[text]
 
-        # Check embedder type and use appropriate method
-        if hasattr(self.embedder, "create_embeddings"):
-            # KeywordEmbedder interface
-            embeddings_dict = self.embedder.create_embeddings([text])
-            embedding = embeddings_dict[text]
-        elif hasattr(self.embedder, "embed_query"):
-            # LangChain interface
-            embedding = np.array(self.embedder.embed_query(text))
-        elif hasattr(self.embedder, "encode"):
-            # sentence-transformers interface
-            embedding = self.embedder.encode(text)
-        else:
-            raise ValueError(
-                "Embedder must have 'create_embeddings', 'embed_query', or 'encode' method"
-            )
+        # Use KeywordEmbedder interface
+        embeddings_dict = self.embedder.create_embeddings([text])
+        embedding = embeddings_dict[text]
         
-        # Cache the result
-        self._embedding_cache[text] = embedding
+        # Cache the result (if enabled)
+        if self._enable_cache:
+            self._embedding_cache[text] = embedding
+        
         return embedding
 
     def _get_embedding_from_database(
@@ -235,18 +279,25 @@ class TopicDistanceCalculator:
             Embedding vector or None if not found
         """
         # Try different database interfaces
+        embedding = None
         if hasattr(database, "get_embedding"):
-            return database.get_embedding(item_id, collection=collection_name)
+            embedding = database.get_embedding(item_id, collection=collection_name)
         elif hasattr(database, "get"):
             # ChromaDB interface
             result = database.get(ids=[item_id], include=["embeddings"])
             if result and "embeddings" in result and result["embeddings"]:
-                return np.array(result["embeddings"][0])
+                embedding = np.array(result["embeddings"][0])
         else:
             raise ValueError(
                 "Database must have 'get_embedding' or 'get' method with embeddings support"
             )
-        return None
+        
+        if embedding is None:
+            LOGGER.warning(
+                f"Embedding not found in database for ID '{item_id}' in collection '{collection_name}'"
+            )
+        
+        return embedding
 
     def calculate_distances_for_csv(
         self,
@@ -410,6 +461,7 @@ def calculate_topic_distances_from_csv(
     source_id_col: Optional[str] = None,
     database: Optional[Any] = None,
     metric: str = "cosine",
+    enable_cache: bool = True,
     output_path: Optional[Union[str, Path]] = None,
     show_progress: bool = True,
 ) -> pd.DataFrame:
@@ -428,7 +480,7 @@ def calculate_topic_distances_from_csv(
     keyword_clusterer_json : Union[str, Path, Dict]
         Path to KeywordClusterer JSON file or loaded dict
     embedder : Optional[Any]
-        Embedding model for encoding text. Required if not using database IDs.
+        KeywordEmbedder instance for encoding text. Required if not using database IDs.
     question_col : str
         Column name for question text. Default is "question_text".
     source_col : str
@@ -441,6 +493,9 @@ def calculate_topic_distances_from_csv(
         Database object for fetching embeddings by ID
     metric : str
         Distance metric: "cosine" or "euclidean". Default is "cosine".
+    enable_cache : bool
+        Whether to cache embeddings for repeated texts. Default is True.
+        Disable for memory-constrained environments or unique texts.
     output_path : Optional[Union[str, Path]]
         Path to save output CSV
     show_progress : bool
@@ -481,6 +536,7 @@ def calculate_topic_distances_from_csv(
         keyword_clusterer_json=keyword_clusterer_json,
         embedder=embedder,
         metric=metric,
+        enable_cache=enable_cache,
     )
 
     return calculator.calculate_distances_for_csv(

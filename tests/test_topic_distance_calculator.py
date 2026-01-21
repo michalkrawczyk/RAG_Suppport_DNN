@@ -1,6 +1,7 @@
 """Tests for topic distance calculator utility."""
 
 import json
+import logging
 import tempfile
 from pathlib import Path
 
@@ -311,30 +312,26 @@ def test_unsupported_embedder_interface():
     """Test that embedder with unsupported interface raises ValueError."""
     from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
+    # Create mock KeywordClusterer JSON
+    mock_clusterer_data = {
+        "centroids": [np.random.rand(384).tolist()],
+        "cluster_stats": {},
+    }
 
-        # Create mock KeywordClusterer JSON
-        mock_clusterer_data = {
-            "centroids": [np.random.rand(384).tolist()],
-            "cluster_stats": {},
-        }
+    # Create embedder with no supported methods (no encode or embed_documents)
+    class UnsupportedEmbedder:
+        def wrong_method(self, texts):
+            return {}
 
-        # Create embedder with no supported methods
-        class UnsupportedEmbedder:
-            def wrong_method(self, texts):
-                return {}
-
-        embedder = UnsupportedEmbedder()
+    embedder = UnsupportedEmbedder()
+    
+    # Should raise ValueError when trying to wrap unsupported embedder
+    with pytest.raises(ValueError, match="Unable to detect model type"):
         calculator = TopicDistanceCalculator(
             keyword_clusterer_json=mock_clusterer_data,
             embedder=embedder,
             metric="cosine",
         )
-
-        # Should raise ValueError when trying to use unsupported embedder
-        with pytest.raises(ValueError, match="Embedder must have"):
-            calculator._get_embedding_from_text("test text")
 
 
 def test_create_distance_json_mapping():
@@ -439,6 +436,160 @@ def test_create_distance_json_mapping_duplicate_topics():
     assert mapping["AI"] == 0.1
     assert mapping["machine learning"] == 0.1
     assert mapping["deep learning"] == 0.9
+
+
+def test_empty_text_handling():
+    """Test handling of empty or None text values."""
+    from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+
+        # Create CSV with empty and None-like values
+        csv_path = tmpdir / "test_data.csv"
+        df = pd.DataFrame({
+            "question_text": ["What is ML?", "", None, "Valid question"],
+            "source_text": ["ML is AI", None, "", "Valid source"],
+        })
+        df.to_csv(csv_path, index=False)
+
+        # Create mock KeywordClusterer JSON
+        clusterer_path = tmpdir / "clusters.json"
+        mock_clusterer_data = {
+            "centroids": [np.random.rand(384).tolist()],
+            "cluster_stats": {
+                "0": {
+                    "topic_descriptors": ["machine learning", "AI"],
+                    "size": 10,
+                },
+            },
+        }
+        with open(clusterer_path, "w") as f:
+            json.dump(mock_clusterer_data, f)
+
+        # Create mock embedder
+        class MockEmbedder:
+            def create_embeddings(self, texts):
+                return {text: np.random.rand(384) for text in texts}
+
+        embedder = MockEmbedder()
+
+        # Test processing - should handle empty/None values gracefully
+        result_df = calculate_topic_distances_from_csv(
+            csv_path=csv_path,
+            keyword_clusterer_json=clusterer_path,
+            embedder=embedder,
+            show_progress=False,
+        )
+
+        # Verify output
+        assert len(result_df) == 4
+        
+        # First row should have both scores
+        assert pd.notna(result_df.at[0, "question_term_distance_scores"])
+        assert pd.notna(result_df.at[0, "source_term_distance_scores"])
+        
+        # Second row: question is empty, source is None
+        # Both should be None or handled gracefully
+        assert pd.isna(result_df.at[1, "question_term_distance_scores"])
+        
+        # Third row: question is None, source is empty
+        assert pd.isna(result_df.at[2, "source_term_distance_scores"])
+        
+        # Fourth row should have both scores
+        assert pd.notna(result_df.at[3, "question_term_distance_scores"])
+        assert pd.notna(result_df.at[3, "source_term_distance_scores"])
+
+
+def test_embedding_dimension_mismatch():
+    """Test error when embedding dimension doesn't match centroids."""
+    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+
+    # Create mock data with 384-dim centroids
+    mock_clusterer_data = {
+        "centroids": [np.random.rand(384).tolist()],
+        "cluster_stats": {},
+    }
+
+    calculator = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        metric="cosine",
+    )
+
+    # Test with wrong dimension embedding (128 instead of 384)
+    wrong_dim_embedding = np.random.rand(128)
+    
+    # Should raise error when computing distances
+    with pytest.raises((ValueError, IndexError)):
+        calculator._compute_distances_to_centroids(wrong_dim_embedding)
+
+
+def test_database_embedding_not_found(caplog):
+    """Test handling when database doesn't return embedding."""
+    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+
+    # Create mock database that returns None
+    class MockDatabase:
+        def get_embedding(self, item_id, collection=None):
+            return None  # Simulate not found
+
+    mock_clusterer_data = {
+        "centroids": [np.random.rand(384).tolist()],
+        "cluster_stats": {},
+    }
+
+    calculator = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        metric="cosine",
+    )
+
+    database = MockDatabase()
+    
+    # Should return None and log warning
+    with caplog.at_level(logging.WARNING):
+        result = calculator._get_embedding_from_database(
+            item_id="test_id",
+            database=database,
+            collection_name="questions"
+        )
+    
+    assert result is None
+    # Check that warning was logged
+    assert any("Embedding not found" in record.message for record in caplog.records)
+    assert any("test_id" in record.message for record in caplog.records)
+
+
+def test_embedder_wrapping():
+    """Test that non-KeywordEmbedder embedders are automatically wrapped."""
+    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+
+    # Create mock sentence-transformers-like embedder
+    class MockSentenceTransformer:
+        def encode(self, texts, **kwargs):
+            if isinstance(texts, str):
+                texts = [texts]
+            return np.array([np.random.rand(384) for _ in texts])
+
+    mock_clusterer_data = {
+        "centroids": [np.random.rand(384).tolist()],
+        "cluster_stats": {},
+    }
+
+    # Pass non-KeywordEmbedder instance
+    st_embedder = MockSentenceTransformer()
+    calculator = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        embedder=st_embedder,
+        metric="cosine",
+    )
+
+    # Should be wrapped in KeywordEmbedder
+    from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+    assert isinstance(calculator.embedder, KeywordEmbedder)
+    
+    # Should still work for embedding text
+    embedding = calculator._get_embedding_from_text("test text")
+    assert embedding.shape == (384,)
 
 
 if __name__ == "__main__":
