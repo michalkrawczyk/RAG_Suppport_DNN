@@ -9,7 +9,7 @@ Unlike TOPIC_RELEVANCE_PROB, this does not use LLM but directly computes embeddi
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
