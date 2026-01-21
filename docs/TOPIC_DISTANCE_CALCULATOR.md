@@ -13,6 +13,9 @@ The `topic_distance_calculator` utility provides functionality to calculate embe
   - Fetch embeddings from database by ID (source_id, question_id)
 - **KeywordClusterer Integration**: Uses topic descriptors and centroids from KeywordClusterer JSON
 - **Separate Result Columns**: Generates different result columns for questions and sources
+- **Automatic Embedder Wrapping**: Automatically wraps sentence-transformers or LangChain models in KeywordEmbedder
+- **Embedding Cache**: Optional caching of embeddings for repeated texts to improve performance
+- **Comprehensive Logging**: Warnings for missing embeddings and processing statistics
 
 ## Installation
 
@@ -40,6 +43,28 @@ result_df = calculate_topic_distances_from_csv(
     embedder=embedder,
     question_col="question_text",
     source_col="source_text",
+    metric="cosine",
+    enable_cache=True,  # Cache embeddings for repeated texts
+    output_path="results.csv"
+)
+```
+
+### Using Sentence-Transformers Directly
+
+The utility automatically wraps sentence-transformers models:
+
+```python
+from sentence_transformers import SentenceTransformer
+from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
+
+# Create sentence-transformers model directly
+st_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Automatically wrapped in KeywordEmbedder
+result_df = calculate_topic_distances_from_csv(
+    csv_path="data.csv",
+    keyword_clusterer_json="clusters.json",
+    embedder=st_model,  # Will be auto-wrapped
     metric="cosine",
     output_path="results.csv"
 )
@@ -76,7 +101,8 @@ from RAG_supporters.embeddings import KeywordEmbedder
 calculator = TopicDistanceCalculator(
     keyword_clusterer_json="clusters.json",
     embedder=KeywordEmbedder(),
-    metric="cosine"
+    metric="cosine",
+    enable_cache=True  # Enable embedding cache
 )
 
 # Process CSV
@@ -87,6 +113,14 @@ result_df = calculator.calculate_distances_for_csv(
     output_path="results.csv",
     show_progress=True
 )
+
+# Check cache statistics
+print(f"Cache size: {calculator.cache_size}")
+print(f"Cache info: {calculator.cache_info}")
+
+# Clear cache if needed (e.g., for memory management)
+cleared = calculator.clear_cache()
+print(f"Cleared {cleared} cached embeddings")
 ```
 
 ## Input Requirements
@@ -148,6 +182,48 @@ Example structure:
 }
 ```
 
+## API Reference
+
+### `calculate_topic_distances_from_csv()`
+
+Convenience function for processing CSV files:
+
+**Parameters:**
+- `csv_path` (str | Path): Path to input CSV file
+- `keyword_clusterer_json` (str | Path | Dict): Path to KeywordClusterer JSON or loaded dict
+- `embedder` (Optional[Any]): Embedder instance (KeywordEmbedder or auto-wrapped model)
+- `question_col` (str): Column name for question text. Default: `"question_text"`
+- `source_col` (str): Column name for source text. Default: `"source_text"`
+- `question_id_col` (Optional[str]): Column name for question IDs (database lookup)
+- `source_id_col` (Optional[str]): Column name for source IDs (database lookup)
+- `database` (Optional[Any]): Database object for ID-based embedding fetching
+- `metric` (str): Distance metric: `"cosine"` or `"euclidean"`. Default: `"cosine"`
+- `enable_cache` (bool): Enable embedding cache. Default: `True`
+- `output_path` (Optional[str | Path]): Path to save output CSV
+- `show_progress` (bool): Show progress bar. Default: `True`
+
+**Returns:** `pd.DataFrame` with added distance score columns
+
+### `TopicDistanceCalculator` Class
+
+**Constructor Parameters:**
+- `keyword_clusterer_json` (str | Path | Dict): KeywordClusterer data
+- `embedder` (Optional[Any]): Embedder instance (auto-wrapped if needed)
+- `metric` (str): Distance metric. Default: `"cosine"`
+- `enable_cache` (bool): Enable embedding cache. Default: `True`
+
+**Methods:**
+- `calculate_distances_for_csv(...)`: Process CSV file (same parameters as function)
+- `clear_cache()`: Clear embedding cache, returns number of cleared entries
+- `cache_size` (property): Get current cache size
+- `cache_info` (property): Get detailed cache information
+
+**Supported Embedder Types:**
+- `KeywordEmbedder` (native)
+- Sentence-transformers models (auto-wrapped)
+- LangChain embeddings (auto-wrapped)
+- Any model with `encode()`, `embed_query()`, or `embed_documents()` methods
+
 ## Output Format
 
 The utility adds the following columns to the input DataFrame:
@@ -199,6 +275,8 @@ The utility supports two distance metrics:
 | **Interpretability** | Numeric distances | Natural language explanations + probability |
 | **Reasoning** | No reasoning provided | Optional reasoning per topic |
 | **Scope** | Questions **and** sources | Questions only |
+| **Caching** | Built-in embedding cache | No caching |
+| **Embedder Flexibility** | Auto-wraps various model types | Uses configured embedder |
 | **Use Case** | Large-scale batch processing | In-depth semantic analysis |
 
 ## Database Interface Requirements
@@ -222,16 +300,49 @@ class MyDatabase:
 
 - **Batch Processing**: The utility processes rows sequentially. For very large CSV files, consider splitting into chunks.
 - **Memory Usage**: Embeddings are computed/fetched one at a time to minimize memory footprint.
+- **Embedding Cache**: 
+  - **Enable** (`enable_cache=True`, default) for datasets with repeated texts to avoid re-embedding
+  - **Disable** (`enable_cache=False`) for unique texts or memory-constrained environments
+  - Monitor cache size using `calculator.cache_size` property
 - **Progress Tracking**: Enable `show_progress=True` to monitor processing of large files.
+- **Database Lookups**: Fetching from database is typically faster than embedding, especially for large models.
 
 ## Error Handling
 
 The utility handles various error conditions:
 
-- Missing columns: Raises `ValueError` with descriptive message
-- Invalid metric: Raises `ValueError` 
-- Missing centroids: Raises `ValueError` during initialization
-- Database errors: Logs warnings and continues with `None` values for failed lookups
+- **Missing columns**: Raises `ValueError` with descriptive message
+- **Invalid metric**: Raises `ValueError` with supported options
+- **Missing centroids**: Raises `ValueError` during initialization
+- **Unsupported embedder**: Raises `ValueError` if embedder type cannot be detected
+- **Embedding dimension mismatch**: Raises error if embedding dimensions don't match centroids
+- **Database errors**: Logs warnings and continues with `None` values for failed lookups
+- **Missing database embeddings**: Logs warning with item ID and collection name
+- **Empty or None texts**: Handled gracefully, skipped with warning
+
+### Logging
+
+The utility provides comprehensive logging:
+
+```python
+import logging
+
+# Enable logging to see warnings and processing info
+logging.basicConfig(level=logging.INFO)
+
+# Process with logging enabled
+result_df = calculate_topic_distances_from_csv(
+    csv_path="data.csv",
+    keyword_clusterer_json="clusters.json",
+    embedder=embedder
+)
+
+# You'll see logs like:
+# INFO: Loaded 3 centroids with dimension 384
+# INFO: Loaded topic descriptors for 3 clusters
+# WARNING: Embedding not found in database for ID 'missing_id' in collection 'questions'
+# INFO: Processing complete: 100 total rows. Questions: 95 processed, 5 skipped. Sources: 98 processed, 2 skipped.
+```
 
 ## Examples
 
@@ -309,6 +420,7 @@ result_df = calculate_topic_distances_from_csv(
     csv_path="questions_and_sources.csv",
     keyword_clusterer_json="clusters.json",
     embedder=embedder,
+    enable_cache=True,  # Cache for performance
     output_path="distances.csv"
 )
 
@@ -324,6 +436,50 @@ for idx, row in result_df.iterrows():
             ml_questions.append(idx)
 
 print(f"Found {len(ml_questions)} questions highly relevant to machine learning")
+```
+
+### Cache Management for Large Datasets
+
+```python
+from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+from RAG_supporters.embeddings import KeywordEmbedder
+import pandas as pd
+
+# Initialize with cache enabled
+calculator = TopicDistanceCalculator(
+    keyword_clusterer_json="clusters.json",
+    embedder=KeywordEmbedder(),
+    metric="cosine",
+    enable_cache=True
+)
+
+# Process multiple CSV files with shared cache
+for csv_file in ["batch1.csv", "batch2.csv", "batch3.csv"]:
+    result_df = calculator.calculate_distances_for_csv(
+        csv_path=csv_file,
+        output_path=f"results_{csv_file}",
+        show_progress=True
+    )
+    
+    # Check cache growth
+    print(f"Cache after {csv_file}: {calculator.cache_size} embeddings")
+
+# Clear cache between different processing tasks
+calculator.clear_cache()
+print(f"Cache cleared, size: {calculator.cache_size}")
+
+# Process unique dataset with cache disabled
+calculator_no_cache = TopicDistanceCalculator(
+    keyword_clusterer_json="clusters.json",
+    embedder=KeywordEmbedder(),
+    metric="cosine",
+    enable_cache=False  # Disable for memory efficiency
+)
+
+result_df = calculator_no_cache.calculate_distances_for_csv(
+    csv_path="unique_data.csv",
+    output_path="unique_results.csv"
+)
 ```
 
 ## See Also
