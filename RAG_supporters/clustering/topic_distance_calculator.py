@@ -49,6 +49,7 @@ class TopicDistanceCalculator:
         """
         self.embedder = embedder
         self.metric = metric
+        self._embedding_cache = {}  # Cache for text embeddings to avoid re-embedding same texts
 
         if metric not in ["cosine", "euclidean"]:
             raise ValueError(f"Invalid metric: {metric}. Choose 'cosine' or 'euclidean'")
@@ -96,6 +97,9 @@ class TopicDistanceCalculator:
         For each cluster, assigns the cluster's distance to all its topic descriptors.
         This creates a {topic_descriptor: distance} mapping similar to the format
         used by DomainAssessmentAgent's question_term_relevance_scores.
+        
+        Note: If a topic descriptor appears in multiple clusters, the minimum distance
+        is retained (closest cluster wins).
 
         Parameters
         ----------
@@ -107,6 +111,13 @@ class TopicDistanceCalculator:
         str
             JSON string mapping topic_descriptor to distance value
         """
+        # Validate dimensions
+        if len(distances) != len(self.centroids):
+            raise ValueError(
+                f"Distance array length ({len(distances)}) does not match "
+                f"number of centroids ({len(self.centroids)})"
+            )
+        
         distance_mapping = {}
         
         # Iterate through all clusters and their topic descriptors
@@ -157,6 +168,8 @@ class TopicDistanceCalculator:
     def _get_embedding_from_text(self, text: str) -> np.ndarray:
         """
         Get embedding for text using the embedder.
+        
+        Uses caching to avoid re-embedding the same text multiple times.
 
         Parameters
         ----------
@@ -173,22 +186,30 @@ class TopicDistanceCalculator:
                 "Embedder is required to embed text. "
                 "Provide an embedder during initialization or use database IDs."
             )
+        
+        # Check cache first
+        if text in self._embedding_cache:
+            return self._embedding_cache[text]
 
         # Check embedder type and use appropriate method
         if hasattr(self.embedder, "create_embeddings"):
             # KeywordEmbedder interface
             embeddings_dict = self.embedder.create_embeddings([text])
-            return embeddings_dict[text]
+            embedding = embeddings_dict[text]
         elif hasattr(self.embedder, "embed_query"):
             # LangChain interface
-            return np.array(self.embedder.embed_query(text))
+            embedding = np.array(self.embedder.embed_query(text))
         elif hasattr(self.embedder, "encode"):
             # sentence-transformers interface
-            return self.embedder.encode(text)
+            embedding = self.embedder.encode(text)
         else:
             raise ValueError(
                 "Embedder must have 'create_embeddings', 'embed_query', or 'encode' method"
             )
+        
+        # Cache the result
+        self._embedding_cache[text] = embedding
+        return embedding
 
     def _get_embedding_from_database(
         self,
@@ -264,8 +285,6 @@ class TopicDistanceCalculator:
         -------
         pd.DataFrame
             DataFrame with added columns for distances to each topic cluster:
-            - question_closest_topic_keywords: topic descriptors for closest cluster
-            - source_closest_topic_keywords: topic descriptors for closest cluster
             - question_term_distance_scores: JSON mapping {topic_descriptor: distance} for question
             - source_term_distance_scores: JSON mapping {topic_descriptor: distance} for source
         """
@@ -289,10 +308,12 @@ class TopicDistanceCalculator:
             raise ValueError(f"Missing required columns: {missing_cols}")
 
         # Initialize result columns
-        df["question_closest_topic_keywords"] = None
-        df["source_closest_topic_keywords"] = None
-        df["question_term_distance_scores"] = None  # JSON mapping {topic: distance}
-        df["source_term_distance_scores"] = None  # JSON mapping {topic: distance}
+        df["question_term_distance_scores"] = None
+        df["source_term_distance_scores"] = None
+
+        # Initialize result lists for better performance
+        question_distance_scores = []
+        source_distance_scores = []
 
         # Process each row
         iterator = range(len(df))
@@ -303,6 +324,7 @@ class TopicDistanceCalculator:
             row = df.iloc[idx]
 
             # Process question
+            question_score = None
             if question_id_col and question_id_col in df.columns and pd.notna(row[question_id_col]):
                 # Fetch from database
                 if database is None:
@@ -319,17 +341,13 @@ class TopicDistanceCalculator:
 
             if question_embedding is not None:
                 question_distances = self._compute_distances_to_centroids(question_embedding)
-                closest_topic = int(np.argmin(question_distances))
-                if closest_topic in self.topic_descriptors:
-                    df.at[idx, "question_closest_topic_keywords"] = json.dumps(
-                        self.topic_descriptors[closest_topic]
-                    )
                 # Create JSON mapping {topic: distance}
-                df.at[idx, "question_term_distance_scores"] = self._create_distance_json_mapping(
-                    question_distances
-                )
+                question_score = self._create_distance_json_mapping(question_distances)
+            
+            question_distance_scores.append(question_score)
 
             # Process source
+            source_score = None
             if source_id_col and source_id_col in df.columns and pd.notna(row[source_id_col]):
                 # Fetch from database
                 if database is None:
@@ -346,15 +364,14 @@ class TopicDistanceCalculator:
 
             if source_embedding is not None:
                 source_distances = self._compute_distances_to_centroids(source_embedding)
-                closest_topic = int(np.argmin(source_distances))
-                if closest_topic in self.topic_descriptors:
-                    df.at[idx, "source_closest_topic_keywords"] = json.dumps(
-                        self.topic_descriptors[closest_topic]
-                    )
                 # Create JSON mapping {topic: distance}
-                df.at[idx, "source_term_distance_scores"] = self._create_distance_json_mapping(
-                    source_distances
-                )
+                source_score = self._create_distance_json_mapping(source_distances)
+            
+            source_distance_scores.append(source_score)
+        
+        # Assign results to dataframe columns
+        df["question_term_distance_scores"] = question_distance_scores
+        df["source_term_distance_scores"] = source_distance_scores
 
         # Save if output path provided
         if output_path:
@@ -414,8 +431,6 @@ def calculate_topic_distances_from_csv(
     -------
     pd.DataFrame
         DataFrame with added distance columns:
-        - question_closest_topic_keywords: topic descriptors for closest cluster
-        - source_closest_topic_keywords: topic descriptors for closest cluster
         - question_term_distance_scores: JSON mapping {topic_descriptor: distance} for question
         - source_term_distance_scores: JSON mapping {topic_descriptor: distance} for source
 

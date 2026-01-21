@@ -154,12 +154,10 @@ The utility adds the following columns to the input DataFrame:
 
 ### Question Distance Columns
 
-- `question_closest_topic_keywords`: JSON string of topic descriptors for the closest cluster
 - `question_term_distance_scores`: **JSON mapping {topic_descriptor: distance}** - Similar to TOPIC_RELEVANCE_PROB's format
 
 ### Source Distance Columns
 
-- `source_closest_topic_keywords`: JSON string of topic descriptors for the closest cluster
 - `source_term_distance_scores`: **JSON mapping {topic_descriptor: distance}** - Similar to TOPIC_RELEVANCE_PROB's format
 
 Example output row (simplified for readability):
@@ -168,10 +166,8 @@ Example output row (simplified for readability):
 |--------|---------------|
 | question_text | "What is ML?" |
 | source_text | "ML is AI subset" |
-| question_closest_topic_keywords | ["machine learning", "AI"] |
-| **question_term_distance_scores** | **{"machine learning": 0.12, "AI": 0.12}** |
-| source_closest_topic_keywords | ["machine learning", "AI"] |
-| **source_term_distance_scores** | **{"machine learning": 0.15, "AI": 0.15}** |
+| **question_term_distance_scores** | **{"machine learning": 0.12, "AI": 0.12, "databases": 0.45}** |
+| **source_term_distance_scores** | **{"machine learning": 0.15, "AI": 0.15, "databases": 0.52}** |
 
 ## Distance Metrics
 
@@ -278,9 +274,15 @@ result_df = calculate_topic_distances_from_csv(
 )
 
 # Step 4: Analyze results
+import json
+
 print(f"Processed {len(result_df)} rows")
-print(f"Question closest keywords: {result_df['question_closest_topic_keywords'].head()}")
-print(f"Source closest keywords: {result_df['source_closest_topic_keywords'].head()}")
+
+# Show distance scores for first row
+if pd.notna(result_df.at[0, 'question_term_distance_scores']):
+    q_scores = json.loads(result_df.at[0, 'question_term_distance_scores'])
+    print(f"Question distance scores: {q_scores}")
+    print(f"Closest topic: {min(q_scores, key=q_scores.get)}")
 ```
 
 ### Integration with Domain Assessment Pipeline
