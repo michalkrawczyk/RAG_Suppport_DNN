@@ -157,19 +157,29 @@ The utility adds the following columns to the input DataFrame:
 - `question_topic_distances`: List of distances from question embedding to each cluster centroid
 - `question_closest_topic`: Integer ID of the closest topic cluster
 - `question_closest_topic_keywords`: JSON string of topic descriptors for the closest cluster
+- `question_term_distance_scores`: **JSON mapping {topic_descriptor: distance}** - Similar to TOPIC_RELEVANCE_PROB's format
 
 ### Source Distance Columns
 
 - `source_topic_distances`: List of distances from source embedding to each cluster centroid
 - `source_closest_topic`: Integer ID of the closest topic cluster
 - `source_closest_topic_keywords`: JSON string of topic descriptors for the closest cluster
+- `source_term_distance_scores`: **JSON mapping {topic_descriptor: distance}** - Similar to TOPIC_RELEVANCE_PROB's format
 
-Example output:
+Example output row (simplified for readability):
 
-```csv
-question_text,source_text,question_topic_distances,question_closest_topic,question_closest_topic_keywords,source_topic_distances,source_closest_topic,source_closest_topic_keywords
-"What is ML?","ML is AI subset","[0.12, 0.45, 0.78]",0,"[""machine learning"", ""AI""]","[0.15, 0.52, 0.81]",0,"[""machine learning"", ""AI""]"
-```
+| Column | Example Value |
+|--------|---------------|
+| question_text | "What is ML?" |
+| source_text | "ML is AI subset" |
+| question_topic_distances | [0.12, 0.45, 0.78] |
+| question_closest_topic | 0 |
+| question_closest_topic_keywords | ["machine learning", "AI"] |
+| **question_term_distance_scores** | **{"machine learning": 0.12, "AI": 0.12}** |
+| source_topic_distances | [0.15, 0.52, 0.81] |
+| source_closest_topic | 0 |
+| source_closest_topic_keywords | ["machine learning", "AI"] |
+| **source_term_distance_scores** | **{"machine learning": 0.15, "AI": 0.15}** |
 
 ## Distance Metrics
 
@@ -196,8 +206,11 @@ The utility supports two distance metrics:
 | **Method** | Direct embedding distance | LLM-based probabilistic assessment |
 | **Speed** | Fast (no LLM calls) | Slower (requires LLM) |
 | **Cost** | Low (only embedding) | Higher (LLM API costs) |
-| **Output** | Distance values | Probability scores with reasoning |
-| **Interpretability** | Numeric distances | Natural language explanations |
+| **Output Format** | Distance values (0-2 for cosine) + **JSON mapping** | Probability scores (0-1) + **JSON mapping** |
+| **JSON Mapping** | `{topic: distance}` (both questions & sources) | `{topic: probability}` (questions only) |
+| **Interpretability** | Numeric distances | Natural language explanations + probability |
+| **Reasoning** | No reasoning provided | Optional reasoning per topic |
+| **Scope** | Questions **and** sources | Questions only |
 | **Use Case** | Large-scale batch processing | In-depth semantic analysis |
 
 ## Database Interface Requirements

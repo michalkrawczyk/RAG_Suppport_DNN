@@ -76,13 +76,53 @@ class TopicDistanceCalculator:
 
         # Extract topic descriptors from cluster_stats
         self.topic_descriptors = {}
+        self.all_topic_descriptors = []  # Flat list of all topic descriptors
         if "cluster_stats" in self.clusterer_data:
             for cluster_id, stats in self.clusterer_data["cluster_stats"].items():
                 if "topic_descriptors" in stats:
                     self.topic_descriptors[int(cluster_id)] = stats["topic_descriptors"]
+                    self.all_topic_descriptors.extend(stats["topic_descriptors"])
             LOGGER.info(f"Loaded topic descriptors for {len(self.topic_descriptors)} clusters")
+            LOGGER.info(f"Total unique topic descriptors: {len(set(self.all_topic_descriptors))}")
         else:
             LOGGER.warning("No cluster_stats found in KeywordClusterer JSON")
+
+    def _create_distance_json_mapping(
+        self, distances: np.ndarray
+    ) -> str:
+        """
+        Create JSON mapping of topic descriptors to their distances.
+
+        For each cluster, assigns the cluster's distance to all its topic descriptors.
+        This creates a {topic_descriptor: distance} mapping similar to the format
+        used by DomainAssessmentAgent's question_term_relevance_scores.
+
+        Parameters
+        ----------
+        distances : np.ndarray
+            Array of distances to each cluster centroid, shape (n_clusters,)
+
+        Returns
+        -------
+        str
+            JSON string mapping topic_descriptor to distance value
+        """
+        distance_mapping = {}
+        
+        # Iterate through all clusters and their topic descriptors
+        for cluster_id, distance in enumerate(distances):
+            if cluster_id in self.topic_descriptors:
+                # Assign this cluster's distance to all its topic descriptors
+                for topic_descriptor in self.topic_descriptors[cluster_id]:
+                    # If descriptor appears in multiple clusters, keep minimum distance
+                    if topic_descriptor in distance_mapping:
+                        distance_mapping[topic_descriptor] = min(
+                            distance_mapping[topic_descriptor], float(distance)
+                        )
+                    else:
+                        distance_mapping[topic_descriptor] = float(distance)
+        
+        return json.dumps(distance_mapping)
 
     def _compute_distances_to_centroids(
         self, embedding: np.ndarray
@@ -230,6 +270,8 @@ class TopicDistanceCalculator:
             - source_closest_topic: cluster ID of closest topic for source
             - question_closest_topic_keywords: topic descriptors for closest cluster
             - source_closest_topic_keywords: topic descriptors for closest cluster
+            - question_term_distance_scores: JSON mapping {topic_descriptor: distance} for question
+            - source_term_distance_scores: JSON mapping {topic_descriptor: distance} for source
         """
         # Load CSV
         df = pd.read_csv(csv_path)
@@ -257,6 +299,8 @@ class TopicDistanceCalculator:
         df["source_closest_topic"] = None
         df["question_closest_topic_keywords"] = None
         df["source_closest_topic_keywords"] = None
+        df["question_term_distance_scores"] = None  # JSON mapping {topic: distance}
+        df["source_term_distance_scores"] = None  # JSON mapping {topic: distance}
 
         # Process each row
         iterator = range(len(df))
@@ -290,6 +334,10 @@ class TopicDistanceCalculator:
                     df.at[idx, "question_closest_topic_keywords"] = json.dumps(
                         self.topic_descriptors[closest_topic]
                     )
+                # Create JSON mapping {topic: distance}
+                df.at[idx, "question_term_distance_scores"] = self._create_distance_json_mapping(
+                    question_distances
+                )
 
             # Process source
             if source_id_col and source_id_col in df.columns and pd.notna(row[source_id_col]):
@@ -315,6 +363,10 @@ class TopicDistanceCalculator:
                     df.at[idx, "source_closest_topic_keywords"] = json.dumps(
                         self.topic_descriptors[closest_topic]
                     )
+                # Create JSON mapping {topic: distance}
+                df.at[idx, "source_term_distance_scores"] = self._create_distance_json_mapping(
+                    source_distances
+                )
 
         # Save if output path provided
         if output_path:
@@ -373,7 +425,15 @@ def calculate_topic_distances_from_csv(
     Returns
     -------
     pd.DataFrame
-        DataFrame with added distance columns
+        DataFrame with added distance columns:
+        - question_topic_distances: list of distances for question
+        - source_topic_distances: list of distances for source
+        - question_closest_topic: cluster ID of closest topic for question
+        - source_closest_topic: cluster ID of closest topic for source
+        - question_closest_topic_keywords: topic descriptors for closest cluster
+        - source_closest_topic_keywords: topic descriptors for closest cluster
+        - question_term_distance_scores: JSON mapping {topic_descriptor: distance} for question
+        - source_term_distance_scores: JSON mapping {topic_descriptor: distance} for source
 
     Examples
     --------

@@ -114,7 +114,7 @@ def test_topic_distance_calculator_with_csv():
             show_progress=False,
         )
 
-        # Verify output - check all 6 output columns
+        # Verify output - check all 8 output columns
         assert len(result_df) == 2
         assert "question_topic_distances" in result_df.columns
         assert "source_topic_distances" in result_df.columns
@@ -122,7 +122,25 @@ def test_topic_distance_calculator_with_csv():
         assert "source_closest_topic" in result_df.columns
         assert "question_closest_topic_keywords" in result_df.columns
         assert "source_closest_topic_keywords" in result_df.columns
+        assert "question_term_distance_scores" in result_df.columns
+        assert "source_term_distance_scores" in result_df.columns
         assert output_path.exists()
+        
+        # Verify JSON mapping format
+        for idx in range(len(result_df)):
+            if pd.notna(result_df.at[idx, "question_term_distance_scores"]):
+                question_mapping = json.loads(result_df.at[idx, "question_term_distance_scores"])
+                assert isinstance(question_mapping, dict)
+                # Should have topic descriptors as keys
+                assert all(isinstance(k, str) for k in question_mapping.keys())
+                # Should have distance values
+                assert all(isinstance(v, (int, float)) for v in question_mapping.values())
+            
+            if pd.notna(result_df.at[idx, "source_term_distance_scores"]):
+                source_mapping = json.loads(result_df.at[idx, "source_term_distance_scores"])
+                assert isinstance(source_mapping, dict)
+                assert all(isinstance(k, str) for k in source_mapping.keys())
+                assert all(isinstance(v, (int, float)) for v in source_mapping.values())
 
 
 def test_compute_distances():
@@ -323,6 +341,110 @@ def test_unsupported_embedder_interface():
         # Should raise ValueError when trying to use unsupported embedder
         with pytest.raises(ValueError, match="Embedder must have"):
             calculator._get_embedding_from_text("test text")
+
+
+def test_create_distance_json_mapping():
+    """Test creation of JSON mapping from distances to topic descriptors."""
+    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+
+    # Create mock data with topic descriptors
+    mock_clusterer_data = {
+        "centroids": [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        "cluster_stats": {
+            "0": {
+                "topic_descriptors": ["machine learning", "AI", "neural networks"],
+                "size": 10,
+            },
+            "1": {
+                "topic_descriptors": ["database", "SQL"],
+                "size": 8,
+            },
+            "2": {
+                "topic_descriptors": ["web development", "javascript"],
+                "size": 12,
+            },
+        },
+    }
+
+    calculator = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        metric="cosine",
+    )
+
+    # Test with mock distances
+    distances = np.array([0.2, 0.5, 0.8])
+    json_mapping_str = calculator._create_distance_json_mapping(distances)
+    
+    # Parse JSON
+    mapping = json.loads(json_mapping_str)
+    
+    # Verify structure
+    assert isinstance(mapping, dict)
+    
+    # Check that all topic descriptors are present
+    expected_topics = {
+        "machine learning", "AI", "neural networks",
+        "database", "SQL",
+        "web development", "javascript"
+    }
+    assert set(mapping.keys()) == expected_topics
+    
+    # Check that distances are correctly assigned
+    # Cluster 0 topics should have distance 0.2
+    assert mapping["machine learning"] == 0.2
+    assert mapping["AI"] == 0.2
+    assert mapping["neural networks"] == 0.2
+    
+    # Cluster 1 topics should have distance 0.5
+    assert mapping["database"] == 0.5
+    assert mapping["SQL"] == 0.5
+    
+    # Cluster 2 topics should have distance 0.8
+    assert mapping["web development"] == 0.8
+    assert mapping["javascript"] == 0.8
+
+
+def test_create_distance_json_mapping_duplicate_topics():
+    """Test JSON mapping when topic descriptor appears in multiple clusters (should use minimum)."""
+    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+
+    # Create mock data where "AI" appears in two clusters with different distances
+    mock_clusterer_data = {
+        "centroids": [
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ],
+        "cluster_stats": {
+            "0": {
+                "topic_descriptors": ["machine learning", "AI"],
+                "size": 10,
+            },
+            "1": {
+                "topic_descriptors": ["AI", "deep learning"],  # "AI" appears again
+                "size": 8,
+            },
+        },
+    }
+
+    calculator = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        metric="cosine",
+    )
+
+    # Distances: cluster 0 is closer (0.1) than cluster 1 (0.9)
+    distances = np.array([0.1, 0.9])
+    json_mapping_str = calculator._create_distance_json_mapping(distances)
+    
+    mapping = json.loads(json_mapping_str)
+    
+    # "AI" should have the minimum distance (0.1 from cluster 0)
+    assert mapping["AI"] == 0.1
+    assert mapping["machine learning"] == 0.1
+    assert mapping["deep learning"] == 0.9
 
 
 if __name__ == "__main__":
