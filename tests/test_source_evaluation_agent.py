@@ -55,7 +55,7 @@ class TestSourceEvaluationAgentInit:
         mock_llm = Mock(spec=BaseChatModel)
         agent = SourceEvaluationAgent(llm=mock_llm)
 
-        assert agent._llm == mock_llm
+        assert agent.llm == mock_llm
         assert agent._max_retries == 3
 
     def test_init_with_custom_retries(self):

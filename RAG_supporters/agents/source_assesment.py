@@ -119,7 +119,7 @@ try:
                 Default batch size for batch processing. Default is 10.
             """
             self.llm = llm
-            self.max_retries = max_retries
+            self._max_retries = max_retries
             self.eval_prompt = evaluation_prompt
             self.batch_size = batch_size
 
@@ -350,7 +350,7 @@ try:
             initial_state = AgentState(
                 question=question,
                 source_content=source_content,
-                max_retries=self.max_retries,
+                max_retries=self._max_retries,
             )
 
             # Run the graph
@@ -369,7 +369,7 @@ try:
                     LOGGER.error(f"Unexpected evaluation type: {type(evaluation)}")
                     return None
             else:
-                LOGGER.error(f"Failed to get valid evaluation after {self.max_retries} retries")
+                LOGGER.error(f"Failed to get valid evaluation after {self._max_retries} retries")
                 LOGGER.error(f"Final error: {result.get('error')}")
                 return None
 
