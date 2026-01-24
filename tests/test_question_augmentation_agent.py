@@ -314,8 +314,8 @@ class TestQuestionAugmentationAgentProcessDataFrameGeneration:
         assert 'source_text' in result_df.columns
         assert len(result_df) >= 2  # At least 2 questions generated
 
-    def test_process_dataframe_generation_with_domain(self):
-        """Test question generation with domain column."""
+    def test_process_dataframe_generation_with_extra_columns(self):
+        """Test question generation preserves extra DataFrame columns."""
         from RAG_supporters.agents.question_augmentation_agent import QuestionAugmentationAgent
         from langchain_core.language_models import BaseChatModel
         from langchain_core.messages import AIMessage
@@ -329,7 +329,7 @@ class TestQuestionAugmentationAgentProcessDataFrameGeneration:
         
         df = pd.DataFrame({
             'source_text': ['Source about biology'],
-            'domain': ['biology']
+            'domain': ['biology']  # Extra column should be preserved
         })
         
         result_df = agent.process_dataframe_generation(
@@ -342,6 +342,8 @@ class TestQuestionAugmentationAgentProcessDataFrameGeneration:
         )
         
         assert len(result_df) >= 1
+        # Verify extra column is preserved
+        assert 'domain' in result_df.columns
 
 
 class TestQuestionAugmentationAgentIntegration:
