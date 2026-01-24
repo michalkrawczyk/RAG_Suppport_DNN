@@ -1,4 +1,4 @@
-git st# Clustering Documentation
+# Clustering Documentation
 
 This directory contains documentation related to clustering functionality in the RAG Supporters project.
 
