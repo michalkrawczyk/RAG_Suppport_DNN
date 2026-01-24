@@ -5,9 +5,14 @@ import logging
 import tempfile
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("numpy")
+pytest.importorskip("pandas")
+pytest.importorskip("sklearn")
+
 import numpy as np
 import pandas as pd
-import pytest
 
 
 def test_topic_distance_calculator_basic():

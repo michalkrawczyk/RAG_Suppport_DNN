@@ -15,6 +15,9 @@ import tempfile
 
 import pytest
 
+pytest.importorskip("numpy")
+pytest.importorskip("sklearn")
+
 from RAG_supporters.dataset.dataset_splitter import (
     DatasetSplitter,
     create_train_val_split,

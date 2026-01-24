@@ -6,8 +6,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-import numpy as np
-import pandas as pd
 import pytest
 
 # Skip all tests if required dependencies are not installed
@@ -15,6 +13,11 @@ pytest.importorskip("langchain")
 pytest.importorskip("langchain_core")
 pytest.importorskip("langgraph")
 pytest.importorskip("pydantic")
+pytest.importorskip("numpy")
+pytest.importorskip("pandas")
+
+import numpy as np
+import pandas as pd
 
 
 def test_pydantic_models_import():
