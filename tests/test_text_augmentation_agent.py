@@ -275,8 +275,7 @@ class TestTextAugmentationAgentAugmentDataFrame:
         
         result_df = agent.augment_dataframe(
             df,
-            question_col='query',
-            source_col='answer',
+            columns_mapping={'question_text': 'query', 'source_text': 'answer'},
             rephrase_question=True,
             probability=1.0
         )
