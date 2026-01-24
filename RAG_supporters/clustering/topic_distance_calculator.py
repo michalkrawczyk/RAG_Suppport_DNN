@@ -16,6 +16,8 @@ import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 from tqdm import tqdm
 
+from RAG_supporters.utils.text_utils import normalize_string
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -259,7 +261,6 @@ class TopicDistanceCalculator:
             return self._embedding_cache[text]
 
         # Use KeywordEmbedder interface
-        from RAG_supporters.utils.text_utils import normalize_string
         embeddings_dict = self.embedder.create_embeddings([text])
         normalized_text = normalize_string(text)
         embedding = embeddings_dict[normalized_text]
