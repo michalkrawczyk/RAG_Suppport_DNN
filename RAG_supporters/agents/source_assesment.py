@@ -1,3 +1,5 @@
+"""Source evaluation agent for assessing text source quality."""
+
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -23,7 +25,7 @@ try:
 
     # Pydantic Models for validation (v2.10.3 compatible)
     class ScoreRange(BaseModel):
-        """Validates score is within 0-10 range"""
+        """Validates score is within 0-10 range."""
 
         score: int = Field(..., ge=0, le=10, description="Score between 0 and 10")
         reasoning: Optional[str] = Field(
@@ -31,7 +33,7 @@ try:
         )
 
     class SourceEvaluation(BaseModel):
-        """Model for source evaluation scores and reasoning"""
+        """Model for source evaluation scores and reasoning."""
 
         inferred_domain: str = Field(
             ..., description="The inferred domain from question and source"
@@ -49,9 +51,7 @@ try:
         objectivity_bias: ScoreRange = Field(
             ..., description="Objectivity/Bias score and reasoning"
         )
-        completeness: ScoreRange = Field(
-            ..., description="Completeness score and reasoning"
-        )
+        completeness: ScoreRange = Field(..., description="Completeness score and reasoning")
 
         @model_validator(mode="after")
         def validate_all_scores_present(self):
@@ -82,7 +82,7 @@ try:
             return self
 
     class AgentState(BaseModel):
-        """State for the LangGraph agent"""
+        """State for the LangGraph agent."""
 
         question: str
         source_content: str
@@ -92,7 +92,7 @@ try:
         max_retries: int = 3
 
     class SourceEvaluationAgent:
-        """LangGraph agent for evaluating sources with retry logic"""
+        """LangGraph agent for evaluating sources with retry logic."""
 
         def __init__(
             self,
@@ -127,9 +127,7 @@ try:
             self.parser = PydanticOutputParser(pydantic_object=SourceEvaluation)
 
             # Wrap with OutputFixingParser for automatic retry/fixing
-            self.fixing_parser = OutputFixingParser.from_llm(
-                parser=self.parser, llm=self.llm
-            )
+            self.fixing_parser = OutputFixingParser.from_llm(parser=self.parser, llm=self.llm)
 
             # Create the prompt template with format instructions
             self.prompt_template = self._create_prompt_template()
@@ -153,27 +151,22 @@ try:
 
                 return isinstance(self.llm, (ChatOpenAI, AzureChatOpenAI))
             except ImportError:
-                LOGGER.debug(
-                    "langchain_openai not installed, batch processing unavailable"
-                )
+                LOGGER.debug("langchain_openai not installed, batch processing unavailable")
                 return False
             except Exception as e:
                 LOGGER.debug(f"Could not determine if LLM is OpenAI: {e}")
                 return False
 
         def _create_prompt_template(self) -> PromptTemplate:
-            """Create the prompt template with format instructions from parser"""
-
+            """Create the prompt template with format instructions from parser."""
             return PromptTemplate(
                 template=self.eval_prompt,
                 input_variables=["question", "source_content"],
-                partial_variables={
-                    "format_instructions": self.parser.get_format_instructions()
-                },
+                partial_variables={"format_instructions": self.parser.get_format_instructions()},
             )
 
         def _build_graph(self) -> StateGraph:
-            """Build the LangGraph workflow"""
+            """Build the LangGraph workflow."""
             workflow = StateGraph(AgentState)
 
             # Add nodes
@@ -196,7 +189,7 @@ try:
             return workflow.compile()
 
         def _evaluate_source(self, state: AgentState) -> Dict[str, Any]:
-            """Evaluate the source using the LLM with output parser"""
+            """Evaluate the source using the LLM with output parser."""
             try:
                 # Format the prompt
                 prompt = self.prompt_template.format(
@@ -224,9 +217,7 @@ try:
                     LOGGER.info("Successfully parsed evaluation with parser")
 
                 except Exception as parse_error:
-                    LOGGER.warning(
-                        f"Fixing parser failed, trying regular parser: {parse_error}"
-                    )
+                    LOGGER.warning(f"Fixing parser failed, trying regular parser: {parse_error}")
 
                     # Try regular parser as fallback
                     try:
@@ -247,7 +238,7 @@ try:
             return {"evaluation": state.evaluation, "error": state.error}
 
         def _validate_response(self, state: AgentState) -> Dict[str, Any]:
-            """Validate the response using Pydantic"""
+            """Validate the response using Pydantic."""
             if state.evaluation is None:
                 state.error = state.error or "No evaluation generated"
                 return {"error": state.error}
@@ -265,13 +256,9 @@ try:
                     if isinstance(state.evaluation, dict):
                         state.evaluation = SourceEvaluation(**state.evaluation)
                         state.error = None
-                        LOGGER.info(
-                            "Validation successful - converted dict to SourceEvaluation"
-                        )
+                        LOGGER.info("Validation successful - converted dict to SourceEvaluation")
                     else:
-                        raise ValueError(
-                            f"Unexpected evaluation type: {type(state.evaluation)}"
-                        )
+                        raise ValueError(f"Unexpected evaluation type: {type(state.evaluation)}")
 
             except Exception as e:
                 LOGGER.error(f"Validation error: {e}")
@@ -281,7 +268,7 @@ try:
             return {"evaluation": state.evaluation, "error": state.error}
 
         def _should_retry(self, state: AgentState) -> str:
-            """Determine if we should retry or end"""
+            """Determine if we should retry or end."""
             if state.error is None and state.evaluation is not None:
                 return "end"
             elif state.retry_count < state.max_retries:
@@ -291,7 +278,7 @@ try:
                 return "end"
 
         def _handle_retry(self, state: AgentState) -> Dict[str, Any]:
-            """Handle retry logic"""
+            """Handle retry logic."""
             state.retry_count += 1
             LOGGER.info(f"Retrying... Attempt {state.retry_count}/{state.max_retries}")
             LOGGER.info(f"Previous error: {state.error}")
@@ -303,46 +290,34 @@ try:
             return {"retry_count": state.retry_count}
 
         def _format_output(self, evaluation: Dict[str, Any]) -> Dict[str, Any]:
-            """Format the output to match the expected structure"""
+            """Format the output to match the expected structure."""
             return {
                 "inferred_domain": evaluation.get("inferred_domain"),
                 "scores": {
                     "relevance": evaluation.get("relevance", {}).get("score"),
-                    "expertise_authority": evaluation.get(
-                        "expertise_authority", {}
-                    ).get("score"),
-                    "depth_specificity": evaluation.get("depth_specificity", {}).get(
-                        "score"
-                    ),
-                    "clarity_conciseness": evaluation.get(
-                        "clarity_conciseness", {}
-                    ).get("score"),
-                    "objectivity_bias": evaluation.get("objectivity_bias", {}).get(
-                        "score"
-                    ),
+                    "expertise_authority": evaluation.get("expertise_authority", {}).get("score"),
+                    "depth_specificity": evaluation.get("depth_specificity", {}).get("score"),
+                    "clarity_conciseness": evaluation.get("clarity_conciseness", {}).get("score"),
+                    "objectivity_bias": evaluation.get("objectivity_bias", {}).get("score"),
                     "completeness": evaluation.get("completeness", {}).get("score"),
                 },
                 "reasoning": {
                     "relevance": evaluation.get("relevance", {}).get("reasoning"),
-                    "expertise_authority": evaluation.get(
-                        "expertise_authority", {}
-                    ).get("reasoning"),
-                    "depth_specificity": evaluation.get("depth_specificity", {}).get(
+                    "expertise_authority": evaluation.get("expertise_authority", {}).get(
                         "reasoning"
                     ),
-                    "clarity_conciseness": evaluation.get(
-                        "clarity_conciseness", {}
-                    ).get("reasoning"),
-                    "objectivity_bias": evaluation.get("objectivity_bias", {}).get(
+                    "depth_specificity": evaluation.get("depth_specificity", {}).get("reasoning"),
+                    "clarity_conciseness": evaluation.get("clarity_conciseness", {}).get(
                         "reasoning"
                     ),
+                    "objectivity_bias": evaluation.get("objectivity_bias", {}).get("reasoning"),
                     "completeness": evaluation.get("completeness", {}).get("reasoning"),
                 },
                 "score_summary": self._generate_score_summary(evaluation),
             }
 
         def _generate_score_summary(self, evaluation: Dict[str, Any]) -> str:
-            """Generate a formatted score summary"""
+            """Generate a formatted score summary."""
             scores = [
                 f"- Relevance: {evaluation.get('relevance', {}).get('score')}/10",
                 f"- Expertise/Authority: {evaluation.get('expertise_authority', {}).get('score')}/10",
@@ -353,9 +328,7 @@ try:
             ]
             return "\n".join(scores)
 
-        def evaluate(
-            self, question: str, source_content: str
-        ) -> Optional[Dict[str, Any]]:
+        def evaluate(self, question: str, source_content: str) -> Optional[Dict[str, Any]]:
             """
             Evaluate a source for a given question using the LangGraph workflow.
 
@@ -396,9 +369,7 @@ try:
                     LOGGER.error(f"Unexpected evaluation type: {type(evaluation)}")
                     return None
             else:
-                LOGGER.error(
-                    f"Failed to get valid evaluation after {self.max_retries} retries"
-                )
+                LOGGER.error(f"Failed to get valid evaluation after {self.max_retries} retries")
                 LOGGER.error(f"Final error: {result.get('error')}")
                 return None
 
@@ -429,20 +400,14 @@ try:
                 return [self.evaluate(q, s) for q, s in zip(questions, source_contents)]
 
             if len(questions) != len(source_contents):
-                raise ValueError(
-                    "questions and source_contents must have the same length"
-                )
+                raise ValueError("questions and source_contents must have the same length")
 
-            LOGGER.info(
-                f"Processing batch of {len(questions)} evaluations using OpenAI batch API"
-            )
+            LOGGER.info(f"Processing batch of {len(questions)} evaluations using OpenAI batch API")
 
             # Prepare batch prompts
             prompts = []
             for question, source in zip(questions, source_contents):
-                prompt = self.prompt_template.format(
-                    question=question, source_content=source
-                )
+                prompt = self.prompt_template.format(question=question, source_content=source)
                 prompts.append(prompt)
 
             try:
@@ -464,28 +429,20 @@ try:
                         try:
                             evaluation = self.fixing_parser.parse(content)
                             if isinstance(evaluation, SourceEvaluation):
-                                results.append(
-                                    self._format_output(evaluation.model_dump())
-                                )
+                                results.append(self._format_output(evaluation.model_dump()))
                             else:
                                 results.append(self._format_output(evaluation))
                         except Exception as parse_error:
-                            LOGGER.warning(
-                                f"Failed to parse batch item {i}: {parse_error}"
-                            )
+                            LOGGER.warning(f"Failed to parse batch item {i}: {parse_error}")
                             # Try regular parser as fallback
                             try:
                                 evaluation = self.parser.parse(content)
                                 if isinstance(evaluation, SourceEvaluation):
-                                    results.append(
-                                        self._format_output(evaluation.model_dump())
-                                    )
+                                    results.append(self._format_output(evaluation.model_dump()))
                                 else:
                                     results.append(self._format_output(evaluation))
                             except Exception as e:
-                                LOGGER.error(
-                                    f"All parsing attempts failed for batch item {i}: {e}"
-                                )
+                                LOGGER.error(f"All parsing attempts failed for batch item {i}: {e}")
                                 results.append(None)
                     except Exception as e:
                         LOGGER.error(f"Error processing batch response {i}: {e}")
@@ -512,8 +469,7 @@ try:
             use_batch_processing: bool = True,
             batch_size: Optional[int] = None,
         ) -> pd.DataFrame:
-            """
-            Process a pandas DataFrame with question-source pairs and add evaluation scores.
+            """Process a pandas DataFrame with question-source pairs and add evaluation scores.
 
             Batch processes multiple question-source pairs, adding comprehensive
             evaluation scores across all dimensions with optional reasoning text.
@@ -546,7 +502,6 @@ try:
             pd.DataFrame
                 DataFrame with added evaluation score columns and optional reasoning
             """
-
             # Determine if we should use batch processing
             should_batch = use_batch_processing and self._is_openai_llm
             batch_size = batch_size or self.batch_size
@@ -600,10 +555,7 @@ try:
             # Create a copy to avoid modifying original
             result_df = df.copy()
 
-            if (
-                not question_col in result_df.columns
-                or not source_col in result_df.columns
-            ):
+            if not question_col in result_df.columns or not source_col in result_df.columns:
                 raise ValueError(
                     f"DataFrame must contain columns '{question_col}' and '{source_col}'"
                 )
@@ -645,8 +597,7 @@ try:
                 # Skip if requested and has existing scores
                 if skip_existing:
                     has_existing_scores = any(
-                        col in result_df.columns and pd.notna(row[col])
-                        for col in score_columns
+                        col in result_df.columns and pd.notna(row[col]) for col in score_columns
                     )
                     if has_existing_scores:
                         continue
@@ -665,9 +616,7 @@ try:
 
                 # Skip rows with missing data
                 if pd.isna(row[question_col]) or pd.isna(row[source_col]):
-                    LOGGER.warning(
-                        f"Skipping row {idx} due to missing question or source content"
-                    )
+                    LOGGER.warning(f"Skipping row {idx} due to missing question or source content")
                     continue
 
                 rows_to_process.append(row)
@@ -722,36 +671,30 @@ try:
                                 "clarity_conciseness_score": evaluation["scores"][
                                     "clarity_conciseness"
                                 ],
-                                "objectivity_bias_score": evaluation["scores"][
-                                    "objectivity_bias"
-                                ],
-                                "completeness_score": evaluation["scores"][
-                                    "completeness"
-                                ],
+                                "objectivity_bias_score": evaluation["scores"]["objectivity_bias"],
+                                "completeness_score": evaluation["scores"]["completeness"],
                             }
 
                             # Add reasoning if requested
                             if include_reasoning:
                                 update_dict.update(
                                     {
-                                        "relevance_reasoning": evaluation["reasoning"][
-                                            "relevance"
+                                        "relevance_reasoning": evaluation["reasoning"]["relevance"],
+                                        "expertise_authority_reasoning": evaluation["reasoning"][
+                                            "expertise_authority"
                                         ],
-                                        "expertise_authority_reasoning": evaluation[
-                                            "reasoning"
-                                        ]["expertise_authority"],
-                                        "depth_specificity_reasoning": evaluation[
-                                            "reasoning"
-                                        ]["depth_specificity"],
-                                        "clarity_conciseness_reasoning": evaluation[
-                                            "reasoning"
-                                        ]["clarity_conciseness"],
-                                        "objectivity_bias_reasoning": evaluation[
-                                            "reasoning"
-                                        ]["objectivity_bias"],
-                                        "completeness_reasoning": evaluation[
-                                            "reasoning"
-                                        ]["completeness"],
+                                        "depth_specificity_reasoning": evaluation["reasoning"][
+                                            "depth_specificity"
+                                        ],
+                                        "clarity_conciseness_reasoning": evaluation["reasoning"][
+                                            "clarity_conciseness"
+                                        ],
+                                        "objectivity_bias_reasoning": evaluation["reasoning"][
+                                            "objectivity_bias"
+                                        ],
+                                        "completeness_reasoning": evaluation["reasoning"][
+                                            "completeness"
+                                        ],
                                     }
                                 )
 
@@ -773,23 +716,17 @@ try:
                                     f"Checkpoint saved at {save_path} after {processed_count} rows"
                                 )
                         else:
-                            result_df.at[idx, "evaluation_error"] = (
-                                "Failed to evaluate in batch"
-                            )
+                            result_df.at[idx, "evaluation_error"] = "Failed to evaluate in batch"
                             error_count += 1
                     if progress_bar:
-                        iterator.set_postfix(
-                            {"Processed": processed_count, "Errors": error_count}
-                        )
+                        iterator.set_postfix({"Processed": processed_count, "Errors": error_count})
 
                 except KeyboardInterrupt:
                     LOGGER.warning("Batch processing interrupted by user")
                     break
 
                 except Exception as e:
-                    LOGGER.error(
-                        f"Error processing batch {batch_start}-{batch_end}: {e}"
-                    )
+                    LOGGER.error(f"Error processing batch {batch_start}-{batch_end}: {e}")
                     for idx in batch_indices:
                         result_df.at[idx, "evaluation_error"] = f"Batch error: {str(e)}"
                     error_count += len(batch_indices)
@@ -826,10 +763,7 @@ try:
                 0, checkpoint_batch_size or 0
             )  # Ensure it's a positive integer
 
-            if (
-                not question_col in result_df.columns
-                or not source_col in result_df.columns
-            ):
+            if not question_col in result_df.columns or not source_col in result_df.columns:
                 raise ValueError(
                     f"DataFrame must contain columns '{question_col}' and '{source_col}'"
                 )
@@ -888,8 +822,7 @@ try:
 
                     if skip_existing:
                         has_existing_scores = any(
-                            col in result_df.columns and pd.notna(row[col])
-                            for col in score_columns
+                            col in result_df.columns and pd.notna(row[col]) for col in score_columns
                         )
                         if has_existing_scores:
                             skipped_rows += 1
@@ -924,49 +857,39 @@ try:
                             "expertise_authority_score": evaluation["scores"][
                                 "expertise_authority"
                             ],
-                            "depth_specificity_score": evaluation["scores"][
-                                "depth_specificity"
-                            ],
+                            "depth_specificity_score": evaluation["scores"]["depth_specificity"],
                             "clarity_conciseness_score": evaluation["scores"][
                                 "clarity_conciseness"
                             ],
-                            "objectivity_bias_score": evaluation["scores"][
-                                "objectivity_bias"
-                            ],
+                            "objectivity_bias_score": evaluation["scores"]["objectivity_bias"],
                             "completeness_score": evaluation["scores"]["completeness"],
                         }
 
                         if include_reasoning:
                             update_dict.update(
                                 {
-                                    "relevance_reasoning": evaluation["reasoning"][
-                                        "relevance"
+                                    "relevance_reasoning": evaluation["reasoning"]["relevance"],
+                                    "expertise_authority_reasoning": evaluation["reasoning"][
+                                        "expertise_authority"
                                     ],
-                                    "expertise_authority_reasoning": evaluation[
-                                        "reasoning"
-                                    ]["expertise_authority"],
-                                    "depth_specificity_reasoning": evaluation[
-                                        "reasoning"
-                                    ]["depth_specificity"],
-                                    "clarity_conciseness_reasoning": evaluation[
-                                        "reasoning"
-                                    ]["clarity_conciseness"],
-                                    "objectivity_bias_reasoning": evaluation[
-                                        "reasoning"
-                                    ]["objectivity_bias"],
+                                    "depth_specificity_reasoning": evaluation["reasoning"][
+                                        "depth_specificity"
+                                    ],
+                                    "clarity_conciseness_reasoning": evaluation["reasoning"][
+                                        "clarity_conciseness"
+                                    ],
+                                    "objectivity_bias_reasoning": evaluation["reasoning"][
+                                        "objectivity_bias"
+                                    ],
                                     "completeness_reasoning": evaluation["reasoning"][
                                         "completeness"
                                     ],
                                 }
                             )
 
-                        result_df.loc[idx, list(update_dict.keys())] = list(
-                            update_dict.values()
-                        )
+                        result_df.loc[idx, list(update_dict.keys())] = list(update_dict.values())
                     else:
-                        result_df.at[idx, "evaluation_error"] = (
-                            "Failed to evaluate after retries"
-                        )
+                        result_df.at[idx, "evaluation_error"] = "Failed to evaluate after retries"
 
                     processed_rows += 1
 
@@ -1016,6 +939,7 @@ except ImportError as e:
         """
 
         def __init__(self, *args, **kwargs):
+            """Initialize placeholder and raise import error."""
             raise ImportError(
                 f"SourceEvaluationAgent requires langgraph, langchain, and pydantic to be installed.\n"
                 f"Original import error: {_IMPORT_ERROR}\n"
@@ -1023,6 +947,7 @@ except ImportError as e:
             )
 
         def __getattr__(self, name):
+            """Raise import error for missing dependencies."""
             raise ImportError(
                 f"SourceEvaluationAgent not available due to missing dependencies: {_IMPORT_ERROR}"
             )

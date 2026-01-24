@@ -148,9 +148,7 @@ class DatasetSplitter:
             If no split has been created or loaded
         """
         if self.train_indices is None or self.val_indices is None:
-            raise ValueError(
-                "No split available. Call split() first or load from file."
-            )
+            raise ValueError("No split available. Call split() first or load from file.")
 
         return self.train_indices, self.val_indices
 
@@ -228,9 +226,7 @@ class DatasetSplitter:
         required_fields = ["train_indices", "val_indices", "dataset_size"]
         missing_fields = [f for f in required_fields if f not in split_data]
         if missing_fields:
-            raise ValueError(
-                f"Invalid split file format. Missing fields: {missing_fields}"
-            )
+            raise ValueError(f"Invalid split file format. Missing fields: {missing_fields}")
 
         # Create instance and restore state
         splitter = cls(random_state=split_data.get("random_state"))

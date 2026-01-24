@@ -86,9 +86,7 @@ def filter_by_field_value(
             filtered.append(suggestion)
 
     if skipped_missing_field > 0:
-        LOGGER.warning(
-            f"Skipped {skipped_missing_field} suggestions missing field '{field_name}'"
-        )
+        LOGGER.warning(f"Skipped {skipped_missing_field} suggestions missing field '{field_name}'")
 
     LOGGER.info(
         f"Filtered {len(filtered)}/{len(suggestions)} suggestions "

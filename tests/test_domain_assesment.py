@@ -77,21 +77,15 @@ def test_domain_suggestion_validation():
     from RAG_supporters.agents.domain_assesment import DomainSuggestion
 
     # Valid suggestion
-    suggestion = DomainSuggestion(
-        term="test", type="domain", confidence=0.5, reason="test reason"
-    )
+    suggestion = DomainSuggestion(term="test", type="domain", confidence=0.5, reason="test reason")
     assert suggestion.confidence == 0.5
 
     # Test confidence bounds
     with pytest.raises(Exception):  # Pydantic validation error
-        DomainSuggestion(
-            term="test", type="domain", confidence=1.5, reason="test"
-        )  # > 1.0
+        DomainSuggestion(term="test", type="domain", confidence=1.5, reason="test")  # > 1.0
 
     with pytest.raises(Exception):
-        DomainSuggestion(
-            term="test", type="domain", confidence=-0.1, reason="test"
-        )  # < 0.0
+        DomainSuggestion(term="test", type="domain", confidence=-0.1, reason="test")  # < 0.0
 
 
 def test_domain_extraction_result_validation():
@@ -406,10 +400,7 @@ def test_get_column_prefix():
     assert agent._get_column_prefix(OperationMode.EXTRACT) == "extract"
     assert agent._get_column_prefix(OperationMode.GUESS) == "guess"
     assert agent._get_column_prefix(OperationMode.ASSESS) == "assess"
-    assert (
-        agent._get_column_prefix(OperationMode.TOPIC_RELEVANCE_PROB)
-        == "topic_relevance_prob"
-    )
+    assert agent._get_column_prefix(OperationMode.TOPIC_RELEVANCE_PROB) == "topic_relevance_prob"
 
 
 def test_extract_result_dict():
@@ -431,9 +422,7 @@ def test_extract_result_dict():
     assert agent._extract_result_dict(test_dict) == test_dict
 
     # Test with Pydantic model
-    suggestion = DomainSuggestion(
-        term="test", type="domain", confidence=0.9, reason="test reason"
-    )
+    suggestion = DomainSuggestion(term="test", type="domain", confidence=0.9, reason="test reason")
     result = DomainExtractionResult(
         suggestions=[suggestion],
         total_suggestions=1,
@@ -469,9 +458,7 @@ def test_extract_domains_success():
     # Mock successful result
     mock_result = {
         "result": {
-            "suggestions": [
-                {"term": "AI", "type": "domain", "confidence": 0.9, "reason": "test"}
-            ],
+            "suggestions": [{"term": "AI", "type": "domain", "confidence": 0.9, "reason": "test"}],
             "total_suggestions": 1,
             "primary_theme": "Artificial Intelligence",
         },
@@ -655,14 +642,10 @@ def test_assess_topic_relevance_prob_with_keywordclusterer_dict():
 
     with patch.object(agent.graph, "invoke", return_value=mock_result):
         clusterer_data = {
-            "cluster_stats": {
-                "0": {"topic_descriptors": ["machine learning", "AI"], "size": 10}
-            }
+            "cluster_stats": {"0": {"topic_descriptors": ["machine learning", "AI"], "size": 10}}
         }
 
-        result = agent.assess_topic_relevance_prob(
-            "What is gradient descent?", clusterer_data
-        )
+        result = agent.assess_topic_relevance_prob("What is gradient descent?", clusterer_data)
 
         assert result is not None
         assert "topic_scores" in result
@@ -680,9 +663,7 @@ def test_batch_processing_extract_domains_sequential():
 
     # Mock extract_domains method
     mock_result = {
-        "suggestions": [
-            {"term": "test", "type": "domain", "confidence": 0.9, "reason": "test"}
-        ],
+        "suggestions": [{"term": "test", "type": "domain", "confidence": 0.9, "reason": "test"}],
         "total_suggestions": 1,
         "primary_theme": "Test",
     }
@@ -706,9 +687,7 @@ def test_batch_processing_guess_domains_sequential():
     agent._is_openai_llm = False
 
     mock_result = {
-        "suggestions": [
-            {"term": "test", "type": "domain", "confidence": 0.9, "reason": "test"}
-        ],
+        "suggestions": [{"term": "test", "type": "domain", "confidence": 0.9, "reason": "test"}],
         "total_suggestions": 1,
         "question_category": "Test",
     }
@@ -743,9 +722,7 @@ def test_batch_processing_assess_domains_sequential():
     with patch.object(agent, "assess_domains", return_value=mock_result):
         questions = ["Question 1?", "Question 2?"]
         available_terms = ["term1", "term2", "term3"]
-        results = agent.assess_domains_batch(
-            questions, available_terms, show_progress=False
-        )
+        results = agent.assess_domains_batch(questions, available_terms, show_progress=False)
 
         assert len(results) == 2
         assert all(r == mock_result for r in results)
@@ -762,9 +739,7 @@ def test_batch_processing_topic_relevance_sequential():
     agent._is_openai_llm = False
 
     mock_result = {
-        "topic_scores": [
-            {"topic_descriptor": "topic1", "probability": 0.9, "reason": "test"}
-        ],
+        "topic_scores": [{"topic_descriptor": "topic1", "probability": 0.9, "reason": "test"}],
         "total_topics": 1,
         "question_summary": "Test",
     }
@@ -803,9 +778,7 @@ def test_get_parser_for_mode():
     assert parser is not None
     assert fixing_parser is not None
 
-    parser, fixing_parser = agent._get_parser_for_mode(
-        OperationMode.TOPIC_RELEVANCE_PROB
-    )
+    parser, fixing_parser = agent._get_parser_for_mode(OperationMode.TOPIC_RELEVANCE_PROB)
     assert parser is not None
     assert fixing_parser is not None
 
