@@ -10,6 +10,7 @@ pytest.importorskip("langchain")
 pytest.importorskip("langchain_core")
 pytest.importorskip("langgraph")
 pytest.importorskip("pydantic")
+pytest.importorskip("tqdm")
 pytest.importorskip("pandas")
 
 import pandas as pd

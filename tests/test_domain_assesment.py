@@ -13,6 +13,7 @@ pytest.importorskip("langchain")
 pytest.importorskip("langchain_core")
 pytest.importorskip("langgraph")
 pytest.importorskip("pydantic")
+pytest.importorskip("tqdm")
 pytest.importorskip("numpy")
 pytest.importorskip("pandas")
 
