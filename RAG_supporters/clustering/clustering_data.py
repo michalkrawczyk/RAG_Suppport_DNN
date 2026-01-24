@@ -108,9 +108,7 @@ class ClusteringData:
         logging.info(f"  - n_clusters: {n_clusters}")
         logging.info(f"  - n_keywords: {metadata.get('n_keywords', 'N/A')}")
         logging.info(f"  - Descriptors: {len(descriptors)} clusters")
-        logging.info(
-            f"  - Centroids shape: {centroids.shape if centroids is not None else 'N/A'}"
-        )
+        logging.info(f"  - Centroids shape: {centroids.shape if centroids is not None else 'N/A'}")
 
         return cls(
             n_clusters=n_clusters,

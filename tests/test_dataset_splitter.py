@@ -106,9 +106,7 @@ class TestDatasetSplitterSplit:
     def test_split_no_shuffle(self):
         """Test split without shuffling."""
         splitter = DatasetSplitter(random_state=42)
-        train_idx, val_idx = splitter.split(
-            dataset_size=100, val_ratio=0.2, shuffle=False
-        )
+        train_idx, val_idx = splitter.split(dataset_size=100, val_ratio=0.2, shuffle=False)
 
         # Without shuffle, val indices should be first 20
         assert val_idx == list(range(20))

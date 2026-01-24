@@ -85,15 +85,13 @@ try:
             self._is_openai_llm = self._check_openai_llm()
 
         def _check_openai_llm(self) -> bool:
-            """Check if the LLM is from OpenAI for batch processing"""
+            """Check if the LLM is from OpenAI for batch processing."""
             try:
                 from langchain_openai import AzureChatOpenAI, ChatOpenAI
 
                 return isinstance(self._llm, (ChatOpenAI, AzureChatOpenAI))
             except ImportError:
-                LOGGER.debug(
-                    "langchain_openai not installed, batch processing unavailable"
-                )
+                LOGGER.debug("langchain_openai not installed, batch processing unavailable")
                 return False
             except Exception as e:
                 LOGGER.debug(f"Could not determine if LLM is OpenAI: {e}")
@@ -117,11 +115,7 @@ try:
                 try:
                     message = HumanMessage(content=prompt)
                     response = self._llm.invoke([message])
-                    result = (
-                        response.content
-                        if hasattr(response, "content")
-                        else str(response)
-                    )
+                    result = response.content if hasattr(response, "content") else str(response)
                     return result.strip()
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     LOGGER.warning(
@@ -131,9 +125,7 @@ try:
                         str(e),
                     )
                     if attempt == self._max_retries - 1:
-                        LOGGER.error(
-                            "All %d LLM invocation attempts failed", self._max_retries
-                        )
+                        LOGGER.error("All %d LLM invocation attempts failed", self._max_retries)
                         return None
             return None
 
@@ -162,11 +154,7 @@ try:
                 results = []
                 for response in responses:
                     try:
-                        result = (
-                            response.content
-                            if hasattr(response, "content")
-                            else str(response)
-                        )
+                        result = response.content if hasattr(response, "content") else str(response)
                         results.append(result.strip() if result else None)
                     except Exception as e:
                         LOGGER.warning(f"Error extracting response content: {e}")
@@ -178,9 +166,7 @@ try:
                 LOGGER.error(f"Batch LLM invocation failed: {e}")
                 return [None] * len(prompts)
 
-        def _verify_text_equivalence(
-            self, original_text: str, rephrased_text: str
-        ) -> bool:
+        def _verify_text_equivalence(self, original_text: str, rephrased_text: str) -> bool:
             """
             Verify that the rephrased text preserves the original meaning.
 
@@ -205,9 +191,7 @@ try:
 
             result = self._invoke_llm_with_retry(prompt)
             if result is None:
-                LOGGER.warning(
-                    "Failed to verify meaning preservation, assuming non-equivalent"
-                )
+                LOGGER.warning("Failed to verify meaning preservation, assuming non-equivalent")
                 return False
 
             return "EQUIVALENT" in result.upper()
@@ -234,18 +218,13 @@ try:
                 return [True] * len(original_texts)
 
             prompts = [
-                VERIFY_MEANING_PRESERVATION_PROMPT.format(
-                    original_text=orig, rephrased_text=reph
-                )
+                VERIFY_MEANING_PRESERVATION_PROMPT.format(original_text=orig, rephrased_text=reph)
                 for orig, reph in zip(original_texts, rephrased_texts)
             ]
 
             results = self._invoke_llm_batch(prompts)
 
-            return [
-                "EQUIVALENT" in result.upper() if result else False
-                for result in results
-            ]
+            return ["EQUIVALENT" in result.upper() if result else False for result in results]
 
         def rephrase_text(
             self, text: str, mode: str = "full", verify: Optional[bool] = None
@@ -261,7 +240,7 @@ try:
             text : str
                 The text to rephrase.
             mode : str, optional
-                Rephrasing mode: "full" (rephrase entire text), 
+                Rephrasing mode: "full" (rephrase entire text),
                 "sentence" or "random" (rephrase one random sentence).
                 Default is "full".
             verify : Optional[bool], optional
@@ -280,9 +259,7 @@ try:
                 LOGGER.error(f"Invalid mode: {mode}. Must be 'full', 'sentence', or 'random'")
                 return None
 
-        def rephrase_full_text(
-            self, text: str, verify: Optional[bool] = None
-        ) -> Optional[str]:
+        def rephrase_full_text(self, text: str, verify: Optional[bool] = None) -> Optional[str]:
             """
             Rephrase an entire text while preserving its meaning.
 
@@ -312,9 +289,7 @@ try:
             verify_flag = verify if verify is not None else self._verify_meaning
             if verify_flag:
                 if not self._verify_text_equivalence(text, rephrased):
-                    LOGGER.warning(
-                        "Rephrased text failed meaning verification, returning None"
-                    )
+                    LOGGER.warning("Rephrased text failed meaning verification, returning None")
                     return None
 
             return rephrased
@@ -338,9 +313,7 @@ try:
                 List of rephrased texts, or None for failed items.
             """
             if not self._is_openai_llm:
-                LOGGER.info(
-                    "Batch processing not available, using sequential processing"
-                )
+                LOGGER.info("Batch processing not available, using sequential processing")
                 return [self.rephrase_full_text(text, verify) for text in texts]
 
             # Filter empty texts
@@ -356,9 +329,7 @@ try:
                 return [None] * len(texts)
 
             # Prepare prompts
-            prompts = [
-                FULL_TEXT_REPHRASE_PROMPT.format(text=text) for text in valid_texts
-            ]
+            prompts = [FULL_TEXT_REPHRASE_PROMPT.format(text=text) for text in valid_texts]
 
             LOGGER.info(f"Batch rephrasing {len(prompts)} texts")
 
@@ -388,9 +359,7 @@ try:
                         # Set failed verifications to None
                         for i, verified in zip(verify_indices, verification_results):
                             if not verified:
-                                LOGGER.warning(
-                                    f"Rephrased text {i} failed meaning verification"
-                                )
+                                LOGGER.warning(f"Rephrased text {i} failed meaning verification")
                                 rephrased_texts[i] = None
 
                 # Build final results array
@@ -401,9 +370,7 @@ try:
                 return results
 
             except Exception as e:
-                LOGGER.error(
-                    f"Batch rephrasing failed: {e}, falling back to sequential"
-                )
+                LOGGER.error(f"Batch rephrasing failed: {e}, falling back to sequential")
                 return [self.rephrase_full_text(text, verify) for text in texts]
 
         def rephrase_random_sentence(
@@ -436,9 +403,7 @@ try:
             # Select a random sentence to rephrase
             selected_sentence = random.choice(sentences)
 
-            prompt = SENTENCE_REPHRASE_PROMPT.format(
-                text=text, sentence=selected_sentence
-            )
+            prompt = SENTENCE_REPHRASE_PROMPT.format(text=text, sentence=selected_sentence)
             rephrased = self._invoke_llm_with_retry(prompt)
 
             if rephrased is None:
@@ -448,9 +413,7 @@ try:
             verify_flag = verify if verify is not None else self._verify_meaning
             if verify_flag:
                 if not self._verify_text_equivalence(text, rephrased):
-                    LOGGER.warning(
-                        "Rephrased text failed meaning verification, returning None"
-                    )
+                    LOGGER.warning("Rephrased text failed meaning verification, returning None")
                     return None
 
             return rephrased
@@ -474,9 +437,7 @@ try:
                 List of texts with one sentence rephrased, or None for failed items.
             """
             if not self._is_openai_llm:
-                LOGGER.info(
-                    "Batch processing not available, using sequential processing"
-                )
+                LOGGER.info("Batch processing not available, using sequential processing")
                 return [self.rephrase_random_sentence(text, verify) for text in texts]
 
             # Filter and prepare texts
@@ -532,9 +493,7 @@ try:
 
                         for i, verified in zip(verify_indices, verification_results):
                             if not verified:
-                                LOGGER.warning(
-                                    f"Rephrased text {i} failed meaning verification"
-                                )
+                                LOGGER.warning(f"Rephrased text {i} failed meaning verification")
                                 rephrased_texts[i] = None
 
                 # Build final results
@@ -545,9 +504,7 @@ try:
                 return results
 
             except Exception as e:
-                LOGGER.error(
-                    f"Batch sentence rephrasing failed: {e}, falling back to sequential"
-                )
+                LOGGER.error(f"Batch sentence rephrasing failed: {e}, falling back to sequential")
                 return [self.rephrase_random_sentence(text, verify) for text in texts]
 
         def augment_dataframe(
@@ -649,12 +606,10 @@ try:
             rephrase_mode: str,
             probability: float,
         ) -> pd.DataFrame:
-            """Process DataFrame sequentially (original implementation)"""
+            """Process DataFrame sequentially (original implementation)."""
             augmented_rows = []
 
-            for idx, row in tqdm(
-                df.iterrows(), total=len(df), desc="Augmenting dataset"
-            ):
+            for idx, row in tqdm(df.iterrows(), total=len(df), desc="Augmenting dataset"):
                 # Skip augmentation based on probability
                 if random.random() > probability:
                     continue
@@ -675,17 +630,13 @@ try:
                         if current_mode == "full":
                             rephrased = self.rephrase_full_text(str(question_text))
                         else:
-                            rephrased = self.rephrase_random_sentence(
-                                str(question_text)
-                            )
+                            rephrased = self.rephrase_random_sentence(str(question_text))
 
                         if rephrased:
                             augmented_row[col_map["question_text"]] = rephrased
                             modified = True
                         else:
-                            LOGGER.warning(
-                                "Failed to rephrase question at index %s", idx
-                            )
+                            LOGGER.warning("Failed to rephrase question at index %s", idx)
 
                 # Rephrase source if requested
                 if rephrase_source:
@@ -729,7 +680,7 @@ try:
             probability: float,
             batch_size: int,
         ) -> pd.DataFrame:
-            """Process DataFrame using batch processing"""
+            """Process DataFrame using batch processing."""
             # First, determine which rows to process
             rows_to_augment = []
             row_indices = []
@@ -764,9 +715,7 @@ try:
                 batch_modes = row_modes[batch_start:batch_end]
 
                 # Separate into full and sentence mode batches
-                full_mode_indices = [
-                    i for i, mode in enumerate(batch_modes) if mode == "full"
-                ]
+                full_mode_indices = [i for i, mode in enumerate(batch_modes) if mode == "full"]
                 sentence_mode_indices = [
                     i for i, mode in enumerate(batch_modes) if mode == "sentence"
                 ]
@@ -804,9 +753,7 @@ try:
                             sentence_results = self.rephrase_random_sentence_batch(
                                 sentence_questions
                             )
-                            for i, result in zip(
-                                sentence_mode_indices, sentence_results
-                            ):
+                            for i, result in zip(sentence_mode_indices, sentence_results):
                                 if result:
                                     question_rephrased[i] = result
 
@@ -840,12 +787,8 @@ try:
                                 for i in sentence_mode_indices
                                 if pd.notna(batch_rows[i][col_map["source_text"]])
                             ]
-                            sentence_results = self.rephrase_random_sentence_batch(
-                                sentence_sources
-                            )
-                            for i, result in zip(
-                                sentence_mode_indices, sentence_results
-                            ):
+                            sentence_results = self.rephrase_random_sentence_batch(sentence_sources)
+                            for i, result in zip(sentence_mode_indices, sentence_results):
                                 if result:
                                     source_rephrased[i] = result
 

@@ -1,3 +1,5 @@
+"""RAG verification prompt templates."""
+
 SRC_COMPARE_PROMPT = """
 Task: You are acting as a domain expert. Given a question and two sources ([SOURCE 1] and [SOURCE 2]), your task is to choose the source that is better suited to answer the question from your expert perspective, inferring the relevant domain from the question and the content of the sources themselves.
 

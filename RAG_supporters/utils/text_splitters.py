@@ -5,9 +5,7 @@ from typing import List
 
 
 def base_text_splitter(text: str, max_words: int = 200):
-    """
-    Split text into chunks of max_words words
-    """
+    """Split text into chunks of max_words words."""
     words = text.replace("\n", "").split(" ")
     chunks = []
     for i in range(0, len(words), max_words):

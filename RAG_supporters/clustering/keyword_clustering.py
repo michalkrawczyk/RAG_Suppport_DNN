@@ -165,8 +165,7 @@ class KeywordClusterer:
             from sklearn.cluster import BisectingKMeans, KMeans
         except ImportError:
             raise ImportError(
-                "scikit-learn is required for clustering. "
-                "Install with: pip install scikit-learn"
+                "scikit-learn is required for clustering. " "Install with: pip install scikit-learn"
             )
 
         if self.algorithm == "kmeans":
@@ -183,8 +182,7 @@ class KeywordClusterer:
             )
         else:
             raise ValueError(
-                f"Unknown algorithm: {self.algorithm}. "
-                "Choose 'kmeans' or 'bisecting_kmeans'"
+                f"Unknown algorithm: {self.algorithm}. " "Choose 'kmeans' or 'bisecting_kmeans'"
             )
 
     def fit(
@@ -206,9 +204,7 @@ class KeywordClusterer:
         """
         # Convert to matrix
         self.keywords = list(keyword_embeddings.keys())
-        self.embeddings_matrix = np.array(
-            [keyword_embeddings[kw] for kw in self.keywords]
-        )
+        self.embeddings_matrix = np.array([keyword_embeddings[kw] for kw in self.keywords])
 
         LOGGER.info(
             f"Fitting {self.algorithm} with {self.n_clusters} clusters "
@@ -239,10 +235,7 @@ class KeywordClusterer:
         if self.cluster_labels is None:
             raise ValueError("Model not fitted. Call fit() first.")
 
-        return {
-            keyword: int(label)
-            for keyword, label in zip(self.keywords, self.cluster_labels)
-        }
+        return {keyword: int(label) for keyword, label in zip(self.keywords, self.cluster_labels)}
 
     def get_clusters(self) -> Dict[int, List[str]]:
         """
@@ -347,9 +340,7 @@ class KeywordClusterer:
                 similarities = cosine_similarity([centroid], self.embeddings_matrix)[0]
                 distances = 1 - similarities
             else:
-                raise ValueError(
-                    f"Unknown metric: {metric}. Choose 'euclidean' or 'cosine'"
-                )
+                raise ValueError(f"Unknown metric: {metric}. Choose 'euclidean' or 'cosine'")
 
             # Sort by distance and get indices & Apply filtering
             sorted_indices = np.argsort(distances)
@@ -428,17 +419,13 @@ class KeywordClusterer:
         ... )
         """
         if assignment_mode not in ["hard", "soft"]:
-            raise ValueError(
-                f"Invalid assignment_mode: {assignment_mode}. Choose 'hard' or 'soft'"
-            )
+            raise ValueError(f"Invalid assignment_mode: {assignment_mode}. Choose 'hard' or 'soft'")
 
         if not 0.0 <= threshold <= 1.0:
             raise ValueError(f"Threshold must be between 0 and 1, got {threshold}")
 
         if metric not in ["euclidean", "cosine"]:
-            raise ValueError(
-                f"Invalid metric: {metric}. Choose 'euclidean' or 'cosine'"
-            )
+            raise ValueError(f"Invalid metric: {metric}. Choose 'euclidean' or 'cosine'")
 
         self._default_assignment_mode = assignment_mode
         self._default_threshold = threshold
@@ -564,9 +551,7 @@ class KeywordClusterer:
         primary_cluster = int(np.argmax(probabilities))
 
         # Filter clusters by threshold
-        assigned_clusters = [
-            i for i, prob in enumerate(probabilities) if prob >= threshold
-        ]
+        assigned_clusters = [i for i, prob in enumerate(probabilities) if prob >= threshold]
 
         if not assigned_clusters:
             LOGGER.warning(
@@ -576,8 +561,7 @@ class KeywordClusterer:
             assigned_clusters = [primary_cluster]
 
         LOGGER.debug(
-            f"Soft assignment: {len(assigned_clusters)} clusters above "
-            f"threshold {threshold}"
+            f"Soft assignment: {len(assigned_clusters)} clusters above " f"threshold {threshold}"
         )
 
         return assigned_clusters, primary_cluster
@@ -655,13 +639,9 @@ class KeywordClusterer:
 
         # Perform assignment based on mode
         if mode == "hard":
-            assigned_clusters, primary_cluster = self._hard_assignment(
-                probabilities, threshold
-            )
+            assigned_clusters, primary_cluster = self._hard_assignment(probabilities, threshold)
         else:  # soft
-            assigned_clusters, primary_cluster = self._soft_assignment(
-                probabilities, threshold
-            )
+            assigned_clusters, primary_cluster = self._soft_assignment(probabilities, threshold)
 
         return {
             "mode": mode,
@@ -756,9 +736,7 @@ class KeywordClusterer:
             similarities = cosine_similarity([embedding], self._centroids)[0]
             distances = 1 - similarities
         else:
-            raise ValueError(
-                f"Unknown metric: {metric}. Choose 'euclidean' or 'cosine'"
-            )
+            raise ValueError(f"Unknown metric: {metric}. Choose 'euclidean' or 'cosine'")
 
         return distances
 
@@ -794,10 +772,7 @@ class KeywordClusterer:
             return cluster_labels_list[nearest_idx], float(distances[nearest_idx])
         else:
             nearest_indices = np.argsort(distances)[:top_k]
-            return [
-                (cluster_labels_list[idx], float(distances[idx]))
-                for idx in nearest_indices
-            ]
+            return [(cluster_labels_list[idx], float(distances[idx])) for idx in nearest_indices]
 
     def get_all_distances(
         self,
@@ -825,9 +800,7 @@ class KeywordClusterer:
         distances = self.compute_distances(embedding, metric)
         cluster_labels_list = list(range(self.n_clusters))
 
-        distance_dict = {
-            label: float(dist) for label, dist in zip(cluster_labels_list, distances)
-        }
+        distance_dict = {label: float(dist) for label, dist in zip(cluster_labels_list, distances)}
 
         if sort_by_dist:
             distance_dict = dict(sorted(distance_dict.items(), key=lambda x: x[1]))
@@ -972,8 +945,7 @@ class KeywordClusterer:
 
         if include_embeddings and self.keywords:
             output_data["embeddings"] = {
-                kw: emb.tolist()
-                for kw, emb in zip(self.keywords, self.embeddings_matrix)
+                kw: emb.tolist() for kw, emb in zip(self.keywords, self.embeddings_matrix)
             }
 
         # Save
@@ -1051,15 +1023,9 @@ class KeywordClusterer:
         # Restore assignment configuration if available
         assignment_config = metadata.get("assignment_config", {})
         if assignment_config:
-            clusterer._default_assignment_mode = assignment_config.get(
-                "default_mode", "soft"
-            )
-            clusterer._default_threshold = assignment_config.get(
-                "default_threshold", 0.1
-            )
-            clusterer._default_metric = assignment_config.get(
-                "default_metric", "cosine"
-            )
+            clusterer._default_assignment_mode = assignment_config.get("default_mode", "soft")
+            clusterer._default_threshold = assignment_config.get("default_threshold", 0.1)
+            clusterer._default_metric = assignment_config.get("default_metric", "cosine")
 
         # Load centroids directly (no sklearn model needed for assignment)
         clusterer._centroids = np.array(data["centroids"])

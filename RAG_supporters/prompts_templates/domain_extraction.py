@@ -105,9 +105,7 @@ def QUESTION_TOPIC_RELEVANCE_PROB_PROMPT(include_reason: bool = False) -> str:
     str
         The formatted prompt template string
     """
-    reason_field = (
-        ', "reason": "Brief explanation for this probability"' if include_reason else ""
-    )
+    reason_field = ', "reason": "Brief explanation for this probability"' if include_reason else ""
 
     return f"""Given a user question and a list of topic descriptors, assess the probability of semantic connection between the question and each topic descriptor. Each probability should indicate how likely the question belongs to or is related to that topic.
 

@@ -64,14 +64,10 @@ class TopicDistanceCalculator:
         self.embedder = embedder
         self.metric = metric
         self._enable_cache = enable_cache
-        self._embedding_cache = (
-            {}
-        )  # Cache for text embeddings to avoid re-embedding same texts
+        self._embedding_cache = {}  # Cache for text embeddings to avoid re-embedding same texts
 
         if metric not in ["cosine", "euclidean"]:
-            raise ValueError(
-                f"Invalid metric: {metric}. Choose 'cosine' or 'euclidean'"
-            )
+            raise ValueError(f"Invalid metric: {metric}. Choose 'cosine' or 'euclidean'")
 
         # Load KeywordClusterer data
         if isinstance(keyword_clusterer_json, dict):
@@ -152,12 +148,8 @@ class TopicDistanceCalculator:
                 if "topic_descriptors" in stats:
                     self.topic_descriptors[int(cluster_id)] = stats["topic_descriptors"]
                     self.all_topic_descriptors.extend(stats["topic_descriptors"])
-            LOGGER.info(
-                f"Loaded topic descriptors for {len(self.topic_descriptors)} clusters"
-            )
-            LOGGER.info(
-                f"Total unique topic descriptors: {len(set(self.all_topic_descriptors))}"
-            )
+            LOGGER.info(f"Loaded topic descriptors for {len(self.topic_descriptors)} clusters")
+            LOGGER.info(f"Total unique topic descriptors: {len(set(self.all_topic_descriptors))}")
         else:
             LOGGER.warning("No cluster_stats found in KeywordClusterer JSON")
 
@@ -417,21 +409,15 @@ class TopicDistanceCalculator:
                     )
                 elif question_col in df.columns and pd.notna(row[question_col]):
                     # Embed text
-                    question_embedding = self._get_embedding_from_text(
-                        str(row[question_col])
-                    )
+                    question_embedding = self._get_embedding_from_text(str(row[question_col]))
                 else:
                     LOGGER.warning(f"Row {idx}: No valid question data")
                     question_embedding = None
 
                 if question_embedding is not None:
-                    question_distances = self._compute_distances_to_centroids(
-                        question_embedding
-                    )
+                    question_distances = self._compute_distances_to_centroids(question_embedding)
                     # Create JSON mapping {topic: distance}
-                    question_score = self._create_distance_json_mapping(
-                        question_distances
-                    )
+                    question_score = self._create_distance_json_mapping(question_distances)
                     successful_questions += 1
                 else:
                     skipped_questions += 1
@@ -440,11 +426,7 @@ class TopicDistanceCalculator:
 
                 # Process source
                 source_score = None
-                if (
-                    source_id_col
-                    and source_id_col in df.columns
-                    and pd.notna(row[source_id_col])
-                ):
+                if source_id_col and source_id_col in df.columns and pd.notna(row[source_id_col]):
                     # Fetch from database
                     if database is None:
                         raise ValueError("Database required when using source_id_col")
@@ -453,17 +435,13 @@ class TopicDistanceCalculator:
                     )
                 elif source_col in df.columns and pd.notna(row[source_col]):
                     # Embed text
-                    source_embedding = self._get_embedding_from_text(
-                        str(row[source_col])
-                    )
+                    source_embedding = self._get_embedding_from_text(str(row[source_col]))
                 else:
                     LOGGER.warning(f"Row {idx}: No valid source data")
                     source_embedding = None
 
                 if source_embedding is not None:
-                    source_distances = self._compute_distances_to_centroids(
-                        source_embedding
-                    )
+                    source_distances = self._compute_distances_to_centroids(source_embedding)
                     # Create JSON mapping {topic: distance}
                     source_score = self._create_distance_json_mapping(source_distances)
                     successful_sources += 1
@@ -542,7 +520,7 @@ def calculate_topic_distances_from_csv(
     save_on_interrupt: bool = True,
 ) -> pd.DataFrame:
     """
-    Convenience function to calculate topic distances from CSV.
+    Calculate topic distances from CSV file.
 
     This function processes a CSV file with question_text and source_text fields,
     calculating embedding distances to topic keywords from KeywordClusterer JSON.

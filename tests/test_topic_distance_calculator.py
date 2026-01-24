@@ -137,21 +137,15 @@ def test_topic_distance_calculator_with_csv():
         # Verify JSON mapping format
         for idx in range(len(result_df)):
             if pd.notna(result_df.at[idx, "question_term_distance_scores"]):
-                question_mapping = json.loads(
-                    result_df.at[idx, "question_term_distance_scores"]
-                )
+                question_mapping = json.loads(result_df.at[idx, "question_term_distance_scores"])
                 assert isinstance(question_mapping, dict)
                 # Should have topic descriptors as keys
                 assert all(isinstance(k, str) for k in question_mapping.keys())
                 # Should have distance values
-                assert all(
-                    isinstance(v, (int, float)) for v in question_mapping.values()
-                )
+                assert all(isinstance(v, (int, float)) for v in question_mapping.values())
 
             if pd.notna(result_df.at[idx, "source_term_distance_scores"]):
-                source_mapping = json.loads(
-                    result_df.at[idx, "source_term_distance_scores"]
-                )
+                source_mapping = json.loads(result_df.at[idx, "source_term_distance_scores"])
                 assert isinstance(source_mapping, dict)
                 assert all(isinstance(k, str) for k in source_mapping.keys())
                 assert all(isinstance(v, (int, float)) for v in source_mapping.values())
@@ -785,9 +779,7 @@ def test_cosine_vs_euclidean_metrics():
         keyword_clusterer_json=mock_clusterer_data,
         metric="euclidean",
     )
-    distances_euclidean = calculator_euclidean._compute_distances_to_centroids(
-        embedding
-    )
+    distances_euclidean = calculator_euclidean._compute_distances_to_centroids(embedding)
 
     # Results should be different
     assert not np.allclose(distances_cosine, distances_euclidean)
