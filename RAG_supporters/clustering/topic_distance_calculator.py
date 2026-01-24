@@ -55,16 +55,21 @@ class TopicDistanceCalculator:
         # Wrap embedder in KeywordEmbedder if necessary
         if embedder is not None:
             from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+
             if not isinstance(embedder, KeywordEmbedder):
                 LOGGER.info("Wrapping provided embedder in KeywordEmbedder")
                 embedder = KeywordEmbedder(embedding_model=embedder)
         self.embedder = embedder
         self.metric = metric
         self._enable_cache = enable_cache
-        self._embedding_cache = {}  # Cache for text embeddings to avoid re-embedding same texts
+        self._embedding_cache = (
+            {}
+        )  # Cache for text embeddings to avoid re-embedding same texts
 
         if metric not in ["cosine", "euclidean"]:
-            raise ValueError(f"Invalid metric: {metric}. Choose 'cosine' or 'euclidean'")
+            raise ValueError(
+                f"Invalid metric: {metric}. Choose 'cosine' or 'euclidean'"
+            )
 
         # Load KeywordClusterer data
         if isinstance(keyword_clusterer_json, dict):
@@ -101,7 +106,7 @@ class TopicDistanceCalculator:
             Number of cached embeddings
         """
         return len(self._embedding_cache)
-    
+
     @property
     def cache_info(self) -> Dict[str, Any]:
         """
@@ -133,7 +138,9 @@ class TopicDistanceCalculator:
             )
 
         self.centroids = np.array(self.clusterer_data["centroids"])
-        LOGGER.info(f"Loaded {len(self.centroids)} centroids with dimension {self.centroids.shape[1]}")
+        LOGGER.info(
+            f"Loaded {len(self.centroids)} centroids with dimension {self.centroids.shape[1]}"
+        )
 
         # Extract topic descriptors from cluster_stats
         self.topic_descriptors = {}
@@ -143,14 +150,16 @@ class TopicDistanceCalculator:
                 if "topic_descriptors" in stats:
                     self.topic_descriptors[int(cluster_id)] = stats["topic_descriptors"]
                     self.all_topic_descriptors.extend(stats["topic_descriptors"])
-            LOGGER.info(f"Loaded topic descriptors for {len(self.topic_descriptors)} clusters")
-            LOGGER.info(f"Total unique topic descriptors: {len(set(self.all_topic_descriptors))}")
+            LOGGER.info(
+                f"Loaded topic descriptors for {len(self.topic_descriptors)} clusters"
+            )
+            LOGGER.info(
+                f"Total unique topic descriptors: {len(set(self.all_topic_descriptors))}"
+            )
         else:
             LOGGER.warning("No cluster_stats found in KeywordClusterer JSON")
 
-    def _create_distance_json_mapping(
-        self, distances: np.ndarray
-    ) -> str:
+    def _create_distance_json_mapping(self, distances: np.ndarray) -> str:
         """
         Create JSON mapping of topic descriptors to their distances.
 
@@ -179,7 +188,7 @@ class TopicDistanceCalculator:
             )
 
         distance_mapping = {}
-        
+
         # Iterate through all clusters and their topic descriptors
         for cluster_id, distance in enumerate(distances):
             if cluster_id in self.topic_descriptors:
@@ -195,9 +204,7 @@ class TopicDistanceCalculator:
 
         return json.dumps(distance_mapping)
 
-    def _compute_distances_to_centroids(
-        self, embedding: np.ndarray
-    ) -> np.ndarray:
+    def _compute_distances_to_centroids(self, embedding: np.ndarray) -> np.ndarray:
         """
         Compute distances from embedding to all centroids.
 
@@ -262,10 +269,7 @@ class TopicDistanceCalculator:
         return embedding
 
     def _get_embedding_from_database(
-        self,
-        item_id: str,
-        database: Any,
-        collection_name: str = "questions"
+        self, item_id: str, database: Any, collection_name: str = "questions"
     ) -> Optional[np.ndarray]:
         """
         Fetch embedding from database by ID.
@@ -388,7 +392,11 @@ class TopicDistanceCalculator:
 
             # Process question
             question_score = None
-            if question_id_col and question_id_col in df.columns and pd.notna(row[question_id_col]):
+            if (
+                question_id_col
+                and question_id_col in df.columns
+                and pd.notna(row[question_id_col])
+            ):
                 # Fetch from database
                 if database is None:
                     raise ValueError("Database required when using question_id_col")
@@ -397,13 +405,17 @@ class TopicDistanceCalculator:
                 )
             elif question_col in df.columns and pd.notna(row[question_col]):
                 # Embed text
-                question_embedding = self._get_embedding_from_text(str(row[question_col]))
+                question_embedding = self._get_embedding_from_text(
+                    str(row[question_col])
+                )
             else:
                 LOGGER.warning(f"Row {idx}: No valid question data")
                 question_embedding = None
 
             if question_embedding is not None:
-                question_distances = self._compute_distances_to_centroids(question_embedding)
+                question_distances = self._compute_distances_to_centroids(
+                    question_embedding
+                )
                 # Create JSON mapping {topic: distance}
                 question_score = self._create_distance_json_mapping(question_distances)
                 successful_questions += 1
@@ -414,7 +426,11 @@ class TopicDistanceCalculator:
 
             # Process source
             source_score = None
-            if source_id_col and source_id_col in df.columns and pd.notna(row[source_id_col]):
+            if (
+                source_id_col
+                and source_id_col in df.columns
+                and pd.notna(row[source_id_col])
+            ):
                 # Fetch from database
                 if database is None:
                     raise ValueError("Database required when using source_id_col")
@@ -429,7 +445,9 @@ class TopicDistanceCalculator:
                 source_embedding = None
 
             if source_embedding is not None:
-                source_distances = self._compute_distances_to_centroids(source_embedding)
+                source_distances = self._compute_distances_to_centroids(
+                    source_embedding
+                )
                 # Create JSON mapping {topic: distance}
                 source_score = self._create_distance_json_mapping(source_distances)
                 successful_sources += 1

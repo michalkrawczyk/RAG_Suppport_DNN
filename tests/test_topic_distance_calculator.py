@@ -12,7 +12,9 @@ import pytest
 
 def test_topic_distance_calculator_basic():
     """Test basic functionality of TopicDistanceCalculator."""
-    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
 
     # Create mock KeywordClusterer data
     mock_clusterer_data = {
@@ -53,7 +55,9 @@ def test_topic_distance_calculator_basic():
 
 def test_topic_distance_calculator_with_csv():
     """Test CSV processing with topic distance calculator."""
-    from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        calculate_topic_distances_from_csv,
+    )
 
     # Create temporary files
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -61,16 +65,18 @@ def test_topic_distance_calculator_with_csv():
 
         # Create mock CSV
         csv_path = tmpdir / "test_data.csv"
-        df = pd.DataFrame({
-            "question_text": [
-                "What is machine learning?",
-                "How do databases work?",
-            ],
-            "source_text": [
-                "Machine learning is a subset of AI",
-                "Databases store and manage data",
-            ],
-        })
+        df = pd.DataFrame(
+            {
+                "question_text": [
+                    "What is machine learning?",
+                    "How do databases work?",
+                ],
+                "source_text": [
+                    "Machine learning is a subset of AI",
+                    "Databases store and manage data",
+                ],
+            }
+        )
         df.to_csv(csv_path, index=False)
 
         # Create mock KeywordClusterer JSON
@@ -124,15 +130,21 @@ def test_topic_distance_calculator_with_csv():
         # Verify JSON mapping format
         for idx in range(len(result_df)):
             if pd.notna(result_df.at[idx, "question_term_distance_scores"]):
-                question_mapping = json.loads(result_df.at[idx, "question_term_distance_scores"])
+                question_mapping = json.loads(
+                    result_df.at[idx, "question_term_distance_scores"]
+                )
                 assert isinstance(question_mapping, dict)
                 # Should have topic descriptors as keys
                 assert all(isinstance(k, str) for k in question_mapping.keys())
                 # Should have distance values
-                assert all(isinstance(v, (int, float)) for v in question_mapping.values())
+                assert all(
+                    isinstance(v, (int, float)) for v in question_mapping.values()
+                )
 
             if pd.notna(result_df.at[idx, "source_term_distance_scores"]):
-                source_mapping = json.loads(result_df.at[idx, "source_term_distance_scores"])
+                source_mapping = json.loads(
+                    result_df.at[idx, "source_term_distance_scores"]
+                )
                 assert isinstance(source_mapping, dict)
                 assert all(isinstance(k, str) for k in source_mapping.keys())
                 assert all(isinstance(v, (int, float)) for v in source_mapping.values())
@@ -140,7 +152,9 @@ def test_topic_distance_calculator_with_csv():
 
 def test_compute_distances():
     """Test distance computation."""
-    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
 
     # Create mock data
     mock_clusterer_data = {
@@ -168,7 +182,9 @@ def test_compute_distances():
 
 def test_invalid_metric():
     """Test that invalid metric raises ValueError."""
-    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
 
     mock_clusterer_data = {
         "centroids": [[1.0, 0.0, 0.0]],
@@ -184,7 +200,9 @@ def test_invalid_metric():
 
 def test_missing_centroids():
     """Test that missing centroids in JSON raises ValueError."""
-    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
 
     mock_clusterer_data = {
         "cluster_stats": {},
@@ -200,16 +218,20 @@ def test_missing_centroids():
 
 def test_missing_required_columns():
     """Test that missing required columns in CSV raises ValueError."""
-    from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        calculate_topic_distances_from_csv,
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
 
         # Create CSV with missing columns
         csv_path = tmpdir / "test_data.csv"
-        df = pd.DataFrame({
-            "wrong_column": ["some text"],
-        })
+        df = pd.DataFrame(
+            {
+                "wrong_column": ["some text"],
+            }
+        )
         df.to_csv(csv_path, index=False)
 
         # Create mock KeywordClusterer JSON
@@ -239,17 +261,21 @@ def test_missing_required_columns():
 
 def test_embedder_none_when_needed():
     """Test that missing embedder raises ValueError when text embedding is needed."""
-    from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        calculate_topic_distances_from_csv,
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
 
         # Create CSV with text columns
         csv_path = tmpdir / "test_data.csv"
-        df = pd.DataFrame({
-            "question_text": ["What is ML?"],
-            "source_text": ["ML is AI"],
-        })
+        df = pd.DataFrame(
+            {
+                "question_text": ["What is ML?"],
+                "source_text": ["ML is AI"],
+            }
+        )
         df.to_csv(csv_path, index=False)
 
         # Create mock KeywordClusterer JSON
@@ -273,19 +299,23 @@ def test_embedder_none_when_needed():
 
 def test_database_none_when_using_ids():
     """Test that missing database raises ValueError when using ID columns."""
-    from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        calculate_topic_distances_from_csv,
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
 
         # Create CSV with ID columns
         csv_path = tmpdir / "test_data.csv"
-        df = pd.DataFrame({
-            "question_id": ["q1"],
-            "source_id": ["s1"],
-            "question_text": ["What is ML?"],
-            "source_text": ["ML is AI"],
-        })
+        df = pd.DataFrame(
+            {
+                "question_id": ["q1"],
+                "source_id": ["s1"],
+                "question_text": ["What is ML?"],
+                "source_text": ["ML is AI"],
+            }
+        )
         df.to_csv(csv_path, index=False)
 
         # Create mock KeywordClusterer JSON
@@ -310,7 +340,9 @@ def test_database_none_when_using_ids():
 
 def test_unsupported_embedder_interface():
     """Test that embedder with unsupported interface raises ValueError."""
-    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
 
     # Create mock KeywordClusterer JSON
     mock_clusterer_data = {
@@ -336,7 +368,9 @@ def test_unsupported_embedder_interface():
 
 def test_create_distance_json_mapping():
     """Test creation of JSON mapping from distances to topic descriptors."""
-    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
 
     # Create mock data with topic descriptors
     mock_clusterer_data = {
@@ -378,9 +412,13 @@ def test_create_distance_json_mapping():
 
     # Check that all topic descriptors are present
     expected_topics = {
-        "machine learning", "AI", "neural networks",
-        "database", "SQL",
-        "web development", "javascript"
+        "machine learning",
+        "AI",
+        "neural networks",
+        "database",
+        "SQL",
+        "web development",
+        "javascript",
     }
     assert set(mapping.keys()) == expected_topics
 
@@ -401,7 +439,9 @@ def test_create_distance_json_mapping():
 
 def test_create_distance_json_mapping_duplicate_topics():
     """Test JSON mapping when topic descriptor appears in multiple clusters (should use minimum)."""
-    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
 
     # Create mock data where "AI" appears in two clusters with different distances
     mock_clusterer_data = {
@@ -440,17 +480,21 @@ def test_create_distance_json_mapping_duplicate_topics():
 
 def test_empty_text_handling():
     """Test handling of empty or None text values."""
-    from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        calculate_topic_distances_from_csv,
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
 
         # Create CSV with empty and None-like values
         csv_path = tmpdir / "test_data.csv"
-        df = pd.DataFrame({
-            "question_text": ["What is ML?", "", None, "Valid question"],
-            "source_text": ["ML is AI", None, "", "Valid source"],
-        })
+        df = pd.DataFrame(
+            {
+                "question_text": ["What is ML?", "", None, "Valid question"],
+                "source_text": ["ML is AI", None, "", "Valid source"],
+            }
+        )
         df.to_csv(csv_path, index=False)
 
         # Create mock KeywordClusterer JSON
@@ -503,7 +547,9 @@ def test_empty_text_handling():
 
 def test_embedding_dimension_mismatch():
     """Test error when embedding dimension doesn't match centroids."""
-    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
 
     # Create mock data with 384-dim centroids
     mock_clusterer_data = {
@@ -526,7 +572,9 @@ def test_embedding_dimension_mismatch():
 
 def test_database_embedding_not_found(caplog):
     """Test handling when database doesn't return embedding."""
-    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
 
     # Create mock database that returns None
     class MockDatabase:
@@ -548,9 +596,7 @@ def test_database_embedding_not_found(caplog):
     # Should return None and log warning
     with caplog.at_level(logging.WARNING):
         result = calculator._get_embedding_from_database(
-            item_id="test_id",
-            database=database,
-            collection_name="questions"
+            item_id="test_id", database=database, collection_name="questions"
         )
 
     assert result is None
@@ -561,7 +607,9 @@ def test_database_embedding_not_found(caplog):
 
 def test_embedder_wrapping():
     """Test that non-KeywordEmbedder embedders are automatically wrapped."""
-    from RAG_supporters.clustering.topic_distance_calculator import TopicDistanceCalculator
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
 
     # Create mock sentence-transformers-like embedder
     class MockSentenceTransformer:
@@ -585,6 +633,7 @@ def test_embedder_wrapping():
 
     # Should be wrapped in KeywordEmbedder
     from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+
     assert isinstance(calculator.embedder, KeywordEmbedder)
 
     # Should still work for embedding text
