@@ -319,6 +319,7 @@ class TopicDistanceCalculator:
         database: Optional[Any] = None,
         output_path: Optional[Union[str, Path]] = None,
         show_progress: bool = True,
+        save_on_interrupt: bool = True,
     ) -> pd.DataFrame:
         """
         Calculate embedding distances to topic keywords for CSV file.
@@ -341,6 +342,10 @@ class TopicDistanceCalculator:
             Path to save output CSV. If None, doesn't save.
         show_progress : bool
             Show progress bar. Default is True.
+        save_on_interrupt : bool
+            If True, saves partial results when interrupted with KeyboardInterrupt.
+            Partial results are saved with "_partial" suffix added to the filename.
+            Default is True.
 
         Returns
         -------
@@ -387,74 +392,113 @@ class TopicDistanceCalculator:
         if show_progress:
             iterator = tqdm(iterator, desc="Calculating topic distances", unit="row")
 
-        for idx in iterator:
-            row = df.iloc[idx]
+        interrupted = False
+        last_processed_idx = -1
 
-            # Process question
-            question_score = None
-            if (
-                question_id_col
-                and question_id_col in df.columns
-                and pd.notna(row[question_id_col])
-            ):
-                # Fetch from database
-                if database is None:
-                    raise ValueError("Database required when using question_id_col")
-                question_embedding = self._get_embedding_from_database(
-                    str(row[question_id_col]), database, "questions"
+        try:
+            for idx in iterator:
+                row = df.iloc[idx]
+
+                # Process question
+                question_score = None
+                if (
+                    question_id_col
+                    and question_id_col in df.columns
+                    and pd.notna(row[question_id_col])
+                ):
+                    # Fetch from database
+                    if database is None:
+                        raise ValueError("Database required when using question_id_col")
+                    question_embedding = self._get_embedding_from_database(
+                        str(row[question_id_col]), database, "questions"
+                    )
+                elif question_col in df.columns and pd.notna(row[question_col]):
+                    # Embed text
+                    question_embedding = self._get_embedding_from_text(
+                        str(row[question_col])
+                    )
+                else:
+                    LOGGER.warning(f"Row {idx}: No valid question data")
+                    question_embedding = None
+
+                if question_embedding is not None:
+                    question_distances = self._compute_distances_to_centroids(
+                        question_embedding
+                    )
+                    # Create JSON mapping {topic: distance}
+                    question_score = self._create_distance_json_mapping(question_distances)
+                    successful_questions += 1
+                else:
+                    skipped_questions += 1
+
+                question_distance_scores.append(question_score)
+
+                # Process source
+                source_score = None
+                if (
+                    source_id_col
+                    and source_id_col in df.columns
+                    and pd.notna(row[source_id_col])
+                ):
+                    # Fetch from database
+                    if database is None:
+                        raise ValueError("Database required when using source_id_col")
+                    source_embedding = self._get_embedding_from_database(
+                        str(row[source_id_col]), database, "sources"
+                    )
+                elif source_col in df.columns and pd.notna(row[source_col]):
+                    # Embed text
+                    source_embedding = self._get_embedding_from_text(str(row[source_col]))
+                else:
+                    LOGGER.warning(f"Row {idx}: No valid source data")
+                    source_embedding = None
+
+                if source_embedding is not None:
+                    source_distances = self._compute_distances_to_centroids(
+                        source_embedding
+                    )
+                    # Create JSON mapping {topic: distance}
+                    source_score = self._create_distance_json_mapping(source_distances)
+                    successful_sources += 1
+                else:
+                    skipped_sources += 1
+
+                source_distance_scores.append(source_score)
+                last_processed_idx = idx
+
+        except KeyboardInterrupt:
+            interrupted = True
+            LOGGER.warning(
+                f"\nProcessing interrupted by user at row {last_processed_idx + 1}/{len(df)}"
+            )
+
+            if save_on_interrupt and output_path and last_processed_idx >= 0:
+                # Truncate dataframe to only processed rows
+                df_partial = df.iloc[: last_processed_idx + 1].copy()
+                
+                # Assign partial results
+                df_partial["question_term_distance_scores"] = question_distance_scores
+                df_partial["source_term_distance_scores"] = source_distance_scores
+                
+                # Generate partial output filename
+                output_path_obj = Path(output_path)
+                partial_output_path = output_path_obj.parent / (
+                    output_path_obj.stem + "_partial" + output_path_obj.suffix
                 )
-            elif question_col in df.columns and pd.notna(row[question_col]):
-                # Embed text
-                question_embedding = self._get_embedding_from_text(
-                    str(row[question_col])
+                
+                # Save partial results
+                df_partial.to_csv(partial_output_path, index=False)
+                LOGGER.info(
+                    f"Saved partial results ({last_processed_idx + 1} rows) to {partial_output_path}"
                 )
-            else:
-                LOGGER.warning(f"Row {idx}: No valid question data")
-                question_embedding = None
-
-            if question_embedding is not None:
-                question_distances = self._compute_distances_to_centroids(
-                    question_embedding
+                LOGGER.info(
+                    f"Partial processing summary - Questions: {successful_questions} processed, "
+                    f"{skipped_questions} skipped. Sources: {successful_sources} processed, "
+                    f"{skipped_sources} skipped."
                 )
-                # Create JSON mapping {topic: distance}
-                question_score = self._create_distance_json_mapping(question_distances)
-                successful_questions += 1
-            else:
-                skipped_questions += 1
-
-            question_distance_scores.append(question_score)
-
-            # Process source
-            source_score = None
-            if (
-                source_id_col
-                and source_id_col in df.columns
-                and pd.notna(row[source_id_col])
-            ):
-                # Fetch from database
-                if database is None:
-                    raise ValueError("Database required when using source_id_col")
-                source_embedding = self._get_embedding_from_database(
-                    str(row[source_id_col]), database, "sources"
-                )
-            elif source_col in df.columns and pd.notna(row[source_col]):
-                # Embed text
-                source_embedding = self._get_embedding_from_text(str(row[source_col]))
-            else:
-                LOGGER.warning(f"Row {idx}: No valid source data")
-                source_embedding = None
-
-            if source_embedding is not None:
-                source_distances = self._compute_distances_to_centroids(
-                    source_embedding
-                )
-                # Create JSON mapping {topic: distance}
-                source_score = self._create_distance_json_mapping(source_distances)
-                successful_sources += 1
-            else:
-                skipped_sources += 1
-
-            source_distance_scores.append(source_score)
+            
+            # Re-raise to allow caller to handle if needed
+            raise
 
         # Assign results to dataframe columns
         df["question_term_distance_scores"] = question_distance_scores
@@ -488,6 +532,7 @@ def calculate_topic_distances_from_csv(
     enable_cache: bool = True,
     output_path: Optional[Union[str, Path]] = None,
     show_progress: bool = True,
+    save_on_interrupt: bool = True,
 ) -> pd.DataFrame:
     """
     Convenience function to calculate topic distances from CSV.
@@ -524,6 +569,10 @@ def calculate_topic_distances_from_csv(
         Path to save output CSV
     show_progress : bool
         Show progress bar. Default is True.
+    save_on_interrupt : bool
+        If True, saves partial results when interrupted with KeyboardInterrupt.
+        Partial results are saved with "_partial" suffix added to the filename.
+        Default is True.
 
     Returns
     -------
@@ -574,4 +623,5 @@ def calculate_topic_distances_from_csv(
         database=database,
         output_path=output_path,
         show_progress=show_progress,
+        save_on_interrupt=save_on_interrupt,
     )
