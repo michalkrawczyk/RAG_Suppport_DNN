@@ -19,13 +19,13 @@ try:
     from pydantic import BaseModel, Field, field_validator, model_validator
     from tqdm import tqdm
 
-    from prompts_templates.domain_extraction import (
+    from RAG_supporters.prompts_templates.domain_extraction import (
         QUESTION_TOPIC_RELEVANCE_PROB_PROMPT,
         QUESTION_DOMAIN_ASSESS_PROMPT,
         QUESTION_DOMAIN_GUESS_PROMPT,
         SRC_DOMAIN_EXTRACTION_PROMPT,
     )
-    from utils.text_utils import is_empty_text
+    from RAG_supporters.utils.text_utils import is_empty_text
 
     class OperationMode(str, Enum):
         """Operation modes for domain analysis."""

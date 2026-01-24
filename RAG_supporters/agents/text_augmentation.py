@@ -17,12 +17,12 @@ try:
     from langchain_core.messages import HumanMessage
     from tqdm import tqdm
 
-    from prompts_templates.text_augmentation import (
+    from RAG_supporters.prompts_templates.text_augmentation import (
         FULL_TEXT_REPHRASE_PROMPT,
         SENTENCE_REPHRASE_PROMPT,
         VERIFY_MEANING_PRESERVATION_PROMPT,
     )
-    from utils.text_splitters import split_into_sentences
+    from RAG_supporters.utils.text_splitters import split_into_sentences
 
     class TextAugmentationAgent:
         """
@@ -246,6 +246,39 @@ try:
                 "EQUIVALENT" in result.upper() if result else False
                 for result in results
             ]
+
+        def rephrase_text(
+            self, text: str, mode: str = "full", verify: Optional[bool] = None
+        ) -> Optional[str]:
+            """
+            Rephrase text using the specified mode.
+
+            This is a unified interface that dispatches to the appropriate
+            rephrasing method based on the mode parameter.
+
+            Parameters
+            ----------
+            text : str
+                The text to rephrase.
+            mode : str, optional
+                Rephrasing mode: "full" (rephrase entire text), 
+                "sentence" or "random" (rephrase one random sentence).
+                Default is "full".
+            verify : Optional[bool], optional
+                Whether to verify meaning preservation. If None, uses instance default.
+
+            Returns
+            -------
+            Optional[str]
+                The rephrased text, or None if rephrasing failed.
+            """
+            if mode == "full":
+                return self.rephrase_full_text(text, verify)
+            elif mode in ("sentence", "random"):
+                return self.rephrase_random_sentence(text, verify)
+            else:
+                LOGGER.error(f"Invalid mode: {mode}. Must be 'full', 'sentence', or 'random'")
+                return None
 
         def rephrase_full_text(
             self, text: str, verify: Optional[bool] = None

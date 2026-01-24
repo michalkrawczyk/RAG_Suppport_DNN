@@ -18,8 +18,8 @@ try:
     from pydantic import BaseModel, Field, field_validator, model_validator
     from tqdm import tqdm
 
-    from prompts_templates.rag_verifiers import SINGLE_SRC_SCORE_PROMPT
-    from utils.text_utils import is_empty_text
+    from RAG_supporters.prompts_templates.rag_verifiers import SINGLE_SRC_SCORE_PROMPT
+    from RAG_supporters.utils.text_utils import is_empty_text
 
     # Pydantic Models for validation (v2.10.3 compatible)
     class ScoreRange(BaseModel):

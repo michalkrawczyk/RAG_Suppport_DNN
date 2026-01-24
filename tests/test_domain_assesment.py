@@ -6,8 +6,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-import numpy as np
-import pandas as pd
 import pytest
 
 # Skip all tests if required dependencies are not installed
@@ -15,6 +13,12 @@ pytest.importorskip("langchain")
 pytest.importorskip("langchain_core")
 pytest.importorskip("langgraph")
 pytest.importorskip("pydantic")
+pytest.importorskip("tqdm")
+pytest.importorskip("numpy")
+pytest.importorskip("pandas")
+
+import numpy as np
+import pandas as pd
 
 
 def test_pydantic_models_import():
@@ -455,8 +459,7 @@ def test_check_openai_llm():
     assert isinstance(agent._is_openai_llm, bool)
 
 
-@patch("RAG_supporters.agents.domain_assesment.DomainAnalysisAgent.graph")
-def test_extract_domains_success(mock_graph):
+def test_extract_domains_success():
     """Test extract_domains method with successful result."""
     from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
 
@@ -475,6 +478,7 @@ def test_extract_domains_success(mock_graph):
         "error": None,
     }
 
+    mock_graph = MagicMock()
     mock_graph.invoke = MagicMock(return_value=mock_result)
     agent.graph = mock_graph
 
@@ -485,8 +489,7 @@ def test_extract_domains_success(mock_graph):
     assert "primary_theme" in result
 
 
-@patch("RAG_supporters.agents.domain_assesment.DomainAnalysisAgent.graph")
-def test_extract_domains_failure(mock_graph):
+def test_extract_domains_failure():
     """Test extract_domains method with failure."""
     from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
 
@@ -499,6 +502,7 @@ def test_extract_domains_failure(mock_graph):
         "error": "Parsing failed",
     }
 
+    mock_graph = MagicMock()
     mock_graph.invoke = MagicMock(return_value=mock_result)
     agent.graph = mock_graph
 
@@ -507,8 +511,7 @@ def test_extract_domains_failure(mock_graph):
     assert result is None
 
 
-@patch("RAG_supporters.agents.domain_assesment.DomainAnalysisAgent.graph")
-def test_guess_domains(mock_graph):
+def test_guess_domains():
     """Test guess_domains method."""
     from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
 
@@ -532,6 +535,7 @@ def test_guess_domains(mock_graph):
         "error": None,
     }
 
+    mock_graph = MagicMock()
     mock_graph.invoke = MagicMock(return_value=mock_result)
     agent.graph = mock_graph
 
@@ -542,8 +546,7 @@ def test_guess_domains(mock_graph):
     assert "question_category" in result
 
 
-@patch("RAG_supporters.agents.domain_assesment.DomainAnalysisAgent.graph")
-def test_assess_domains(mock_graph):
+def test_assess_domains():
     """Test assess_domains method."""
     from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
 
@@ -568,6 +571,7 @@ def test_assess_domains(mock_graph):
         "error": None,
     }
 
+    mock_graph = MagicMock()
     mock_graph.invoke = MagicMock(return_value=mock_result)
     agent.graph = mock_graph
 
@@ -579,8 +583,7 @@ def test_assess_domains(mock_graph):
     assert "primary_topics" in result
 
 
-@patch("RAG_supporters.agents.domain_assesment.DomainAnalysisAgent.graph")
-def test_assess_domains_invalid_json(mock_graph):
+def test_assess_domains_invalid_json():
     """Test assess_domains with invalid JSON string."""
     from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
 
@@ -594,8 +597,7 @@ def test_assess_domains_invalid_json(mock_graph):
         agent.assess_domains("What is photosynthesis?", invalid_json)
 
 
-@patch("RAG_supporters.agents.domain_assesment.DomainAnalysisAgent.graph")
-def test_assess_topic_relevance_prob(mock_graph):
+def test_assess_topic_relevance_prob():
     """Test assess_topic_relevance_prob method."""
     from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
 
@@ -619,6 +621,7 @@ def test_assess_topic_relevance_prob(mock_graph):
         "error": None,
     }
 
+    mock_graph = MagicMock()
     mock_graph.invoke = MagicMock(return_value=mock_result)
     agent.graph = mock_graph
 

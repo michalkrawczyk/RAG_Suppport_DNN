@@ -12,8 +12,12 @@ Tests cover:
 
 import json
 import tempfile
+from pathlib import Path
 
 import pytest
+
+pytest.importorskip("numpy")
+pytest.importorskip("sklearn")
 
 from RAG_supporters.dataset.dataset_splitter import (
     DatasetSplitter,

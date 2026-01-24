@@ -3,13 +3,15 @@
 import logging
 from unittest.mock import MagicMock, Mock, patch
 
-import pandas as pd
 import pytest
 
 # Skip all tests if required dependencies are not installed
 pytest.importorskip("langchain")
 pytest.importorskip("langchain_core")
+pytest.importorskip("tqdm")
 pytest.importorskip("pandas")
+
+import pandas as pd
 
 
 def test_agent_import():
