@@ -190,8 +190,7 @@ class TestQuestionAugmentationAgentGenerateAlternatives:
         
         result = agent.generate_alternative_questions(
             source="Photosynthesis is important.",
-            n=2,
-            domain="biology"
+            n=2
         )
         
         assert result is not None
