@@ -641,5 +641,342 @@ def test_embedder_wrapping():
     assert embedding.shape == (384,)
 
 
+def test_cache_functionality():
+    """Test embedding cache functionality."""
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
+
+    # Create mock KeywordClusterer data
+    mock_clusterer_data = {
+        "centroids": [np.random.rand(384).tolist()],
+        "cluster_stats": {},
+    }
+
+    # Create mock embedder that tracks calls
+    class MockEmbedderWithTracking:
+        def __init__(self):
+            self.call_count = 0
+
+        def create_embeddings(self, texts):
+            self.call_count += len(texts)
+            return {text: np.random.rand(384) for text in texts}
+
+    embedder = MockEmbedderWithTracking()
+
+    # Test with cache enabled
+    calculator = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        embedder=embedder,
+        metric="cosine",
+        enable_cache=True,
+    )
+
+    # Embed same text twice
+    text = "test text for caching"
+    embedding1 = calculator._get_embedding_from_text(text)
+    embedding2 = calculator._get_embedding_from_text(text)
+
+    # Should be called only once due to cache
+    assert embedder.call_count == 1
+    assert calculator.cache_size == 1
+    np.testing.assert_array_equal(embedding1, embedding2)
+
+    # Cache info should be available
+    cache_info = calculator.cache_info
+    assert cache_info["enabled"] is True
+    assert cache_info["size"] == 1
+    assert text in cache_info["texts"]
+
+    # Clear cache
+    cleared = calculator.clear_cache()
+    assert cleared == 1
+    assert calculator.cache_size == 0
+
+
+def test_cache_disabled():
+    """Test that cache can be disabled."""
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
+
+    # Create mock KeywordClusterer data
+    mock_clusterer_data = {
+        "centroids": [np.random.rand(384).tolist()],
+        "cluster_stats": {},
+    }
+
+    # Create mock embedder that tracks calls
+    class MockEmbedderWithTracking:
+        def __init__(self):
+            self.call_count = 0
+
+        def create_embeddings(self, texts):
+            self.call_count += len(texts)
+            return {text: np.random.rand(384) for text in texts}
+
+    embedder = MockEmbedderWithTracking()
+
+    # Test with cache disabled
+    calculator = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        embedder=embedder,
+        metric="cosine",
+        enable_cache=False,
+    )
+
+    # Embed same text twice
+    text = "test text without caching"
+    calculator._get_embedding_from_text(text)
+    calculator._get_embedding_from_text(text)
+
+    # Should be called twice without cache
+    assert embedder.call_count == 2
+    assert calculator.cache_size == 0
+
+    # Cache info should show disabled
+    cache_info = calculator.cache_info
+    assert cache_info["enabled"] is False
+    assert cache_info["size"] == 0
+
+
+def test_cosine_vs_euclidean_metrics():
+    """Test that different metrics produce different results."""
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
+
+    # Create mock data
+    mock_clusterer_data = {
+        "centroids": [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ],
+        "cluster_stats": {},
+    }
+
+    # Test embedding
+    embedding = np.array([0.8, 0.6, 0.0])
+
+    # Cosine distance
+    calculator_cosine = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        metric="cosine",
+    )
+    distances_cosine = calculator_cosine._compute_distances_to_centroids(embedding)
+
+    # Euclidean distance
+    calculator_euclidean = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        metric="euclidean",
+    )
+    distances_euclidean = calculator_euclidean._compute_distances_to_centroids(
+        embedding
+    )
+
+    # Results should be different
+    assert not np.allclose(distances_cosine, distances_euclidean)
+
+
+def test_distance_json_mapping_invalid_dimensions():
+    """Test error when distance array dimensions don't match centroids."""
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
+
+    # Create mock data with 3 clusters
+    mock_clusterer_data = {
+        "centroids": [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        "cluster_stats": {
+            "0": {"topic_descriptors": ["topic1"], "size": 10},
+            "1": {"topic_descriptors": ["topic2"], "size": 10},
+            "2": {"topic_descriptors": ["topic3"], "size": 10},
+        },
+    }
+
+    calculator = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        metric="cosine",
+    )
+
+    # Wrong number of distances (2 instead of 3)
+    wrong_distances = np.array([0.1, 0.2])
+
+    with pytest.raises(ValueError, match="does not match"):
+        calculator._create_distance_json_mapping(wrong_distances)
+
+
+def test_keyboard_interrupt_handling_with_save():
+    """Test that keyboard interrupt saves partial results when enabled."""
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+
+        # Create CSV with multiple rows
+        csv_path = tmpdir / "test_data.csv"
+        df = pd.DataFrame(
+            {
+                "question_text": [f"Question {i}" for i in range(10)],
+                "source_text": [f"Source {i}" for i in range(10)],
+            }
+        )
+        df.to_csv(csv_path, index=False)
+
+        # Create mock KeywordClusterer JSON
+        clusterer_path = tmpdir / "clusters.json"
+        mock_clusterer_data = {
+            "centroids": [np.random.rand(384).tolist()],
+            "cluster_stats": {
+                "0": {"topic_descriptors": ["test"], "size": 10},
+            },
+        }
+        with open(clusterer_path, "w") as f:
+            json.dump(mock_clusterer_data, f)
+
+        # Create embedder that raises KeyboardInterrupt after 3 calls
+        class InterruptingEmbedder:
+            def __init__(self):
+                self.call_count = 0
+
+            def create_embeddings(self, texts):
+                self.call_count += 1
+                if self.call_count > 3:
+                    raise KeyboardInterrupt("Simulated interrupt")
+                return {text: np.random.rand(384) for text in texts}
+
+        embedder = InterruptingEmbedder()
+
+        calculator = TopicDistanceCalculator(
+            keyword_clusterer_json=mock_clusterer_data,
+            embedder=embedder,
+            metric="cosine",
+        )
+
+        output_path = tmpdir / "results.csv"
+
+        # Should raise KeyboardInterrupt but save partial results
+        with pytest.raises(KeyboardInterrupt):
+            calculator.calculate_distances_for_csv(
+                csv_path=csv_path,
+                output_path=output_path,
+                show_progress=False,
+                save_on_interrupt=True,
+            )
+
+        # Check that partial file was created
+        partial_output_path = tmpdir / "results_partial.csv"
+        assert partial_output_path.exists()
+
+        # Verify partial results
+        partial_df = pd.read_csv(partial_output_path)
+        assert len(partial_df) > 0
+        assert len(partial_df) < 10  # Should be less than full dataset
+
+
+def test_keyboard_interrupt_handling_no_save():
+    """Test that keyboard interrupt doesn't save when disabled."""
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+
+        # Create CSV
+        csv_path = tmpdir / "test_data.csv"
+        df = pd.DataFrame(
+            {
+                "question_text": [f"Question {i}" for i in range(10)],
+                "source_text": [f"Source {i}" for i in range(10)],
+            }
+        )
+        df.to_csv(csv_path, index=False)
+
+        # Create mock KeywordClusterer JSON
+        clusterer_path = tmpdir / "clusters.json"
+        mock_clusterer_data = {
+            "centroids": [np.random.rand(384).tolist()],
+            "cluster_stats": {},
+        }
+        with open(clusterer_path, "w") as f:
+            json.dump(mock_clusterer_data, f)
+
+        # Create embedder that raises KeyboardInterrupt
+        class InterruptingEmbedder:
+            def __init__(self):
+                self.call_count = 0
+
+            def create_embeddings(self, texts):
+                self.call_count += 1
+                if self.call_count > 2:
+                    raise KeyboardInterrupt("Simulated interrupt")
+                return {text: np.random.rand(384) for text in texts}
+
+        embedder = InterruptingEmbedder()
+
+        calculator = TopicDistanceCalculator(
+            keyword_clusterer_json=mock_clusterer_data,
+            embedder=embedder,
+            metric="cosine",
+        )
+
+        output_path = tmpdir / "results.csv"
+
+        # Should raise KeyboardInterrupt without saving
+        with pytest.raises(KeyboardInterrupt):
+            calculator.calculate_distances_for_csv(
+                csv_path=csv_path,
+                output_path=output_path,
+                show_progress=False,
+                save_on_interrupt=False,
+            )
+
+        # Partial file should not exist
+        partial_output_path = tmpdir / "results_partial.csv"
+        assert not partial_output_path.exists()
+
+
+def test_database_interface_chromadb_style():
+    """Test database interface using ChromaDB-style get method."""
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
+
+    # Create mock ChromaDB-style database
+    class MockChromaDB:
+        def get(self, ids, include=None):
+            if "embeddings" in include:
+                return {
+                    "embeddings": [np.random.rand(384).tolist()],
+                    "ids": ids,
+                }
+            return {"ids": ids}
+
+    mock_clusterer_data = {
+        "centroids": [np.random.rand(384).tolist()],
+        "cluster_stats": {},
+    }
+
+    calculator = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        metric="cosine",
+    )
+
+    database = MockChromaDB()
+    embedding = calculator._get_embedding_from_database(
+        item_id="test_id", database=database, collection_name="questions"
+    )
+
+    assert embedding is not None
+    assert embedding.shape == (384,)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
