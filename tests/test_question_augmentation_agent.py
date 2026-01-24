@@ -161,7 +161,7 @@ class TestQuestionAugmentationAgentGenerateAlternatives:
         
         mock_llm = Mock(spec=BaseChatModel)
         mock_llm.invoke = Mock(return_value=AIMessage(
-            content='["Question 1?", "Question 2?", "Question 3?"]'
+            content='{"questions": ["Question 1?", "Question 2?", "Question 3?"]}'
         ))
         
         agent = QuestionAugmentationAgent(llm=mock_llm)
@@ -175,15 +175,15 @@ class TestQuestionAugmentationAgentGenerateAlternatives:
         assert isinstance(result, list)
         assert len(result) <= 3
 
-    def test_generate_alternative_questions_with_domain(self):
-        """Test alternative question generation with domain."""
+    def test_generate_alternative_questions_with_allow_vague(self):
+        """Test alternative question generation with allow_vague parameter."""
         from RAG_supporters.agents.question_augmentation_agent import QuestionAugmentationAgent
         from langchain_core.language_models import BaseChatModel
         from langchain_core.messages import AIMessage
         
         mock_llm = Mock(spec=BaseChatModel)
         mock_llm.invoke = Mock(return_value=AIMessage(
-            content='["What is photosynthesis?", "How do plants produce energy?"]'
+            content='{"questions": ["What is photosynthesis?", "How do plants produce energy?"]}'
         ))
         
         agent = QuestionAugmentationAgent(llm=mock_llm)
@@ -191,7 +191,7 @@ class TestQuestionAugmentationAgentGenerateAlternatives:
         result = agent.generate_alternative_questions(
             source="Photosynthesis is important.",
             n=2,
-            domain="biology"
+            allow_vague=True
         )
         
         assert result is not None
