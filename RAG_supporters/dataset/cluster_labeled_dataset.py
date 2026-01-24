@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from dataset.sqlite_storage import SQLiteStorageManager
+from .sqlite_storage import SQLiteStorageManager
 from torch.utils.data import Dataset, Subset
 
 

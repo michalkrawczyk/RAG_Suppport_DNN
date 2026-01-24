@@ -12,9 +12,9 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from clustering.clustering_data import ClusteringData
+from RAG_supporters.clustering.clustering_data import ClusteringData
 from scipy.spatial.distance import cdist
-from utils.text_utils import normalize_string
+from RAG_supporters.utils.text_utils import normalize_string
 
 logger = logging.getLogger(__name__)
 

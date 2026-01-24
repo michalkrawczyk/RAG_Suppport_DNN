@@ -11,7 +11,7 @@ from datasets import concatenate_datasets, load_dataset
 from langchain_chroma import Chroma
 from tqdm import tqdm
 
-from dataset.rag_dataset import (
+from ..rag_dataset import (
     BaseRAGDatasetGenerator,
     SamplePairingType,
     SampleTripletRAGChroma,

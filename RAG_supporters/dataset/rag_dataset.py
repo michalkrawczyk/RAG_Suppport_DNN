@@ -16,7 +16,7 @@ from langchain_chroma import Chroma
 from langchain_core.language_models import BaseChatModel
 from tqdm import tqdm
 
-from prompts_templates.rag_verifiers import (
+from RAG_supporters.prompts_templates.rag_verifiers import (
     SINGLE_SRC_SCORE_PROMPT,
     SRC_COMPARE_PROMPT_WITH_SCORES,
 )

@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
-from utils.text_utils import normalize_string
+from RAG_supporters.utils.text_utils import normalize_string
 
 LOGGER = logging.getLogger(__name__)
 

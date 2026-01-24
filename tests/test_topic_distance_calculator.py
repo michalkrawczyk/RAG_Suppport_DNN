@@ -106,8 +106,10 @@ def test_topic_distance_calculator_with_csv():
 
         # Create mock embedder
         class MockEmbedder:
-            def create_embeddings(self, texts):
-                return {text: np.random.rand(384) for text in texts}
+            def encode(self, texts, **kwargs):
+                if isinstance(texts, str):
+                    texts = [texts]
+                return np.array([np.random.rand(384) for _ in texts])
 
         embedder = MockEmbedder()
 
@@ -245,8 +247,10 @@ def test_missing_required_columns():
 
         # Create mock embedder
         class MockEmbedder:
-            def create_embeddings(self, texts):
-                return {text: np.random.rand(384) for text in texts}
+            def encode(self, texts, **kwargs):
+                if isinstance(texts, str):
+                    texts = [texts]
+                return np.array([np.random.rand(384) for _ in texts])
 
         embedder = MockEmbedder()
 
@@ -513,8 +517,10 @@ def test_empty_text_handling():
 
         # Create mock embedder
         class MockEmbedder:
-            def create_embeddings(self, texts):
-                return {text: np.random.rand(384) for text in texts}
+            def encode(self, texts, **kwargs):
+                if isinstance(texts, str):
+                    texts = [texts]
+                return np.array([np.random.rand(384) for _ in texts])
 
         embedder = MockEmbedder()
 
@@ -658,9 +664,11 @@ def test_cache_functionality():
         def __init__(self):
             self.call_count = 0
 
-        def create_embeddings(self, texts):
+        def encode(self, texts, **kwargs):
+            if isinstance(texts, str):
+                texts = [texts]
             self.call_count += len(texts)
-            return {text: np.random.rand(384) for text in texts}
+            return np.array([np.random.rand(384) for _ in texts])
 
     embedder = MockEmbedderWithTracking()
 
@@ -711,9 +719,11 @@ def test_cache_disabled():
         def __init__(self):
             self.call_count = 0
 
-        def create_embeddings(self, texts):
+        def encode(self, texts, **kwargs):
+            if isinstance(texts, str):
+                texts = [texts]
             self.call_count += len(texts)
-            return {text: np.random.rand(384) for text in texts}
+            return np.array([np.random.rand(384) for _ in texts])
 
     embedder = MockEmbedderWithTracking()
 
@@ -845,11 +855,13 @@ def test_keyboard_interrupt_handling_with_save():
             def __init__(self):
                 self.call_count = 0
 
-            def create_embeddings(self, texts):
+            def encode(self, texts, **kwargs):
+                if isinstance(texts, str):
+                    texts = [texts]
                 self.call_count += 1
                 if self.call_count > 3:
                     raise KeyboardInterrupt("Simulated interrupt")
-                return {text: np.random.rand(384) for text in texts}
+                return np.array([np.random.rand(384) for _ in texts])
 
         embedder = InterruptingEmbedder()
 
@@ -913,11 +925,13 @@ def test_keyboard_interrupt_handling_no_save():
             def __init__(self):
                 self.call_count = 0
 
-            def create_embeddings(self, texts):
+            def encode(self, texts, **kwargs):
+                if isinstance(texts, str):
+                    texts = [texts]
                 self.call_count += 1
                 if self.call_count > 2:
                     raise KeyboardInterrupt("Simulated interrupt")
-                return {text: np.random.rand(384) for text in texts}
+                return np.array([np.random.rand(384) for _ in texts])
 
         embedder = InterruptingEmbedder()
 

@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Any, List, Optional, Union
 
 import numpy as np
-from clustering.clustering_data import ClusteringData
-from embeddings.keyword_embedder import KeywordEmbedder
+from RAG_supporters.clustering.clustering_data import ClusteringData
+from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
 from tqdm import tqdm
 
 from .domain_assessment_parser import DomainAssessmentParser
