@@ -69,10 +69,10 @@ class TestSourceEvaluationAgentInit:
         assert agent._max_retries == 5
 
 
-class TestSourceEvaluationAgentEvaluateSource:
-    """Test evaluate_source method."""
+class TestSourceEvaluationAgentEvaluate:
+    """Test evaluate method."""
 
-    def test_evaluate_source_basic(self):
+    def test_evaluate_basic(self):
         """Test basic source evaluation."""
         from RAG_supporters.agents.source_assesment import SourceEvaluationAgent
         from langchain_core.language_models import BaseChatModel
@@ -95,16 +95,17 @@ class TestSourceEvaluationAgentEvaluateSource:
 
         agent = SourceEvaluationAgent(llm=mock_llm)
 
-        result = agent.evaluate_source(
+        result = agent.evaluate(
             question="What is photosynthesis?",
             source_content="Photosynthesis is the process by which plants convert light into energy.",
         )
 
         assert result is not None
-        assert "evaluation" in result
-        assert result["error"] is None
+        assert "inferred_domain" in result
+        assert "scores" in result
+        assert result["scores"]["relevance"] == 9
 
-    def test_evaluate_source_with_error(self):
+    def test_evaluate_with_error(self):
         """Test source evaluation with LLM error."""
         from RAG_supporters.agents.source_assesment import SourceEvaluationAgent
         from langchain_core.language_models import BaseChatModel
@@ -114,13 +115,12 @@ class TestSourceEvaluationAgentEvaluateSource:
 
         agent = SourceEvaluationAgent(llm=mock_llm)
 
-        result = agent.evaluate_source(
+        result = agent.evaluate(
             question="What is AI?", source_content="AI is artificial intelligence."
         )
 
-        # Should handle error gracefully
-        assert result is not None
-        assert "error" in result
+        # Should handle error gracefully (returns None on error)
+        assert result is None
 
 
 class TestSourceEvaluationAgentProcessDataFrame:
@@ -287,20 +287,20 @@ class TestSourceEvaluationAgentIntegration:
         llm = ChatOpenAI(model="gpt-4", temperature=0.0)
         agent = SourceEvaluationAgent(llm=llm)
 
-        result = agent.evaluate_source(
+        result = agent.evaluate(
             question="What is photosynthesis?",
             source_content="Photosynthesis is the process by which plants convert light energy into chemical energy using chlorophyll.",
         )
 
         assert result is not None
-        assert result["error"] is None
-        assert result["evaluation"] is not None
+        assert "scores" in result
+        assert "inferred_domain" in result
 
         # Check that all scores are in valid range
-        eval_data = result["evaluation"]
-        assert 0 <= eval_data.relevance.score <= 10
-        assert 0 <= eval_data.expertise_authority.score <= 10
-        assert 0 <= eval_data.depth_specificity.score <= 10
-        assert 0 <= eval_data.clarity_conciseness.score <= 10
-        assert 0 <= eval_data.objectivity_bias.score <= 10
-        assert 0 <= eval_data.completeness.score <= 10
+        scores = result["scores"]
+        assert 0 <= scores["relevance"] <= 10
+        assert 0 <= scores["expertise_authority"] <= 10
+        assert 0 <= scores["depth_specificity"] <= 10
+        assert 0 <= scores["clarity_conciseness"] <= 10
+        assert 0 <= scores["objectivity_bias"] <= 10
+        assert 0 <= scores["completeness"] <= 10
