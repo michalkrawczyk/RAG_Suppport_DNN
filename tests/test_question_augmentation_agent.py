@@ -236,7 +236,14 @@ class TestQuestionAugmentationAgentProcessDataFrame:
             'source_text': ['Source 1', 'Source 2']
         })
         
-        result_df = agent.process_dataframe_rephrasing(df)
+        result_df = agent.process_dataframe_rephrasing(
+            df,
+            columns_mapping={
+                'question_text': 'question_text',
+                'source_text': 'source_text',
+                'rephrased_question': 'rephrased_question'
+            }
+        )
         
         assert 'rephrased_question' in result_df.columns
         assert len(result_df) == 2
@@ -260,7 +267,14 @@ class TestQuestionAugmentationAgentProcessDataFrame:
             'rephrased_question': ['Old value', None]
         })
         
-        result_df = agent.process_dataframe_rephrasing(df)
+        result_df = agent.process_dataframe_rephrasing(
+            df,
+            columns_mapping={
+                'question_text': 'question_text',
+                'source_text': 'source_text',
+                'rephrased_question': 'rephrased_question'
+            }
+        )
         
         # Existing values are overwritten
         assert result_df.iloc[0]['rephrased_question'] == 'New rephrased question'
