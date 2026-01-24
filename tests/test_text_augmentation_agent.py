@@ -275,8 +275,7 @@ class TestTextAugmentationAgentAugmentDataFrame:
         
         result_df = agent.augment_dataframe(
             df,
-            question_col='query',
-            source_col='answer',
+            columns_mapping={'question_text': 'query', 'source_text': 'answer'},
             rephrase_question=True,
             probability=1.0
         )
@@ -298,7 +297,7 @@ class TestTextAugmentationAgentVerifyMeaning:
         # First call for rephrasing, second for verification
         mock_llm.invoke = Mock(side_effect=[
             AIMessage(content="Rephrased text"),
-            AIMessage(content="yes")  # Meaning preserved
+            AIMessage(content="EQUIVALENT")  # Meaning preserved
         ])
         
         agent = TextAugmentationAgent(llm=mock_llm, verify_meaning=True)
@@ -310,6 +309,10 @@ class TestTextAugmentationAgentVerifyMeaning:
         
         # Should make 2 LLM calls when verify_meaning is True
         assert mock_llm.invoke.call_count == 2
+        # Verify the result is returned correctly
+        assert result is not None
+        assert isinstance(result, str)
+        assert result == "Rephrased text"
 
 
 class TestTextAugmentationAgentIntegration:

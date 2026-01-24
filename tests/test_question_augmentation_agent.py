@@ -238,7 +238,12 @@ class TestQuestionAugmentationAgentProcessDataFrame:
         
         # Uses default column names: question_text, source_text, rephrased_question
         result_df = agent.process_dataframe_rephrasing(
-            df
+            df,
+            columns_mapping={
+                'question_text': 'question_text',
+                'source_text': 'source_text',
+                'rephrased_question': 'rephrased_question'
+            }
         )
         
         assert 'rephrased_question' in result_df.columns
