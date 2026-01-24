@@ -22,7 +22,7 @@ LOGGER = logging.getLogger(__name__)
 class TopicDistanceCalculator:
     """
     Calculate embedding distances between text and topic keywords.
-    
+
     This class processes CSV files containing question_text and source_text fields,
     computing distances to topic keywords from KeywordClusterer JSON files.
     Supports fetching embeddings from database by ID or using provided embeddings.
@@ -79,7 +79,7 @@ class TopicDistanceCalculator:
     def clear_cache(self) -> int:
         """
         Clear the embedding cache.
-        
+
         Returns
         -------
         int
@@ -89,12 +89,12 @@ class TopicDistanceCalculator:
         self._embedding_cache.clear()
         LOGGER.info(f"Cleared {cache_size} cached embeddings")
         return cache_size
-    
+
     @property
     def cache_size(self) -> int:
         """
         Get the current size of the embedding cache.
-        
+
         Returns
         -------
         int
@@ -106,16 +106,22 @@ class TopicDistanceCalculator:
     def cache_info(self) -> Dict[str, Any]:
         """
         Get detailed information about the embedding cache.
-        
+
         Returns
         -------
         Dict[str, Any]
             Dictionary with cache statistics including size and enabled status
         """
+        cache_keys = list(self._embedding_cache.keys())
+        if len(self._embedding_cache) <= 5:
+            texts_preview = cache_keys[:5]
+        else:
+            texts_preview = cache_keys[:5] + ["..."]
+
         return {
             "enabled": self._enable_cache,
             "size": len(self._embedding_cache),
-            "texts": list(self._embedding_cache.keys())[:5] if len(self._embedding_cache) <= 5 else list(self._embedding_cache.keys())[:5] + ["..."],
+            "texts": texts_preview,
         }
 
     def _load_centroids_and_topics(self):
@@ -151,7 +157,7 @@ class TopicDistanceCalculator:
         For each cluster, assigns the cluster's distance to all its topic descriptors.
         This creates a {topic_descriptor: distance} mapping similar to the format
         used by DomainAssessmentAgent's question_term_relevance_scores.
-        
+
         Note: If a topic descriptor appears in multiple clusters, the minimum distance
         is retained (closest cluster wins).
 
@@ -171,7 +177,7 @@ class TopicDistanceCalculator:
                 f"Distance array length ({len(distances)}) does not match "
                 f"number of centroids ({len(self.centroids)})"
             )
-        
+
         distance_mapping = {}
         
         # Iterate through all clusters and their topic descriptors
@@ -186,7 +192,7 @@ class TopicDistanceCalculator:
                         )
                     else:
                         distance_mapping[topic_descriptor] = float(distance)
-        
+
         return json.dumps(distance_mapping)
 
     def _compute_distances_to_centroids(
@@ -222,7 +228,7 @@ class TopicDistanceCalculator:
     def _get_embedding_from_text(self, text: str) -> np.ndarray:
         """
         Get embedding for text using KeywordEmbedder.
-        
+
         Uses caching to avoid re-embedding the same text multiple times.
 
         Parameters
@@ -240,7 +246,7 @@ class TopicDistanceCalculator:
                 "Embedder is required to embed text. "
                 "Provide a KeywordEmbedder during initialization or use database IDs."
             )
-        
+
         # Check cache first (if enabled)
         if self._enable_cache and text in self._embedding_cache:
             return self._embedding_cache[text]
@@ -248,11 +254,11 @@ class TopicDistanceCalculator:
         # Use KeywordEmbedder interface
         embeddings_dict = self.embedder.create_embeddings([text])
         embedding = embeddings_dict[text]
-        
+
         # Cache the result (if enabled)
         if self._enable_cache:
             self._embedding_cache[text] = embedding
-        
+
         return embedding
 
     def _get_embedding_from_database(
@@ -291,12 +297,12 @@ class TopicDistanceCalculator:
             raise ValueError(
                 "Database must have 'get_embedding' or 'get' method with embeddings support"
             )
-        
+
         if embedding is None:
             LOGGER.warning(
                 f"Embedding not found in database for ID '{item_id}' in collection '{collection_name}'"
             )
-        
+
         return embedding
 
     def calculate_distances_for_csv(
@@ -365,7 +371,7 @@ class TopicDistanceCalculator:
         # Initialize result lists for better performance
         question_distance_scores = []
         source_distance_scores = []
-        
+
         # Track processing statistics
         successful_questions = 0
         successful_sources = 0
@@ -403,7 +409,7 @@ class TopicDistanceCalculator:
                 successful_questions += 1
             else:
                 skipped_questions += 1
-            
+
             question_distance_scores.append(question_score)
 
             # Process source
@@ -429,13 +435,13 @@ class TopicDistanceCalculator:
                 successful_sources += 1
             else:
                 skipped_sources += 1
-            
+
             source_distance_scores.append(source_score)
-        
+
         # Assign results to dataframe columns
         df["question_term_distance_scores"] = question_distance_scores
         df["source_term_distance_scores"] = source_distance_scores
-        
+
         # Log processing summary
         LOGGER.info(
             f"Processing complete: {len(df)} total rows. "
@@ -511,7 +517,9 @@ def calculate_topic_distances_from_csv(
     Examples
     --------
     >>> from RAG_supporters.embeddings import KeywordEmbedder
-    >>> from RAG_supporters.clustering.topic_distance_calculator import calculate_topic_distances_from_csv
+    >>> from RAG_supporters.clustering.topic_distance_calculator import (
+    ...     calculate_topic_distances_from_csv,
+    ... )
     >>>
     >>> # Using text embedding
     >>> embedder = KeywordEmbedder()

@@ -120,7 +120,7 @@ def test_topic_distance_calculator_with_csv():
         assert "question_term_distance_scores" in result_df.columns
         assert "source_term_distance_scores" in result_df.columns
         assert output_path.exists()
-        
+
         # Verify JSON mapping format
         for idx in range(len(result_df)):
             if pd.notna(result_df.at[idx, "question_term_distance_scores"]):
@@ -130,7 +130,7 @@ def test_topic_distance_calculator_with_csv():
                 assert all(isinstance(k, str) for k in question_mapping.keys())
                 # Should have distance values
                 assert all(isinstance(v, (int, float)) for v in question_mapping.values())
-            
+
             if pd.notna(result_df.at[idx, "source_term_distance_scores"]):
                 source_mapping = json.loads(result_df.at[idx, "source_term_distance_scores"])
                 assert isinstance(source_mapping, dict)
@@ -324,7 +324,7 @@ def test_unsupported_embedder_interface():
             return {}
 
     embedder = UnsupportedEmbedder()
-    
+
     # Should raise ValueError when trying to wrap unsupported embedder
     with pytest.raises(ValueError, match="Unable to detect model type"):
         calculator = TopicDistanceCalculator(
@@ -369,13 +369,13 @@ def test_create_distance_json_mapping():
     # Test with mock distances
     distances = np.array([0.2, 0.5, 0.8])
     json_mapping_str = calculator._create_distance_json_mapping(distances)
-    
+
     # Parse JSON
     mapping = json.loads(json_mapping_str)
-    
+
     # Verify structure
     assert isinstance(mapping, dict)
-    
+
     # Check that all topic descriptors are present
     expected_topics = {
         "machine learning", "AI", "neural networks",
@@ -383,17 +383,17 @@ def test_create_distance_json_mapping():
         "web development", "javascript"
     }
     assert set(mapping.keys()) == expected_topics
-    
+
     # Check that distances are correctly assigned
     # Cluster 0 topics should have distance 0.2
     assert mapping["machine learning"] == 0.2
     assert mapping["AI"] == 0.2
     assert mapping["neural networks"] == 0.2
-    
+
     # Cluster 1 topics should have distance 0.5
     assert mapping["database"] == 0.5
     assert mapping["SQL"] == 0.5
-    
+
     # Cluster 2 topics should have distance 0.8
     assert mapping["web development"] == 0.8
     assert mapping["javascript"] == 0.8
@@ -429,9 +429,9 @@ def test_create_distance_json_mapping_duplicate_topics():
     # Distances: cluster 0 is closer (0.1) than cluster 1 (0.9)
     distances = np.array([0.1, 0.9])
     json_mapping_str = calculator._create_distance_json_mapping(distances)
-    
+
     mapping = json.loads(json_mapping_str)
-    
+
     # "AI" should have the minimum distance (0.1 from cluster 0)
     assert mapping["AI"] == 0.1
     assert mapping["machine learning"] == 0.1
@@ -484,18 +484,18 @@ def test_empty_text_handling():
 
         # Verify output
         assert len(result_df) == 4
-        
+
         # First row should have both scores
         assert pd.notna(result_df.at[0, "question_term_distance_scores"])
         assert pd.notna(result_df.at[0, "source_term_distance_scores"])
-        
+
         # Second row: question is empty, source is None
         # Both should be None or handled gracefully
         assert pd.isna(result_df.at[1, "question_term_distance_scores"])
-        
+
         # Third row: question is None, source is empty
         assert pd.isna(result_df.at[2, "source_term_distance_scores"])
-        
+
         # Fourth row should have both scores
         assert pd.notna(result_df.at[3, "question_term_distance_scores"])
         assert pd.notna(result_df.at[3, "source_term_distance_scores"])
@@ -518,7 +518,7 @@ def test_embedding_dimension_mismatch():
 
     # Test with wrong dimension embedding (128 instead of 384)
     wrong_dim_embedding = np.random.rand(128)
-    
+
     # Should raise error when computing distances
     with pytest.raises((ValueError, IndexError)):
         calculator._compute_distances_to_centroids(wrong_dim_embedding)
@@ -544,7 +544,7 @@ def test_database_embedding_not_found(caplog):
     )
 
     database = MockDatabase()
-    
+
     # Should return None and log warning
     with caplog.at_level(logging.WARNING):
         result = calculator._get_embedding_from_database(
@@ -552,7 +552,7 @@ def test_database_embedding_not_found(caplog):
             database=database,
             collection_name="questions"
         )
-    
+
     assert result is None
     # Check that warning was logged
     assert any("Embedding not found" in record.message for record in caplog.records)
@@ -586,7 +586,7 @@ def test_embedder_wrapping():
     # Should be wrapped in KeywordEmbedder
     from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
     assert isinstance(calculator.embedder, KeywordEmbedder)
-    
+
     # Should still work for embedding text
     embedding = calculator._get_embedding_from_text("test text")
     assert embedding.shape == (384,)
