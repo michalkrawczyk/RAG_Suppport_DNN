@@ -623,9 +623,7 @@ def test_assess_topic_relevance_prob(mock_graph):
     agent.graph = mock_graph
 
     descriptors = ["machine learning", "databases", "web development"]
-    result = agent.assess_topic_relevance_prob(
-        "What is gradient descent?", descriptors
-    )
+    result = agent.assess_topic_relevance_prob("What is gradient descent?", descriptors)
 
     assert result is not None
     assert "topic_scores" in result

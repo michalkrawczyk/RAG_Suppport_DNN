@@ -426,7 +426,9 @@ class TopicDistanceCalculator:
                         question_embedding
                     )
                     # Create JSON mapping {topic: distance}
-                    question_score = self._create_distance_json_mapping(question_distances)
+                    question_score = self._create_distance_json_mapping(
+                        question_distances
+                    )
                     successful_questions += 1
                 else:
                     skipped_questions += 1
@@ -448,7 +450,9 @@ class TopicDistanceCalculator:
                     )
                 elif source_col in df.columns and pd.notna(row[source_col]):
                     # Embed text
-                    source_embedding = self._get_embedding_from_text(str(row[source_col]))
+                    source_embedding = self._get_embedding_from_text(
+                        str(row[source_col])
+                    )
                 else:
                     LOGGER.warning(f"Row {idx}: No valid source data")
                     source_embedding = None
@@ -475,17 +479,17 @@ class TopicDistanceCalculator:
             if save_on_interrupt and output_path and last_processed_idx >= 0:
                 # Truncate dataframe to only processed rows
                 df_partial = df.iloc[: last_processed_idx + 1].copy()
-                
+
                 # Assign partial results
                 df_partial["question_term_distance_scores"] = question_distance_scores
                 df_partial["source_term_distance_scores"] = source_distance_scores
-                
+
                 # Generate partial output filename
                 output_path_obj = Path(output_path)
                 partial_output_path = output_path_obj.parent / (
                     output_path_obj.stem + "_partial" + output_path_obj.suffix
                 )
-                
+
                 # Save partial results
                 df_partial.to_csv(partial_output_path, index=False)
                 LOGGER.info(
@@ -496,7 +500,7 @@ class TopicDistanceCalculator:
                     f"{skipped_questions} skipped. Sources: {successful_sources} processed, "
                     f"{skipped_sources} skipped."
                 )
-            
+
             # Re-raise to allow caller to handle if needed
             raise
 
