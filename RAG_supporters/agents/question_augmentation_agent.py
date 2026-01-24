@@ -18,7 +18,7 @@ try:
     from langchain_core.messages import HumanMessage
     from tqdm import tqdm
 
-    from prompts_templates.text_augmentation import (
+    from RAG_supporters.prompts_templates.text_augmentation import (
         ALTERNATIVE_QUESTIONS_GENERATION_PROMPT,
         CONTEXTUAL_QUESTION_PROMPT,
         QUESTION_REPHRASE_WITH_SOURCE_PROMPT,

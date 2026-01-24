@@ -14,7 +14,7 @@ try:
     from langgraph.graph import END, START, StateGraph
     from tqdm import tqdm
 
-    from prompts_templates.rag_verifiers import (
+    from RAG_supporters.prompts_templates.rag_verifiers import (
         FINAL_VERDICT_PROMPT,
         SRC_COMPARE_PROMPT_WITH_SCORES,
     )

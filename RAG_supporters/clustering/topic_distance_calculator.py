@@ -259,8 +259,10 @@ class TopicDistanceCalculator:
             return self._embedding_cache[text]
 
         # Use KeywordEmbedder interface
+        from RAG_supporters.utils.text_utils import normalize_string
         embeddings_dict = self.embedder.create_embeddings([text])
-        embedding = embeddings_dict[text]
+        normalized_text = normalize_string(text)
+        embedding = embeddings_dict[normalized_text]
 
         # Cache the result (if enabled)
         if self._enable_cache:

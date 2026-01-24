@@ -17,12 +17,12 @@ try:
     from langchain_core.messages import HumanMessage
     from tqdm import tqdm
 
-    from prompts_templates.text_augmentation import (
+    from RAG_supporters.prompts_templates.text_augmentation import (
         FULL_TEXT_REPHRASE_PROMPT,
         SENTENCE_REPHRASE_PROMPT,
         VERIFY_MEANING_PRESERVATION_PROMPT,
     )
-    from utils.text_splitters import split_into_sentences
+    from RAG_supporters.utils.text_splitters import split_into_sentences
 
     class TextAugmentationAgent:
         """
