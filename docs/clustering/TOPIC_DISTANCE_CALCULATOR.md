@@ -484,6 +484,6 @@ result_df = calculator_no_cache.calculate_distances_for_csv(
 
 ## See Also
 
-- [Clustering and Assignment Guide](CLUSTERING_AND_ASSIGNMENT.md)
-- [Domain Assessment Examples](DOMAIN_ASSESSMENT_EXAMPLES.md)
-- [KeywordClusterer API Documentation](../RAG_supporters/clustering/keyword_clustering.py)
+- [Clustering and Assignment Guide](../CLUSTERING_AND_ASSIGNMENT.md)
+- [Domain Assessment Examples](../dataset/DOMAIN_ASSESSMENT_EXAMPLES.md)
+- [KeywordClusterer API Documentation](../../RAG_supporters/clustering/keyword_clustering.py)
