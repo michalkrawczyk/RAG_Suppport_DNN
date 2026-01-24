@@ -536,6 +536,101 @@ logger = logging.getLogger('RAG_supporters.agents')
 logger.setLevel(logging.INFO)
 ```
 
+## Testing
+
+### Running Tests
+
+All agents should have comprehensive unit tests in the `tests/` directory. To run the tests:
+
+```bash
+# Run all tests
+pytest tests/
+
+# Run tests for a specific agent
+pytest tests/test_dataset_check_agent.py
+pytest tests/test_question_augmentation_agent.py
+pytest tests/test_text_augmentation_agent.py
+pytest tests/test_source_evaluation_agent.py
+pytest tests/test_domain_assesment.py
+
+# Run tests with coverage
+pytest tests/ --cov=RAG_supporters --cov-report=html
+
+# Run tests with verbose output
+pytest tests/ -v
+
+# Run tests and stop at first failure
+pytest tests/ -x
+```
+
+### Test Examples
+
+Each agent has corresponding test files that demonstrate proper usage patterns:
+
+- `tests/test_dataset_check_agent.py` - Tests for DatasetCheckAgent
+- `tests/test_question_augmentation_agent.py` - Tests for QuestionAugmentationAgent
+- `tests/test_text_augmentation_agent.py` - Tests for TextAugmentationAgent
+- `tests/test_source_evaluation_agent.py` - Tests for SourceEvaluationAgent
+- `tests/test_domain_assesment.py` - Tests for DomainAnalysisAgent
+- `tests/test_dataset_splitter.py` - Tests for DatasetSplitter
+- `tests/test_topic_distance_calculator.py` - Tests for TopicDistanceCalculator
+
+### Writing Tests for New Agents
+
+When adding a new agent or modifying an existing one, follow these guidelines:
+
+1. **Create a test file** in `tests/` with the naming pattern `test_<agent_name>.py`
+2. **Test initialization** - Verify agent can be initialized with valid parameters
+3. **Test core methods** - Test all public methods with various inputs
+4. **Test error handling** - Ensure graceful error handling and recovery
+5. **Test DataFrame processing** - Verify batch processing functionality
+6. **Mock LLM calls** - Use mocks to avoid API costs during testing
+7. **Add integration tests** - Optional tests with real LLM (marked with @pytest.mark.skip)
+
+Example test structure:
+
+```python
+"""Tests for NewAgent."""
+
+import pytest
+from unittest.mock import Mock
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage
+
+# Skip if dependencies not available
+pytest.importorskip("langchain")
+pytest.importorskip("langchain_core")
+
+def test_agent_import():
+    """Test that agent can be imported."""
+    from RAG_supporters.agents.new_agent import NewAgent
+    assert NewAgent is not None
+
+class TestNewAgentInit:
+    """Test agent initialization."""
+    
+    def test_init_with_llm(self):
+        """Test basic initialization."""
+        from RAG_supporters.agents.new_agent import NewAgent
+        mock_llm = Mock(spec=BaseChatModel)
+        agent = NewAgent(llm=mock_llm)
+        assert agent._llm == mock_llm
+
+class TestNewAgentMethods:
+    """Test agent methods."""
+    
+    def test_process_method(self):
+        """Test main processing method."""
+        from RAG_supporters.agents.new_agent import NewAgent
+        mock_llm = Mock(spec=BaseChatModel)
+        mock_llm.invoke = Mock(return_value=AIMessage(content="Result"))
+        
+        agent = NewAgent(llm=mock_llm)
+        result = agent.process("input")
+        
+        assert result is not None
+```
+
 ## Contributing
 
 To add a new agent:
@@ -544,13 +639,85 @@ To add a new agent:
 2. Follow existing agent patterns (initialization, batch processing, DataFrame support)
 3. Add comprehensive documentation in `docs/`
 4. Include usage examples
-5. Update this overview document
+5. **Write unit tests in `tests/`** - This is mandatory for all new agents
+6. Update this overview document
+
+## Repository Etiquette
+
+When contributing to this repository:
+
+### Pull Request Requirements
+
+1. **Add tests for new functionality** - All new agents and significant features must include unit tests
+2. **Ensure tests pass** - Run `pytest tests/` before submitting PR
+3. **Update documentation** - Add or update relevant documentation files
+4. **Follow code style** - Maintain consistency with existing code patterns
+5. **Add type hints** - Use type annotations for function parameters and returns
+6. **Include docstrings** - Document all public classes and methods
+
+### Code Quality Standards
+
+- All tests must pass before merging
+- Test coverage should be maintained or improved
+- Code should follow PEP 8 style guidelines
+- Complex logic should include inline comments
+- Breaking changes must be documented
+
+### Testing Best Practices
+
+- Mock external dependencies (LLM calls, API requests)
+- Test both success and failure cases
+- Use descriptive test names that explain what is being tested
+- Keep tests focused and independent
+- Add integration tests for critical workflows (marked as skippable)
+
+## Notes for AI Coding Agents
+
+When working with this codebase as an AI coding agent:
+
+### Step-by-Step Workflow
+
+1. **Understand requirements** - Read issue description and acceptance criteria carefully
+2. **Explore existing patterns** - Review similar agents and their implementations
+3. **Plan implementation** - Outline the agent structure before coding
+4. **Write the agent code** - Follow existing patterns for consistency
+5. **Add documentation** - Create comprehensive documentation with examples
+6. **Write unit tests** - Create thorough test coverage for all agent functionality
+   - Test initialization with various parameters
+   - Test all public methods with different inputs
+   - Test error handling and edge cases
+   - Mock LLM calls to avoid API costs
+   - Add integration tests (marked as skippable) if appropriate
+7. **Run tests locally** - Verify all tests pass with `pytest tests/`
+8. **Update overview documentation** - Add agent to this file and relevant READMEs
+
+### Testing Guidelines for AI Agents
+
+**IMPORTANT:** Every new or modified agent **must** have corresponding unit tests. This is not optional.
+
+- Create test file: `tests/test_<agent_name>.py`
+- Use pytest framework and follow existing test patterns
+- Mock LLM responses to avoid API costs during testing
+- Test both successful operations and error conditions
+- Ensure tests can run without external dependencies (API keys, network)
+- Add descriptive docstrings to each test explaining what it validates
+- Include integration tests with `@pytest.mark.skip` for optional real LLM testing
+
+### Common Pitfalls to Avoid
+
+1. **Forgetting to add tests** - Always create unit tests for new agents
+2. **Not mocking LLM calls** - Tests should not require real API keys
+3. **Skipping error handling** - Always test failure scenarios
+4. **Insufficient test coverage** - Test all public methods and edge cases
+5. **Not updating documentation** - Documentation should match implementation
+6. **Breaking existing tests** - Run full test suite before submitting
 
 ## Resources
 
 - **Individual Agent Documentation**: See links in each agent section above
 - **Prompt Templates**: `RAG_supporters/prompts_templates/`
 - **Requirements**: `RAG_supporters/requirements_agents.txt`
+- **Test Examples**: `tests/` directory
 - **Examples**: Included in each agent's documentation
 
 ## Support
@@ -559,8 +726,9 @@ For issues, questions, or contributions:
 - Check individual agent documentation for specific issues
 - Review troubleshooting sections
 - Enable logging for detailed error information
+- Review test files for usage examples
 
 ---
 
-**Last Updated**: 2025  
-**Version**: 1.0
+**Last Updated**: January 2026  
+**Version**: 1.1
