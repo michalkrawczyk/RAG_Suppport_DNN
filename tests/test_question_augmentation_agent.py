@@ -236,6 +236,7 @@ class TestQuestionAugmentationAgentProcessDataFrame:
             'source_text': ['Source 1', 'Source 2']
         })
         
+        # Uses default column names: question_text, source_text, rephrased_question
         result_df = agent.process_dataframe_rephrasing(
             df
         )
@@ -264,6 +265,7 @@ class TestQuestionAugmentationAgentProcessDataFrameGeneration:
             'source_text': ['Source 1', 'Source 2']
         })
         
+        # Uses default column name 'source_text'
         result_df = agent.process_dataframe_generation(
             df,
             n_questions=2
@@ -290,6 +292,7 @@ class TestQuestionAugmentationAgentProcessDataFrameGeneration:
             'my_source': ['Source about biology']
         })
         
+        # Uses columns_mapping to specify custom column name
         result_df = agent.process_dataframe_generation(
             df,
             columns_mapping={'source_text': 'my_source'},
