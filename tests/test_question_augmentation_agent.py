@@ -161,7 +161,7 @@ class TestQuestionAugmentationAgentGenerateAlternatives:
         
         mock_llm = Mock(spec=BaseChatModel)
         mock_llm.invoke = Mock(return_value=AIMessage(
-            content='["Question 1?", "Question 2?", "Question 3?"]'
+            content='{"questions": ["Question 1?", "Question 2?", "Question 3?"]}'
         ))
         
         agent = QuestionAugmentationAgent(llm=mock_llm)
@@ -175,15 +175,15 @@ class TestQuestionAugmentationAgentGenerateAlternatives:
         assert isinstance(result, list)
         assert len(result) <= 3
 
-    def test_generate_alternative_questions_with_domain(self):
-        """Test alternative question generation with domain."""
+    def test_generate_alternative_questions_with_allow_vague(self):
+        """Test alternative question generation with allow_vague parameter."""
         from RAG_supporters.agents.question_augmentation_agent import QuestionAugmentationAgent
         from langchain_core.language_models import BaseChatModel
         from langchain_core.messages import AIMessage
         
         mock_llm = Mock(spec=BaseChatModel)
         mock_llm.invoke = Mock(return_value=AIMessage(
-            content='["What is photosynthesis?", "How do plants produce energy?"]'
+            content='{"questions": ["What is photosynthesis?", "How do plants produce energy?"]}'
         ))
         
         agent = QuestionAugmentationAgent(llm=mock_llm)
@@ -191,7 +191,7 @@ class TestQuestionAugmentationAgentGenerateAlternatives:
         result = agent.generate_alternative_questions(
             source="Photosynthesis is important.",
             n=2,
-            domain="biology"
+            allow_vague=True
         )
         
         assert result is not None
@@ -238,16 +238,18 @@ class TestQuestionAugmentationAgentProcessDataFrame:
         
         result_df = agent.process_dataframe_rephrasing(
             df,
-            question_col='question_text',
-            source_col='source_text',
-            output_col='rephrased_question'
+            columns_mapping={
+                'question_text': 'question_text',
+                'source_text': 'source_text',
+                'rephrased_question': 'rephrased_question'
+            }
         )
         
         assert 'rephrased_question' in result_df.columns
         assert len(result_df) == 2
 
-    def test_process_dataframe_rephrasing_with_skip_existing(self):
-        """Test that existing rephrased questions are skipped."""
+    def test_process_dataframe_rephrasing_with_existing_column(self):
+        """Test that rephrasing works even when output column already exists."""
         from RAG_supporters.agents.question_augmentation_agent import QuestionAugmentationAgent
         from langchain_core.language_models import BaseChatModel
         from langchain_core.messages import AIMessage
@@ -267,13 +269,16 @@ class TestQuestionAugmentationAgentProcessDataFrame:
         
         result_df = agent.process_dataframe_rephrasing(
             df,
-            question_col='question_text',
-            source_col='source_text',
-            output_col='rephrased_question',
-            skip_existing=True
+            columns_mapping={
+                'question_text': 'question_text',
+                'source_text': 'source_text',
+                'rephrased_question': 'rephrased_question'
+            }
         )
         
-        assert result_df.iloc[0]['rephrased_question'] == 'Already rephrased'
+        # All questions should be rephrased (no skip_existing functionality)
+        assert result_df.iloc[0]['rephrased_question'] == 'New rephrased question'
+        assert result_df.iloc[1]['rephrased_question'] == 'New rephrased question'
 
 
 class TestQuestionAugmentationAgentProcessDataFrameGeneration:
@@ -287,7 +292,7 @@ class TestQuestionAugmentationAgentProcessDataFrameGeneration:
         
         mock_llm = Mock(spec=BaseChatModel)
         mock_llm.invoke = Mock(return_value=AIMessage(
-            content='["Question 1?", "Question 2?"]'
+            content='{"questions": ["Question 1?", "Question 2?"]}'
         ))
         
         agent = QuestionAugmentationAgent(llm=mock_llm)
@@ -298,8 +303,11 @@ class TestQuestionAugmentationAgentProcessDataFrameGeneration:
         
         result_df = agent.process_dataframe_generation(
             df,
-            source_col='source_text',
-            n_questions=2
+            n_questions=2,
+            columns_mapping={
+                'source_text': 'source_text',
+                'question_text': 'question_text'
+            }
         )
         
         assert 'question_text' in result_df.columns
@@ -314,7 +322,7 @@ class TestQuestionAugmentationAgentProcessDataFrameGeneration:
         
         mock_llm = Mock(spec=BaseChatModel)
         mock_llm.invoke = Mock(return_value=AIMessage(
-            content='["Domain-specific question?"]'
+            content='{"questions": ["Domain-specific question?"]}'
         ))
         
         agent = QuestionAugmentationAgent(llm=mock_llm)
@@ -326,9 +334,11 @@ class TestQuestionAugmentationAgentProcessDataFrameGeneration:
         
         result_df = agent.process_dataframe_generation(
             df,
-            source_col='source_text',
-            domain_col='domain',
-            n_questions=1
+            n_questions=1,
+            columns_mapping={
+                'source_text': 'source_text',
+                'question_text': 'question_text'
+            }
         )
         
         assert len(result_df) >= 1
