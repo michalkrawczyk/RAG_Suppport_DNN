@@ -236,18 +236,13 @@ class TestQuestionAugmentationAgentProcessDataFrame:
             'source_text': ['Source 1', 'Source 2']
         })
         
-        result_df = agent.process_dataframe_rephrasing(
-            df,
-            question_col='question_text',
-            source_col='source_text',
-            output_col='rephrased_question'
-        )
+        result_df = agent.process_dataframe_rephrasing(df)
         
         assert 'rephrased_question' in result_df.columns
         assert len(result_df) == 2
 
-    def test_process_dataframe_rephrasing_with_skip_existing(self):
-        """Test that existing rephrased questions are skipped."""
+    def test_process_dataframe_rephrasing_with_existing_column(self):
+        """Test that rephrasing works even when output column already exists."""
         from RAG_supporters.agents.question_augmentation_agent import QuestionAugmentationAgent
         from langchain_core.language_models import BaseChatModel
         from langchain_core.messages import AIMessage
@@ -262,18 +257,14 @@ class TestQuestionAugmentationAgentProcessDataFrame:
         df = pd.DataFrame({
             'question_text': ['Q1', 'Q2'],
             'source_text': ['S1', 'S2'],
-            'rephrased_question': ['Already rephrased', None]
+            'rephrased_question': ['Old value', None]
         })
         
-        result_df = agent.process_dataframe_rephrasing(
-            df,
-            question_col='question_text',
-            source_col='source_text',
-            output_col='rephrased_question',
-            skip_existing=True
-        )
+        result_df = agent.process_dataframe_rephrasing(df)
         
-        assert result_df.iloc[0]['rephrased_question'] == 'Already rephrased'
+        # Existing values are overwritten
+        assert result_df.iloc[0]['rephrased_question'] == 'New rephrased question'
+        assert result_df.iloc[1]['rephrased_question'] == 'New rephrased question'
 
 
 class TestQuestionAugmentationAgentProcessDataFrameGeneration:
