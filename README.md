@@ -1,0 +1,3 @@
+This is a Python library for experiments on creating non-LLM solutions (specifically lightweight neural networks) for improving RAG (Retrieval-Augmented Generation) or creating new variants of it. The LLM-powered agents are used to support learning and prepare datasets for training these alternative models. It includes specialized agents for domain analysis, text augmentation, source evaluation, and dataset quality control.
+
+For more info read about functionalities read the docs.

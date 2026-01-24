@@ -283,6 +283,8 @@ class KeywordClusterer:
         self,
         n_descriptors: int = 10,
         metric: str = "euclidean",
+        ignore_n_closest_keywords: int = 0,
+        min_descriptor_distance: Optional[float] = None,
     ) -> Dict[int, List[str]]:
         """
         Extract topic descriptors (n closest keywords) for each cluster.
@@ -296,11 +298,23 @@ class KeywordClusterer:
             Number of closest keywords to use as descriptors per topic
         metric : str
             Distance metric: 'euclidean' or 'cosine'
+        ignore_n_closest_keywords : int
+            Number of additional closest keywords to skip after applying distance filter.
+            This skips keywords beyond those already filtered by min_descriptor_distance.
+            Useful to reduce influence of dominant topics and improve diversity.
+            Default: 0 (no skipping)
+        min_descriptor_distance : Optional[float]
+            Minimum distance threshold for including keywords in descriptors.
+            Keywords with distance <= this threshold are excluded first, then
+            ignore_n_closest_keywords additional keywords are skipped from the remaining.
+            Default: None (no filtering)
 
         Returns
         -------
         Dict[int, List[str]]
-            Dictionary mapping cluster/topic IDs to lists of descriptor keywords
+            Dictionary mapping cluster/topic IDs to lists of descriptor keywords.
+            Note: If filtering parameters are too restrictive, some topics may have
+            fewer descriptors than requested (or even empty lists).
 
         Examples
         --------
@@ -309,6 +323,13 @@ class KeywordClusterer:
         >>> topics = clusterer.extract_topic_descriptors(n_descriptors=5)
         >>> print(topics[0])  # Top 5 keywords for cluster 0
         ['machine learning', 'deep learning', 'neural networks', ...]
+
+        >>> # Skip the closest keyword and require minimum distance
+        >>> topics = clusterer.extract_topic_descriptors(
+        ...     n_descriptors=5,
+        ...     ignore_n_closest_keywords=1,
+        ...     min_descriptor_distance=0.1
+        ... )
         """
         if self.cluster_labels is None:
             raise ValueError("Model not fitted. Call fit() first.")
@@ -330,16 +351,39 @@ class KeywordClusterer:
                     f"Unknown metric: {metric}. Choose 'euclidean' or 'cosine'"
                 )
 
-            # Get indices of n closest keywords
-            closest_indices = np.argsort(distances)[:n_descriptors]
+            # Sort by distance and get indices & Apply filtering
+            sorted_indices = np.argsort(distances)
+            if min_descriptor_distance is not None or ignore_n_closest_keywords > 0:
+                first_idx = 0
+
+                if min_descriptor_distance is not None:
+                    filtered_distances = distances > min_descriptor_distance
+                    first_idx += np.count_nonzero(~filtered_distances)
+
+                if ignore_n_closest_keywords > 0:
+                    first_idx += ignore_n_closest_keywords
+
+                filtered_indices = sorted_indices[first_idx : first_idx + n_descriptors]
+            else:
+                filtered_indices = sorted_indices[:n_descriptors]
 
             # Get the corresponding keywords
-            descriptors = [self.keywords[idx] for idx in closest_indices]
+            descriptors = [self.keywords[idx] for idx in filtered_indices]
             topics[cluster_id] = descriptors
+
+            # Warn if we got fewer descriptors than requested
+            if len(descriptors) < n_descriptors:
+                LOGGER.warning(
+                    f"Topic {cluster_id}: Only {len(descriptors)} descriptors found "
+                    f"(requested {n_descriptors}). Consider reducing ignore_n_closest_keywords "
+                    f"or min_descriptor_distance to get more descriptors."
+                )
 
         self.topics = topics
         LOGGER.info(
-            f"Extracted {n_descriptors} descriptors for each of {len(topics)} topics"
+            f"Extracted descriptors for {len(topics)} topics "
+            f"(target: {n_descriptors}, ignore_n_closest={ignore_n_closest_keywords}, "
+            f"min_distance={min_descriptor_distance})"
         )
 
         return topics
@@ -1045,6 +1089,8 @@ def cluster_keywords_from_embeddings(
     n_descriptors: int = 10,
     output_path: Optional[str] = None,
     random_state: int = 42,
+    ignore_n_closest_keywords: int = 0,
+    min_descriptor_distance: Optional[float] = None,
     **kwargs,
 ) -> Tuple[KeywordClusterer, Dict[int, List[str]]]:
     """
@@ -1069,6 +1115,15 @@ def cluster_keywords_from_embeddings(
         Path to save results (if None, results are not saved)
     random_state : int
         Random state for reproducibility
+    ignore_n_closest_keywords : int
+        Number of additional closest keywords to skip after applying distance filter.
+        This skips keywords beyond those already filtered by min_descriptor_distance.
+        Default: 0 (no skipping)
+    min_descriptor_distance : Optional[float]
+        Minimum distance threshold for including keywords in descriptors.
+        Keywords with distance <= this threshold are excluded first, then
+        ignore_n_closest_keywords additional keywords are skipped from the remaining.
+        Default: None (no filtering)
     **kwargs
         Additional arguments for the clustering algorithm
 
@@ -1091,6 +1146,15 @@ def cluster_keywords_from_embeddings(
     ... )
     >>> print(f"Found {len(topics)} topics")
     Found 2 topics
+
+    >>> # With filtering options
+    >>> clusterer, topics = cluster_keywords_from_embeddings(
+    ...     embeddings,
+    ...     n_clusters=2,
+    ...     n_descriptors=5,
+    ...     ignore_n_closest_keywords=1,
+    ...     min_descriptor_distance=0.1
+    ... )
     """
     # Create and fit clusterer
     clusterer = KeywordClusterer(
@@ -1102,7 +1166,11 @@ def cluster_keywords_from_embeddings(
     clusterer.fit(keyword_embeddings)
 
     # Extract topic descriptors
-    topics = clusterer.extract_topic_descriptors(n_descriptors=n_descriptors)
+    topics = clusterer.extract_topic_descriptors(
+        n_descriptors=n_descriptors,
+        ignore_n_closest_keywords=ignore_n_closest_keywords,
+        min_descriptor_distance=min_descriptor_distance,
+    )
 
     # Save if output path provided
     if output_path:
