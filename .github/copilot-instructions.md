@@ -123,6 +123,9 @@ class TestAgentIntegration:
 - Mock LLM with: `Mock(spec=BaseChatModel)`
 - Mock responses: `AIMessage(content="Expected output")`
 - Test errors: `Mock(side_effect=Exception("Error"))`
+- **Always include assert messages**: Every `assert` must have a descriptive message explaining what is tested
+  - ❌ Wrong: `assert result is not None`
+  - ✅ Correct: `assert result is not None, "Agent should return result for valid input"`
 - See existing tests for complete examples
 
 ## Quick Command Reference
@@ -156,6 +159,7 @@ mypy RAG_supporters/agents/            # Type check
 | Agent imports from `dataset/` | Keep agents standalone | Architectural boundary |
 | Process DataFrame row-by-row | Use batch processing methods | 10-50x performance gain |
 | Return raw LLM strings | Pydantic validated models | Type safety and validation |
+| `assert result is not None` | `assert result is not None, "Descriptive message"` | Assert messages enable quick failure diagnosis |
 
 ## Pull Request Checklist
 

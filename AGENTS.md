@@ -162,6 +162,23 @@ LOGGER = logging.getLogger(__name__)
       _IMPORT_ERROR = str(e)
   ```
 
+### Testing Conventions
+
+- **Always include assertion messages** - Every `assert` statement must have a descriptive message
+- Use clear, informative messages that explain what is being tested
+- Example:
+  ```python
+  # ❌ WRONG - No message
+  assert result is not None
+  assert len(items) == 5
+  
+  # ✅ CORRECT - Clear messages
+  assert result is not None, "Agent should return result for valid input"
+  assert len(items) == 5, "Should return exactly 5 items from batch processing"
+  ```
+- Messages help diagnose failures quickly without reading test code
+- Especially important for complex conditions or edge cases
+
 ### Code Formatting
 
 - Use **Black** for code formatting (line length: 88)
