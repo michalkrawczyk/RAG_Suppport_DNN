@@ -21,11 +21,13 @@ This is a Python library for experiments on creating non-LLM solutions (specific
 # Install core dependencies
 pip install -r RAG_supporters/requirements.txt
 
-# Install agent dependencies
-pip install -r RAG_supporters/requirements_agents.txt
+# Install agent dependencies with LLM provider (choose one):
+pip install -e .[openai]   # For OpenAI support
+pip install -e .[nvidia]   # For NVIDIA support
+pip install -e .           # Base agents only (no LLM provider)
 
 # Install development tools (linting, testing, formatting)
-pip install -r RAG_supporters/requirements-dev.txt
+pip install -e .[dev]
 ```
 
 ### Testing
@@ -241,8 +243,10 @@ tests/                 # Unit tests
 ### Configuration Files
 
 - **requirements.txt**: Core dependencies (torch, datasets, sklearn)
-- **requirements_agents.txt**: Agent dependencies (langchain, langgraph, pydantic)
-- **requirements-dev.txt**: Development tools (black, isort, pytest, pylint)
+- **pyproject.toml**: Package configuration with optional dependencies:
+  - `[openai]`: OpenAI LLM provider support
+  - `[nvidia]`: NVIDIA LLM provider support
+  - `[dev]`: Development tools (black, isort, pytest, pylint)
 
 ## Project-Specific Gotchas
 
@@ -262,7 +266,7 @@ tests/                 # Unit tests
   try:
       from RAG_supporters.agents import DatasetCheckAgent
   except ImportError as e:
-      print(f"Install agent dependencies: pip install -r requirements_agents.txt")
+      print(f"Install agent dependencies: pip install -e .[openai] or pip install -e .[nvidia]")
   ```
 
 ### State Management in Agents
@@ -326,8 +330,8 @@ venv\Scripts\activate
 
 # Install all dependencies
 pip install -r RAG_supporters/requirements.txt
-pip install -r RAG_supporters/requirements_agents.txt
-pip install -r RAG_supporters/requirements-dev.txt
+pip install -e .[openai]   # or .[nvidia] for NVIDIA support
+pip install -e .[dev]
 ```
 
 ### Environment Variables
@@ -539,10 +543,10 @@ except Exception:
 
 ### When Adding Dependencies
 
-1. Add to appropriate requirements file:
+1. Add to appropriate location:
    - Core: `requirements.txt`
-   - Agents: `requirements_agents.txt`
-   - Dev tools: `requirements-dev.txt`
+   - Agent extras: `pyproject.toml` under `[project.optional-dependencies]`
+   - Dev tools: `pyproject.toml` under `[project.optional-dependencies]` dev section
 2. Use lazy imports for optional dependencies
 3. Provide helpful error messages if imports fail
 

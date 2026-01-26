@@ -118,9 +118,9 @@ mock_llm.invoke = Mock(return_value=AIMessage(content="Expected output"))
 
 ### Development
 ```bash
-# Install dependencies
-pip install -r RAG_supporters/requirements_agents.txt
-pip install -r RAG_supporters/requirements-dev.txt
+# Install dependencies with LLM provider (choose one)
+pip install -e .[openai]  # or .[nvidia]
+pip install -e .[dev]
 
 # Run agent in Python
 python -c "from RAG_supporters.agents.{agent_name} import Agent; agent = Agent(llm); agent.process(...)"

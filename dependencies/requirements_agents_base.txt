@@ -1,0 +1,6 @@
+# DEPRECATED: This file is deprecated and will be removed in a future release.
+# Please use: pip install -e .
+# See pyproject.toml for modern installation method.
+
+langgraph==0.3.8
+pydantic==2.10.3

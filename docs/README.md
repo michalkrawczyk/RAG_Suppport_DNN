@@ -56,11 +56,14 @@ agent = QuestionAugmentationAgent(llm=llm)
 ## Installation
 
 ```bash
-# Install agent dependencies
-pip install -r RAG_supporters/requirements_agents.txt
+# Install with LLM provider (choose one)
+pip install -e .[openai]   # For OpenAI support
+pip install -e .[nvidia]   # For NVIDIA support
+pip install -e .           # Base agents only
 
-# Or install individually
-pip install langchain langgraph langchain-core pydantic pandas tqdm
+# Or install individually (if not using pyproject.toml)
+pip install langgraph pydantic pandas tqdm
+pip install langchain-openai  # For OpenAI
 ```
 
 ## Documentation Structure

@@ -37,7 +37,10 @@ rephrased = agent.rephrase_question_with_source(
 ## Installation
 
 ```bash
-pip install -r requirements_agents.txt
+# Install with LLM provider (choose one)
+pip install -e .[openai]   # For OpenAI support
+pip install -e .[nvidia]   # For NVIDIA support
+pip install -e .           # Base agents only
 ```
 
 **→ See [AGENTS_OVERVIEW.md#installation](../../docs/agents/AGENTS_OVERVIEW.md#installation) for detailed setup instructions**
@@ -69,5 +72,4 @@ pytest tests/test_question_augmentation_agent.py -v
 
 - **[AGENTS_OVERVIEW.md](../../docs/agents/AGENTS_OVERVIEW.md)** - Complete documentation, workflows, examples, and best practices
 - **[AGENTS.md](../../docs/AGENTS.md)** - Technical guidelines, architecture, and standards
-- **[requirements_agents.txt](../requirements_agents.txt)** - Agent dependencies
-- **[requirements-dev.txt](../requirements-dev.txt)** - Development and testing dependencies
+- **[pyproject.toml](../../pyproject.toml)** - Package configuration with optional dependencies

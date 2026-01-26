@@ -131,9 +131,16 @@ class TestAgentIntegration:
 ## Quick Command Reference
 
 ```bash
-# Setup
-pip install -r RAG_supporters/requirements_agents.txt
-pip install -r RAG_supporters/requirements-dev.txt
+# Setup - Choose ONE LangChain provider:
+# For OpenAI:
+pip install -e .[openai]
+# For NVIDIA:
+pip install -e .[nvidia]
+# For base agents only (no LLM provider):
+pip install -e .
+
+# Development dependencies:
+pip install -e .[dev]
 
 # Run Tests
 pytest tests/                           # All tests

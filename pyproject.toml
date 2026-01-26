@@ -34,9 +34,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
-# Dependencies are managed in requirements files
-dynamic = ["dependencies", "optional-dependencies"]
-
 [project.urls]
 Homepage = "https://github.com/michalkrawczyk/RAG_Suppport_DNN"
 Documentation = "https://github.com/michalkrawczyk/RAG_Suppport_DNN/tree/main/docs"
@@ -50,9 +47,11 @@ packages = ["RAG_supporters"]
 RAG_supporters = ["py.typed"]
 
 [tool.setuptools.dynamic]
-dependencies = {file = ["RAG_supporters/requirements.txt"]}
-optional-dependencies.agents = {file = ["RAG_supporters/requirements_agents.txt"]}
-optional-dependencies.dev = {file = ["RAG_supporters/requirements-dev.txt"]}
+dependencies = {file = ["dependencies/requirements.txt"]}
+optional-dependencies.openai = {file = ["dependencies/requirements_agents_openai.txt"]}
+optional-dependencies.nvidia = {file = ["dependencies/requirements_agents_nvidia.txt"]}
+optional-dependencies.base = {file = ["dependencies/requirements_agents_base.txt"]}
+optional-dependencies.dev = {file = ["dependencies/requirements-dev.txt"]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

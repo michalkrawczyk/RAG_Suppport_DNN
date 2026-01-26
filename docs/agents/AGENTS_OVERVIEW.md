@@ -445,14 +445,14 @@ for idx, row in assessed.iterrows():
 ### Quick Start
 
 ```bash
-# Install all agent dependencies
-pip install -r RAG_supporters/requirements_agents.txt
+# Install with LLM provider (choose one)
+pip install -e .[openai]   # For OpenAI support
+pip install -e .[nvidia]   # For NVIDIA support
+pip install -e .           # Base agents only
 
-# Or install individually
-pip install langchain langgraph langchain-core pydantic pandas tqdm
-
-# For OpenAI
-pip install langchain-openai
+# Or install individually (if not using pyproject.toml)
+pip install langgraph pydantic pandas tqdm
+pip install langchain-openai  # For OpenAI
 ```
 
 ### Verify Installation
@@ -474,8 +474,8 @@ print("All agents imported successfully!")
 
 **Issue: ImportError for dependencies**
 ```bash
-# Solution: Install agent dependencies
-pip install -r RAG_supporters/requirements_agents.txt
+# Solution: Install agent dependencies with LLM provider
+pip install -e .[openai]  # or .[nvidia]
 ```
 
 **Issue: LLM connection errors**
@@ -716,7 +716,7 @@ When working with this codebase as an AI coding agent:
 
 - **Individual Agent Documentation**: See links in each agent section above
 - **Prompt Templates**: `RAG_supporters/prompts_templates/`
-- **Requirements**: `RAG_supporters/requirements_agents.txt`
+- **Package Configuration**: `pyproject.toml` with optional dependencies
 - **Test Examples**: `tests/` directory
 - **Examples**: Included in each agent's documentation
 

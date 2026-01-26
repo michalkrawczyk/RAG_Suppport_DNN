@@ -36,7 +36,7 @@ For specific LLM providers:
 pip install langchain-openai
 
 # Install all agent dependencies
-pip install -r RAG_supporters/requirements_agents.txt
+pip install -e .[openai]  # or .[nvidia] for NVIDIA
 ```
 
 ## Operation Modes
