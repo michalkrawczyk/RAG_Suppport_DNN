@@ -50,6 +50,7 @@ RAG_supporters = ["py.typed"]
 dependencies = {file = ["dependencies/requirements.txt"]}
 optional-dependencies.openai = {file = ["dependencies/requirements_agents_openai.txt"]}
 optional-dependencies.nvidia = {file = ["dependencies/requirements_agents_nvidia.txt"]}
+optional-dependencies.nvidia-mamba = {file = ["dependencies/requirements_agents_nvidia_mamba.txt"]}
 optional-dependencies.base = {file = ["dependencies/requirements_agents_base.txt"]}
 optional-dependencies.dev = {file = ["dependencies/requirements-dev.txt"]}
 
