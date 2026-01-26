@@ -885,8 +885,12 @@ def test_keyboard_interrupt_handling_with_save():
 
         # Verify partial results
         partial_df = pd.read_csv(partial_output_path)
-        assert len(partial_df) > 0
-        assert len(partial_df) < 10  # Should be less than full dataset
+        assert len(partial_df) == 10, "Partial results should contain all rows from original DataFrame"
+        
+        # Check that only some rows are filled (processed)
+        filled_rows = partial_df["question_term_distance_scores"].notna().sum()
+        assert filled_rows > 0, "Some rows should be filled"
+        assert filled_rows < 10, "Not all rows should be filled (interrupted)"
 
 
 def test_keyboard_interrupt_handling_no_save():

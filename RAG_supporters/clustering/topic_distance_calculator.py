@@ -339,6 +339,8 @@ class TopicDistanceCalculator:
             Show progress bar. Default is True.
         save_on_interrupt : bool
             If True, saves partial results when interrupted with KeyboardInterrupt.
+            The whole original DataFrame is saved with distance scores filled only for
+            processed rows (unprocessed rows have None/NaN).
             Partial results are saved with "_partial" suffix added to the filename.
             Default is True.
 
@@ -458,12 +460,17 @@ class TopicDistanceCalculator:
             )
 
             if save_on_interrupt and output_path and last_processed_idx >= 0:
-                # Truncate dataframe to only processed rows
-                df_partial = df.iloc[: last_processed_idx + 1].copy()
+                # Keep the whole original DataFrame but only fill processed rows
+                df_partial = df.copy()
 
-                # Assign partial results
-                df_partial["question_term_distance_scores"] = question_distance_scores
-                df_partial["source_term_distance_scores"] = source_distance_scores
+                # Initialize columns with None for all rows
+                df_partial["question_term_distance_scores"] = None
+                df_partial["source_term_distance_scores"] = None
+                
+                # Fill in only the processed rows
+                for i in range(last_processed_idx + 1):
+                    df_partial.at[df_partial.index[i], "question_term_distance_scores"] = question_distance_scores[i]
+                    df_partial.at[df_partial.index[i], "source_term_distance_scores"] = source_distance_scores[i]
 
                 # Generate partial output filename
                 output_path_obj = Path(output_path)
@@ -474,7 +481,7 @@ class TopicDistanceCalculator:
                 # Save partial results
                 df_partial.to_csv(partial_output_path, index=False)
                 LOGGER.info(
-                    f"Saved partial results ({last_processed_idx + 1} rows) to {partial_output_path}"
+                    f"Saved partial results ({last_processed_idx + 1}/{len(df)} rows processed) to {partial_output_path}"
                 )
                 LOGGER.info(
                     f"Partial processing summary - Questions: {successful_questions} processed, "
@@ -556,6 +563,8 @@ def calculate_topic_distances_from_csv(
         Show progress bar. Default is True.
     save_on_interrupt : bool
         If True, saves partial results when interrupted with KeyboardInterrupt.
+        The whole original DataFrame is saved with distance scores filled only for
+        processed rows (unprocessed rows have None/NaN).
         Partial results are saved with "_partial" suffix added to the filename.
         Default is True.
 
