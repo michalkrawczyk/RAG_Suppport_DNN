@@ -101,9 +101,7 @@ def load_suggestions_from_csv(
                         suggestion_str = suggestion_str.strip()
                         suggestions = json.loads(suggestion_str)
                     else:
-                        LOGGER.warning(
-                            f"Unexpected type at row {idx}: {type(suggestion_str)}"
-                        )
+                        LOGGER.warning(f"Unexpected type at row {idx}: {type(suggestion_str)}")
                         continue
 
                     # Handle list of dicts
@@ -129,9 +127,7 @@ def load_suggestions_from_csv(
 
             rows_processed += len(chunk_df)
 
-        LOGGER.info(
-            f"Loaded {len(all_suggestions)} total suggestions from {rows_processed} rows"
-        )
+        LOGGER.info(f"Loaded {len(all_suggestions)} total suggestions from {rows_processed} rows")
 
     except Exception as e:
         LOGGER.error(f"Error reading CSV file: {e}")

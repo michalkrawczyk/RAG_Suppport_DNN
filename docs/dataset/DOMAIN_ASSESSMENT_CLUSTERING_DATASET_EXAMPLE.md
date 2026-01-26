@@ -598,6 +598,6 @@ print("\n✓ Complete workflow finished successfully!")
 
 ## See Also
 
-- [Domain Analysis Agent Documentation](agents/DOMAIN_ANALYSIS_AGENT.md)
-- [Clustering and Assignment Documentation](CLUSTERING_AND_ASSIGNMENT.md)
-- [Dataset Check Agent](agents/DATASET_CHECK_AGENT.md)
+- [Domain Analysis Agent Documentation](../agents/DOMAIN_ANALYSIS_AGENT.md)
+- [Clustering and Assignment Documentation](../clustering/CLUSTERING_AND_ASSIGNMENT.md)
+- [Dataset Check Agent](../agents/DATASET_CHECK_AGENT.md)

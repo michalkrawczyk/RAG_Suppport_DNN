@@ -1,3 +1,5 @@
+"""Dataset checking agent for comparing text sources."""
+
 import logging
 from typing import List, TypedDict
 
@@ -14,7 +16,7 @@ try:
     from langgraph.graph import END, START, StateGraph
     from tqdm import tqdm
 
-    from prompts_templates.rag_verifiers import (
+    from RAG_supporters.prompts_templates.rag_verifiers import (
         FINAL_VERDICT_PROMPT,
         SRC_COMPARE_PROMPT_WITH_SCORES,
     )
@@ -71,6 +73,7 @@ try:
             llm: BaseChatModel,
             compare_prompt: str = SRC_COMPARE_PROMPT_WITH_SCORES,
         ):
+            """Initialize the DatasetCheckAgent."""
             self._llm = llm
             self.compare_prompt = compare_prompt
 
@@ -104,9 +107,7 @@ try:
 
                 # Get analysis from LLM
                 response = self._llm.invoke([message])
-                analysis = (
-                    response.content if hasattr(response, "content") else str(response)
-                )
+                analysis = response.content if hasattr(response, "content") else str(response)
 
                 # Update state
                 state["messages"].append(message)
@@ -134,9 +135,7 @@ try:
 
                 # Get final decision
                 response = self._llm.invoke([verdict_message])
-                verdict = (
-                    response.content if hasattr(response, "content") else str(response)
-                )
+                verdict = response.content if hasattr(response, "content") else str(response)
                 verdict = verdict.lower()
 
                 if verdict == "source 1":
@@ -230,9 +229,7 @@ try:
 
             return result
 
-        def process_dataframe(
-            self, df, save_path=None, skip_labeled=True, start_index=0
-        ):
+        def process_dataframe(self, df, save_path=None, skip_labeled=True, start_index=0):
             """Process the dataframe to check for duplicates and other issues.
 
             Parameters
@@ -264,9 +261,7 @@ try:
 
             sub_df = df.iloc[start_index:]
 
-            for idx, row in tqdm(
-                sub_df.iterrows(), total=len(sub_df), desc="Processing sources"
-            ):
+            for idx, row in tqdm(sub_df.iterrows(), total=len(sub_df), desc="Processing sources"):
                 question = row["question_text"]
                 source1 = row["answer_text_1"]
                 source2 = row["answer_text_2"]
@@ -277,9 +272,7 @@ try:
                         results.append(current_label)
                         continue
 
-                    new_label = self.compare_text_sources(question, source1, source2)[
-                        "label"
-                    ]
+                    new_label = self.compare_text_sources(question, source1, source2)["label"]
 
                     if current_label != -1:
                         if new_label == -1:
@@ -368,6 +361,7 @@ except ImportError as e:
         """
 
         def __init__(self, *args, **kwargs):
+            """Initialize placeholder and raise import error."""
             raise ImportError(
                 f"DatasetCheckAgent requires langgraph, langchain_core, and related dependencies to be installed.\n"
                 f"Original import error: {_IMPORT_ERROR}\n"
@@ -375,6 +369,7 @@ except ImportError as e:
             )
 
         def __getattr__(self, name):
+            """Raise import error for missing dependencies."""
             raise ImportError(
                 f"DatasetCheckAgent not available due to missing dependencies: {_IMPORT_ERROR}"
             )

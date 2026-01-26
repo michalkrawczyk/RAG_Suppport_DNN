@@ -16,7 +16,7 @@ from langchain_chroma import Chroma
 from langchain_core.language_models import BaseChatModel
 from tqdm import tqdm
 
-from prompts_templates.rag_verifiers import (
+from RAG_supporters.prompts_templates.rag_verifiers import (
     SINGLE_SRC_SCORE_PROMPT,
     SRC_COMPARE_PROMPT_WITH_SCORES,
 )
@@ -29,9 +29,7 @@ class SamplePairingType(Enum):
 
     RELEVANT = "relevant"  # Relevant passages assigned to the same question
     ALL_EXISTING = "all_existing"  # All existing passages in the database
-    EMBEDDING_SIMILARITY = (
-        "embedding_similarity"  # Embedding similarity based on vector search
-    )
+    EMBEDDING_SIMILARITY = "embedding_similarity"  # Embedding similarity based on vector search
 
 
 @dataclass
@@ -121,9 +119,7 @@ class BaseRAGDatasetGenerator(ABC):
         """
         # Get embedding name from the function
         if embed_function is not None:
-            embedding_name = getattr(
-                embed_function, "model", type(embed_function).__name__
-            )
+            embedding_name = getattr(embed_function, "model", type(embed_function).__name__)
         else:
             embedding_name = None
 
@@ -313,12 +309,8 @@ class BaseRAGDatasetGenerator(ABC):
             If search_db is not 'question' or 'text'
         """
         if search_db not in ["question", "text"]:
-            raise ValueError(
-                f"search_db must be either 'question' or 'text'. Got {search_db}"
-            )
-        db_to_search = (
-            self._question_db if search_db == "question" else self._text_corpus_db
-        )
+            raise ValueError(f"search_db must be either 'question' or 'text'. Got {search_db}")
+        db_to_search = self._question_db if search_db == "question" else self._text_corpus_db
 
         return db_to_search.get(
             ids=chroma_ids if isinstance(chroma_ids, list) else [chroma_ids],
@@ -390,15 +382,11 @@ class BaseRAGDatasetGenerator(ABC):
         Path(os.path.dirname(metadata_file)).mkdir(parents=True, exist_ok=True)
 
         with open(metadata_file, "w") as f:
-            yaml.dump(
-                self._dataset_metadata, f, default_flow_style=False, sort_keys=False
-            )
+            yaml.dump(self._dataset_metadata, f, default_flow_style=False, sort_keys=False)
 
         LOGGER.info(f"Dataset metadata saved to {metadata_file}")
 
-    def load_dataset_metadata(
-        self, metadata_file: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def load_dataset_metadata(self, metadata_file: Optional[str] = None) -> Dict[str, Any]:
         """
         Load dataset metadata from a YAML file.
 
@@ -591,12 +579,10 @@ class BaseRAGDatasetGenerator(ABC):
                     continue
 
                 # Retrieve the question and source texts from ChromaDB
-                question_text = self._question_db.get_by_ids(sample.question_id)[
+                question_text = self._question_db.get_by_ids(sample.question_id)["documents"][0]
+                sources = self._text_corpus_db.get_by_ids([sample.source_id_1, sample.source_id_2])[
                     "documents"
-                ][0]
-                sources = self._text_corpus_db.get_by_ids(
-                    [sample.source_id_1, sample.source_id_2]
-                )["documents"]
+                ]
 
                 # Invoke the verifier chain to determine which source is better
                 result = verifier_agent.compare_text_sources(
@@ -732,9 +718,7 @@ class BaseRAGDatasetGenerator(ABC):
 
             for triplet in tqdm(triplets, desc="Writing triplets to CSV"):
                 # Get texts from ChromaDB by IDs
-                question_text = self._question_db.get(ids=[triplet.question_id])[
-                    "documents"
-                ][0]
+                question_text = self._question_db.get(ids=[triplet.question_id])["documents"][0]
                 answer_texts = self._text_corpus_db.get(
                     ids=[triplet.source_id_1, triplet.source_id_2]
                 )["documents"]

@@ -18,7 +18,7 @@ try:
     from langchain_core.messages import HumanMessage
     from tqdm import tqdm
 
-    from prompts_templates.text_augmentation import (
+    from RAG_supporters.prompts_templates.text_augmentation import (
         ALTERNATIVE_QUESTIONS_GENERATION_PROMPT,
         CONTEXTUAL_QUESTION_PROMPT,
         QUESTION_REPHRASE_WITH_SOURCE_PROMPT,
@@ -73,9 +73,7 @@ try:
             if llm is None:
                 raise ValueError("llm parameter cannot be None")
             if not isinstance(llm, BaseChatModel):
-                raise TypeError(
-                    f"llm must be a BaseChatModel instance, got {type(llm).__name__}"
-                )
+                raise TypeError(f"llm must be a BaseChatModel instance, got {type(llm).__name__}")
 
             self._llm = llm
             self._max_retries = max_retries
@@ -85,15 +83,13 @@ try:
             self._is_openai_llm = self._check_openai_llm()
 
         def _check_openai_llm(self) -> bool:
-            """Check if the LLM is from OpenAI for batch processing"""
+            """Check if the LLM is from OpenAI for batch processing."""
             try:
                 from langchain_openai import AzureChatOpenAI, ChatOpenAI
 
                 return isinstance(self._llm, (ChatOpenAI, AzureChatOpenAI))
             except ImportError:
-                LOGGER.debug(
-                    "langchain_openai not installed, batch processing unavailable"
-                )
+                LOGGER.debug("langchain_openai not installed, batch processing unavailable")
                 return False
             except Exception as e:
                 LOGGER.debug(f"Could not determine if LLM is OpenAI: {e}")
@@ -137,9 +133,7 @@ try:
                         f"LLM invocation failed (attempt {attempt + 1}/{self._max_retries}): {str(e)}"
                     )
                     if attempt == self._max_retries - 1:
-                        LOGGER.error(
-                            f"All {self._max_retries} LLM invocation attempts failed"
-                        )
+                        LOGGER.error(f"All {self._max_retries} LLM invocation attempts failed")
                         return None
             return None
 
@@ -304,15 +298,11 @@ try:
                 return None
 
             if n < 1:
-                LOGGER.warning(
-                    f"Invalid n value ({n}) for question generation, must be >= 1"
-                )
+                LOGGER.warning(f"Invalid n value ({n}) for question generation, must be >= 1")
                 return None
 
             if n > 20:
-                LOGGER.warning(
-                    f"Large n value ({n}) may result in lower quality questions"
-                )
+                LOGGER.warning(f"Large n value ({n}) may result in lower quality questions")
 
             clarity_instruction = (
                 "Questions can be less specific or use vague language if it sounds more natural."
@@ -385,9 +375,7 @@ try:
                 )
 
             if not self._is_openai_llm:
-                LOGGER.info(
-                    "Batch processing not available, using sequential processing"
-                )
+                LOGGER.info("Batch processing not available, using sequential processing")
                 return [
                     self.rephrase_question_with_source(q, s, allow_vague)
                     for q, s in zip(questions, sources)
@@ -419,12 +407,9 @@ try:
                 List of rephrased questions (None for failures).
             """
             if not self._is_openai_llm:
-                LOGGER.info(
-                    "Batch processing not available, using sequential processing"
-                )
+                LOGGER.info("Batch processing not available, using sequential processing")
                 return [
-                    self.rephrase_question_with_domain(q, domain, allow_vague)
-                    for q in questions
+                    self.rephrase_question_with_domain(q, domain, allow_vague) for q in questions
                 ]
 
             return self._batch_process_rephrase_domain(questions, domain, allow_vague)
@@ -453,13 +438,8 @@ try:
                 List of question lists (None for failures).
             """
             if not self._is_openai_llm:
-                LOGGER.info(
-                    "Batch processing not available, using sequential processing"
-                )
-                return [
-                    self.generate_alternative_questions(s, n, allow_vague)
-                    for s in sources
-                ]
+                LOGGER.info("Batch processing not available, using sequential processing")
+                return [self.generate_alternative_questions(s, n, allow_vague) for s in sources]
 
             return self._batch_process_generate(sources, n, allow_vague)
 
@@ -469,7 +449,7 @@ try:
             sources: List[str],
             allow_vague: bool,
         ) -> List[Optional[str]]:
-            """Internal method for batch rephrasing with sources"""
+            """Batch rephrase questions with sources."""
             clarity_instruction = (
                 "The question can use less precise or vague language if it sounds more natural."
                 if allow_vague
@@ -527,7 +507,7 @@ try:
             domain: str,
             allow_vague: bool,
         ) -> List[Optional[str]]:
-            """Internal method for batch rephrasing with domain"""
+            """Batch rephrase questions with domain."""
             # TODO: Move to prompt templates?
             clarity_instruction = (
                 "The question can use less precise or vague language if it sounds more natural."
@@ -576,8 +556,7 @@ try:
                 LOGGER.error(f"Batch processing failed: {e}")
                 LOGGER.info("Falling back to sequential processing")
                 return [
-                    self.rephrase_question_with_domain(q, domain, allow_vague)
-                    for q in questions
+                    self.rephrase_question_with_domain(q, domain, allow_vague) for q in questions
                 ]
 
         def _batch_process_generate(
@@ -586,7 +565,7 @@ try:
             n: int,
             allow_vague: bool,
         ) -> List[Optional[List[str]]]:
-            """Internal method for batch question generation"""
+            """Batch generate questions from sources."""
             clarity_instruction = (
                 "Questions can be less specific or use vague language if it sounds more natural."
                 if allow_vague
@@ -623,9 +602,7 @@ try:
                         questions = data.get("questions", [])
 
                         if not isinstance(questions, list):
-                            LOGGER.error(
-                                f"Response 'questions' field is not a list for item {i}"
-                            )
+                            LOGGER.error(f"Response 'questions' field is not a list for item {i}")
                             results.append(None)
                         elif not questions:
                             LOGGER.error(f"No questions found for item {i}")
@@ -645,10 +622,7 @@ try:
             except Exception as e:
                 LOGGER.error(f"Batch processing failed: {e}")
                 LOGGER.info("Falling back to sequential processing")
-                return [
-                    self.generate_alternative_questions(s, n, allow_vague)
-                    for s in sources
-                ]
+                return [self.generate_alternative_questions(s, n, allow_vague) for s in sources]
 
         def process_dataframe_rephrasing(
             self,
@@ -747,9 +721,7 @@ try:
                 )
 
             if rephrase_mode == "domain" and not domain:
-                raise ValueError(
-                    "domain parameter is required when rephrase_mode is 'domain'"
-                )
+                raise ValueError("domain parameter is required when rephrase_mode is 'domain'")
 
             # Initialize result column
             result_df = df.copy()
@@ -800,7 +772,7 @@ try:
             checkpoint_size,
             save_path,
         ):
-            """Process DataFrame rephrasing using batch API"""
+            """Process DataFrame rephrasing using batch API."""
             total_batches = (len(df) + batch_size - 1) // batch_size
             processed = 0
             errors = 0
@@ -856,11 +828,7 @@ try:
                             errors += 1
 
                     # Checkpoint
-                    if (
-                        save_path
-                        and checkpoint_size
-                        and processed % checkpoint_size == 0
-                    ):
+                    if save_path and checkpoint_size and processed % checkpoint_size == 0:
                         df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
@@ -868,9 +836,7 @@ try:
                     LOGGER.error(f"Batch error: {e}")
                     errors += len(valid_indices)
 
-            LOGGER.info(
-                f"Batch processing complete: {processed} successful, {errors} errors"
-            )
+            LOGGER.info(f"Batch processing complete: {processed} successful, {errors} errors")
             return df
 
         def _process_dataframe_rephrasing_sequential(
@@ -883,13 +849,11 @@ try:
             checkpoint_size,
             save_path,
         ):
-            """Process DataFrame rephrasing sequentially"""
+            """Process DataFrame rephrasing sequentially."""
             processed = 0
             errors = 0
 
-            for idx, row in tqdm(
-                df.iterrows(), total=len(df), desc="Rephrasing questions"
-            ):
+            for idx, row in tqdm(df.iterrows(), total=len(df), desc="Rephrasing questions"):
                 question_text = row[col_map["question_text"]]
 
                 if pd.isna(question_text) or not str(question_text).strip():
@@ -923,11 +887,7 @@ try:
                         errors += 1
 
                     # Checkpoint
-                    if (
-                        save_path
-                        and checkpoint_size
-                        and processed % checkpoint_size == 0
-                    ):
+                    if save_path and checkpoint_size and processed % checkpoint_size == 0:
                         df.to_csv(save_path, index=False)
                         LOGGER.info(f"Checkpoint saved at {processed} rows")
 
@@ -941,9 +901,7 @@ try:
                     LOGGER.error(f"Error processing row {idx}: {e}")
                     errors += 1
 
-            LOGGER.info(
-                f"Sequential processing complete: {processed} successful, {errors} errors"
-            )
+            LOGGER.info(f"Sequential processing complete: {processed} successful, {errors} errors")
             return df
 
         def process_dataframe_generation(
@@ -1037,7 +995,7 @@ try:
         def _process_dataframe_generation_batch(
             self, df, n_questions, allow_vague, col_map, batch_size
         ):
-            """Process DataFrame generation using batch API"""
+            """Process DataFrame generation using batch API."""
             generated_rows = []
             total_batches = (len(df) + batch_size - 1) // batch_size
 
@@ -1093,15 +1051,11 @@ try:
             LOGGER.warning("No questions were successfully generated")
             return pd.DataFrame(columns=df.columns)
 
-        def _process_dataframe_generation_sequential(
-            self, df, n_questions, allow_vague, col_map
-        ):
-            """Process DataFrame generation sequentially"""
+        def _process_dataframe_generation_sequential(self, df, n_questions, allow_vague, col_map):
+            """Process DataFrame generation sequentially."""
             generated_rows = []
 
-            for idx, row in tqdm(
-                df.iterrows(), total=len(df), desc="Generating questions"
-            ):
+            for idx, row in tqdm(df.iterrows(), total=len(df), desc="Generating questions"):
                 source_text = row[col_map["source_text"]]
 
                 if pd.isna(source_text) or not str(source_text).strip():
@@ -1113,9 +1067,7 @@ try:
                 )
 
                 if questions is None:
-                    LOGGER.warning(
-                        f"Failed to generate questions for source at index {idx}"
-                    )
+                    LOGGER.warning(f"Failed to generate questions for source at index {idx}")
                     continue
 
                 # Create a new row for each generated question

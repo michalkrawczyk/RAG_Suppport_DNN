@@ -1,3 +1,5 @@
+"""Embedding augmentation utilities for data augmentation."""
+
 import random
 from typing import Union
 
@@ -11,7 +13,7 @@ def random_noise_embedding(
     probability: float = 0.5,
 ) -> Union[np.ndarray, torch.Tensor]:
     """
-    Adds random Gaussian noise to the embedding.
+    Add random Gaussian noise to the embedding.
 
     Args:
         embedding (np.ndarray): The original embedding vector.
@@ -37,8 +39,9 @@ def random_zero_embedding(
     embedding: Union[np.ndarray, torch.Tensor], probability: float = 0.5
 ) -> Union[np.ndarray, torch.Tensor]:
     """
-    Randomly sets whole embedding as zero with a given probability.
-    (This would be used for steering embeddings to 'no information' state.)
+    Randomly set whole embedding as zero with a given probability.
+
+    This would be used for steering embeddings to 'no information' state.
 
     Args:
         embedding (np.ndarray or torch.Tensor): The original embedding vector.

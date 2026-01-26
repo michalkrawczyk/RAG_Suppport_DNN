@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from dataset.sqlite_storage import SQLiteStorageManager
+from .sqlite_storage import SQLiteStorageManager
 from torch.utils.data import Dataset, Subset
 
 
@@ -227,9 +227,7 @@ class ClusterLabeledDataset(Dataset):
             # Update DB FIRST to ensure data consistency
             # This prevents race condition where another thread reads stale data
             # between cache invalidation and DB update
-            self.storage.update_labels(
-                sample_id, source_label, steering_label, combined_label
-            )
+            self.storage.update_labels(sample_id, source_label, steering_label, combined_label)
 
             # Now invalidate cache (DB is already updated)
             if sample_id in self._sample_id_to_idx:
@@ -291,9 +289,7 @@ class ClusterLabeledDataset(Dataset):
         """
         info = self.storage.get_embedding_file_info(embedding_type)
         if info is None:
-            raise ValueError(
-                f"No embedding file registered for type '{embedding_type}'"
-            )
+            raise ValueError(f"No embedding file registered for type '{embedding_type}'")
 
         file_path = Path(info["file_path"])
         if not file_path.exists():
@@ -317,18 +313,14 @@ class ClusterLabeledDataset(Dataset):
                     f"expected {expected_dim}, got {actual_dim}. "
                     f"The embedding file may be corrupted or from a different model."
                 )
-            logging.debug(
-                f"Validated {embedding_type} embeddings dimension: {actual_dim}"
-            )
+            logging.debug(f"Validated {embedding_type} embeddings dimension: {actual_dim}")
         else:
             logging.warning(
                 f"No embedding_dim found in dataset metadata. "
                 f"Skipping dimension validation for {embedding_type} embeddings."
             )
 
-        logging.info(
-            f"Loaded {embedding_type} embeddings: {file_path} (shape={embeddings.shape})"
-        )
+        logging.info(f"Loaded {embedding_type} embeddings: {file_path} (shape={embeddings.shape})")
 
         return embeddings
 

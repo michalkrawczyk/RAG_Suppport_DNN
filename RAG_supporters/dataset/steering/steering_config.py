@@ -41,9 +41,7 @@ class SteeringConfig:
         # Validate and normalize mode probabilities
         if self.mode:
             if not isinstance(self.mode, list):
-                raise ValueError(
-                    "mode must be a list of (SteeringMode, probability) tuples"
-                )
+                raise ValueError("mode must be a list of (SteeringMode, probability) tuples")
 
             if len(self.mode) == 0:
                 raise ValueError("mode list cannot be empty")
@@ -61,13 +59,9 @@ class SteeringConfig:
                         f"got {type(mode)}. Did you forget to import SteeringMode?"
                     )
                 if not isinstance(prob, (int, float)):
-                    raise ValueError(
-                        f"mode[{i}] probability must be numeric, got {type(prob)}"
-                    )
+                    raise ValueError(f"mode[{i}] probability must be numeric, got {type(prob)}")
                 if prob < 0:
-                    raise ValueError(
-                        f"mode[{i}] probability must be non-negative, got {prob}"
-                    )
+                    raise ValueError(f"mode[{i}] probability must be non-negative, got {prob}")
 
             # Check for zero total probability
             total_prob = sum(prob for _, prob in self.mode)
@@ -132,9 +126,7 @@ class SteeringConfig:
         Returns:
             SteeringConfig instance
         """
-        return cls(
-            mode=modes, multi_label_mode=multi_label_mode, random_seed=random_seed
-        )
+        return cls(mode=modes, multi_label_mode=multi_label_mode, random_seed=random_seed)
 
     def get_mode_probabilities(self) -> Dict[SteeringMode, float]:
         """

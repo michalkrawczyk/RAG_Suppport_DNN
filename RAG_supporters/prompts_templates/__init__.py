@@ -1,3 +1,5 @@
+"""Prompt templates package for RAG and agent operations."""
+
 from .rag_verifiers import (
     SINGLE_SRC_SCORE_PROMPT,
     FINAL_VERDICT_PROMPT,

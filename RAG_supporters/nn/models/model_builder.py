@@ -1,3 +1,5 @@
+"""Neural network model builder utilities."""
+
 import torch
 import torch.nn as nn
 import yaml
@@ -50,10 +52,10 @@ class ConfigurableModel(nn.Module):
     """
 
     def __init__(
-            self,
-            config_path: Union[str, Path],
-            device: Optional[torch.device] = None,
-            warmup_validate: bool = False
+        self,
+        config_path: Union[str, Path],
+        device: Optional[torch.device] = None,
+        warmup_validate: bool = False,
     ):
         """
         Initialize the configurable model.
@@ -66,7 +68,7 @@ class ConfigurableModel(nn.Module):
         super().__init__()
 
         self.config_path = Path(config_path)
-        self.device = device or torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         if not self.config_path.exists():
             raise FileNotFoundError(f"Model config file not found at {self.config_path}")
@@ -99,13 +101,13 @@ class ConfigurableModel(nn.Module):
             KeyError: If required configuration keys are missing
         """
         try:
-            with open(self.config_path, 'r') as f:
+            with open(self.config_path, "r") as f:
                 config = yaml.safe_load(f)  # Using safe_load for security
 
-            if 'model' not in config:
+            if "model" not in config:
                 raise KeyError("Configuration must contain 'model' key")
 
-            if 'layers' not in config['model']:
+            if "layers" not in config["model"]:
                 raise KeyError("Model configuration must contain 'layers' key")
 
             return config
@@ -154,19 +156,13 @@ class ConfigurableModel(nn.Module):
         return nn.Sequential(model_dict)
 
     def _build_sequential_layer(
-            self,
-            layer_cfg: Dict[str, Any],
-            layer_index: int,
-            excluded_keys: set
+        self, layer_cfg: Dict[str, Any], layer_index: int, excluded_keys: set
     ) -> nn.Sequential:
         """Build a Sequential layer containing multiple sub-layers."""
         layer_dict = OrderedDict()
 
         for j, sub_layer_cfg in enumerate(layer_cfg["layers"]):
-            sub_layer_name = sub_layer_cfg.get(
-                "name",
-                f"{sub_layer_cfg['type']}_{layer_index}_{j}"
-            )
+            sub_layer_name = sub_layer_cfg.get("name", f"{sub_layer_cfg['type']}_{layer_index}_{j}")
 
             try:
                 sub_layer = self._build_single_layer(sub_layer_cfg, excluded_keys)
@@ -211,11 +207,12 @@ class ConfigurableModel(nn.Module):
                 expected_shape = (1, self.output_features)
                 if output.shape != expected_shape:
                     raise RuntimeError(
-                        f"Output shape mismatch: expected {expected_shape}, "
-                        f"got {output.shape}"
+                        f"Output shape mismatch: expected {expected_shape}, " f"got {output.shape}"
                     )
 
-            LOGGER.info(f"Model validation successful. Input: {dummy_input.shape}, Output: {output.shape}")
+            LOGGER.info(
+                f"Model validation successful. Input: {dummy_input.shape}, Output: {output.shape}"
+            )
 
         except Exception as e:
             raise RuntimeError(f"Model validation failed: {e}") from e
@@ -238,15 +235,16 @@ class ConfigurableModel(nn.Module):
             f"Total Parameters: {total_params:,}",
             f"Trainable Parameters: {trainable_params:,}",
             "\nModel Architecture:",
-            str(self.model)
+            str(self.model),
         ]
 
         return "\n".join(summary)
 
     def save_config(self, save_path: Union[str, Path]) -> None:
         """Save current configuration to file."""
-        with open(save_path, 'w') as f:
+        with open(save_path, "w") as f:
             yaml.safe_dump(self.config, f, default_flow_style=False)
 
     def __repr__(self) -> str:
+        """Return string representation of the model."""
         return f"ConfigurableModel(config='{self.config_path}', device='{self.device}')"

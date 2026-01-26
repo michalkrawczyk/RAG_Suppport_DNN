@@ -56,9 +56,7 @@ def create_domain_assessment_record(row: pd.Series) -> DomainAssessmentRecord:
     # Parse suggestions (JSON formatted)
     suggestions_str = row.get("suggestions", "[]")
     try:
-        suggestions = (
-            json.loads(suggestions_str) if isinstance(suggestions_str, str) else []
-        )
+        suggestions = json.loads(suggestions_str) if isinstance(suggestions_str, str) else []
     except json.JSONDecodeError as e:
         logger.warning(f"Failed to parse suggestions: {e}")
         suggestions = []

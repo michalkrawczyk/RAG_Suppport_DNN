@@ -108,8 +108,6 @@ def parse_json_or_literal(
 
     # Validate type if specified
     if expected_type is not None and not isinstance(result, expected_type):
-        raise ValueError(
-            f"Expected {expected_type.__name__}, got {type(result).__name__}"
-        )
+        raise ValueError(f"Expected {expected_type.__name__}, got {type(result).__name__}")
 
     return result

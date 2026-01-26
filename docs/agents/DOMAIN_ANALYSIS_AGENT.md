@@ -2,23 +2,25 @@
 
 ## Overview
 
-The `DomainAnalysisAgent` is a unified LangGraph-based agent for comprehensive domain analysis tasks. It provides three distinct operation modes for extracting domains from text, guessing required domains for questions, and assessing question relevance to available domain terms. This agent is essential for domain classification, knowledge base organization, and question-domain matching in RAG applications.
+The `DomainAnalysisAgent` is a unified LangGraph-based agent for comprehensive domain analysis tasks. It provides four distinct operation modes for extracting domains from text, guessing required domains for questions, assessing question relevance to available domain terms, and calculating topic relevance probabilities. This agent is essential for domain classification, knowledge base organization, and question-domain matching in RAG applications.
 
 ### What It Does
 
-The agent provides three powerful operation modes:
+The agent provides four powerful operation modes:
 - **EXTRACT Mode**: Extract domains, subdomains, and keywords from source text
 - **GUESS Mode**: Identify domains needed to answer a given question
 - **ASSESS Mode**: Evaluate which available domain terms are most relevant to a question
+- **TOPIC_RELEVANCE_PROB Mode**: Assess relevance probabilities between a question and topic descriptors
 
 ### Key Features
 
-- **Three Operation Modes**: Extract, Guess, and Assess domain information
+- **Four Operation Modes**: Extract, Guess, Assess, and Topic Relevance Probability assessment
 - **Structured Output**: Returns validated Pydantic models with scores and reasoning
 - **Batch Processing**: Efficiently process multiple texts or questions
 - **LangGraph Architecture**: Robust workflow with automatic retry logic
 - **Flexible Input**: Works with text, DataFrames, and CSV files
 - **OpenAI Batch Support**: Optimized batch processing for OpenAI models
+- **Configurable Reasoning**: Optional reasoning explanations (via `include_reason` parameter, applies only to TOPIC_RELEVANCE_PROB mode)
 
 ## Installation
 
@@ -34,7 +36,7 @@ For specific LLM providers:
 pip install langchain-openai
 
 # Install all agent dependencies
-pip install -r RAG_supporters/requirements_agents.txt
+pip install -e .[openai]  # or .[nvidia] for NVIDIA
 ```
 
 ## Operation Modes
@@ -144,6 +146,74 @@ print(f"Selected terms: {[t['term'] for t in result['selected_terms']]}")
 }
 ```
 
+### TOPIC_RELEVANCE_PROB Mode - Topic Relevance Probability Assessment
+
+Assess relevance probabilities between a question and topic descriptors. This mode is designed to work with cluster descriptors from KeywordClusterer.
+
+**Use Cases:**
+- Matching questions to topic clusters
+- Calculating semantic similarity probabilities
+- Topic-based content filtering
+- Question routing with confidence scores
+
+**Example:**
+```python
+question = "How does gradient descent optimize neural networks?"
+topic_descriptors = [
+    "machine learning algorithms",
+    "database systems", 
+    "web development",
+    "neural networks"
+]
+
+result = agent.assess_topic_relevance_prob(question, topic_descriptors)
+print(f"Topic scores: {result['topic_scores']}")
+print(f"Total topics: {result['total_topics']}")
+```
+
+**Output:**
+```python
+{
+    'topic_scores': [
+        {'topic_descriptor': 'machine learning algorithms', 'probability': 0.95},
+        {'topic_descriptor': 'neural networks', 'probability': 0.98},
+        {'topic_descriptor': 'database systems', 'probability': 0.1},
+        {'topic_descriptor': 'web development', 'probability': 0.05}
+    ],
+    'total_topics': 4,
+    'question_summary': 'Question about optimization in neural networks'
+}
+```
+
+**With Reasoning (using `include_reason=True`):**
+```python
+# Initialize agent with reasoning enabled
+agent = DomainAnalysisAgent(llm=llm, include_reason=True)
+
+result = agent.assess_topic_relevance_prob(question, topic_descriptors)
+```
+
+**Output with reasoning:**
+```python
+{
+    'topic_scores': [
+        {
+            'topic_descriptor': 'machine learning algorithms', 
+            'probability': 0.95,
+            'reason': 'Gradient descent is a fundamental machine learning optimization algorithm'
+        },
+        {
+            'topic_descriptor': 'neural networks', 
+            'probability': 0.98,
+            'reason': 'Gradient descent is the primary method for training neural networks'
+        },
+        # ...
+    ],
+    'total_topics': 4,
+    'question_summary': 'Question about optimization in neural networks'
+}
+```
+
 ## Basic Usage
 
 ### Initialize the Agent
@@ -155,6 +225,14 @@ from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
 # Initialize with an LLM
 llm = ChatOpenAI(model="gpt-4", temperature=0.3)
 agent = DomainAnalysisAgent(llm=llm, max_retries=3, batch_size=10)
+
+# Initialize with reasoning enabled for topic relevance assessments
+agent_with_reasoning = DomainAnalysisAgent(
+    llm=llm, 
+    max_retries=3, 
+    batch_size=10,
+    include_reason=True  # Enable reasoning explanations in TOPIC_RELEVANCE_PROB mode
+)
 ```
 
 ### Single Text/Question Operations
@@ -452,6 +530,80 @@ print(f"Subdomains: {len(domain_taxonomy.get('subdomain', []))}")
 print(f"Keywords: {len(domain_taxonomy.get('keyword', []))}")
 ```
 
+### Example 4: Topic Relevance Assessment with Cluster Descriptors
+
+```python
+import pandas as pd
+from langchain_openai import ChatOpenAI
+from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
+
+# Initialize agent with reasoning enabled
+llm = ChatOpenAI(model="gpt-4", temperature=0.3)
+agent = DomainAnalysisAgent(llm=llm, include_reason=True)
+
+# Topic descriptors from keyword clustering
+topic_descriptors = [
+    "machine learning and neural networks",
+    "web development and frameworks",
+    "database systems and SQL",
+    "cloud computing and DevOps",
+    "mobile app development"
+]
+
+# Questions to route
+questions_df = pd.DataFrame({
+    "id": [1, 2, 3, 4],
+    "question": [
+        "How does backpropagation work in deep learning?",
+        "What is the difference between REST and GraphQL?",
+        "How do I optimize PostgreSQL queries?",
+        "What are the best practices for Kubernetes deployments?"
+    ]
+})
+
+# Assess topic relevance for each question
+results = []
+for idx, row in questions_df.iterrows():
+    result = agent.assess_topic_relevance_prob(
+        row['question'],
+        topic_descriptors
+    )
+    
+    if result:
+        # Find top topic
+        top_topic = max(result['topic_scores'], key=lambda x: x['probability'])
+        results.append({
+            'question': row['question'],
+            'top_topic': top_topic['topic_descriptor'],
+            'probability': top_topic['probability'],
+            'reason': top_topic.get('reason', 'N/A')
+        })
+
+results_df = pd.DataFrame(results)
+
+# Display routing results
+for idx, row in results_df.iterrows():
+    print(f"\nQuestion: {row['question']}")
+    print(f"Best Match: {row['top_topic']}")
+    print(f"Probability: {row['probability']:.2f}")
+    print(f"Reason: {row['reason']}")
+
+# Batch processing for efficiency
+print("\n--- Using Batch Processing ---")
+batch_results = agent.assess_topic_relevance_prob_batch(
+    questions_df['question'].tolist(),
+    topic_descriptors,
+    show_progress=True
+)
+
+# Process batch results
+for question, result in zip(questions_df['question'], batch_results):
+    if result:
+        top_topic = max(result['topic_scores'], key=lambda x: x['probability'])
+        print(f"\n{question}")
+        print(f"  → {top_topic['topic_descriptor']} ({top_topic['probability']:.2f})")
+```
+
 ## Expected Data Formats
 
 ### For EXTRACT Mode
@@ -519,7 +671,8 @@ class DomainAnalysisAgent:
         self,
         llm: BaseChatModel,
         max_retries: int = 3,
-        batch_size: int = 10
+        batch_size: int = 10,
+        include_reason: bool = False
     )
 ```
 
@@ -527,6 +680,7 @@ class DomainAnalysisAgent:
 - `llm`: Language model for analysis
 - `max_retries`: Maximum retries for parsing errors (default: 3)
 - `batch_size`: Default batch size for batch processing (default: 10)
+- `include_reason`: If True, include reasoning explanations in topic relevance assessments. Only applies to `assess_topic_relevance_prob` operations (TOPIC_RELEVANCE_PROB mode). Default is False. Setting to True increases token usage but provides explanations for probability scores.
 
 #### Single Operation Methods
 
@@ -563,6 +717,29 @@ Assess which available terms are most relevant to a question.
 
 **Returns:** Dictionary with `selected_terms`, `total_selected`, `question_intent`, and `primary_topics`
 
+##### assess_topic_relevance_prob
+
+```python
+assess_topic_relevance_prob(
+    question: str,
+    topic_descriptors: Union[List[str], List[Dict], str, Dict]
+) -> Optional[Dict[str, Any]]
+```
+
+Assess relevance probabilities between a question and topic descriptors.
+
+This method is designed to work with cluster descriptors from KeywordClusterer. It automatically handles:
+- List of strings: `["topic1", "topic2"]`
+- JSON string: `'["topic1", "topic2"]'`
+- File path to JSON: `"path/to/clusters.json"`
+- KeywordClusterer dict format with 'cluster_stats'
+
+**Parameters:**
+- `question`: The question to analyze
+- `topic_descriptors`: Topic descriptors in any supported format
+
+**Returns:** Dictionary with `topic_scores` (containing topic_descriptor, probability, and optionally reason if `include_reason=True`), `total_topics`, and optional `question_summary`
+
 #### Batch Processing Methods
 
 ##### extract_domains_batch
@@ -595,6 +772,27 @@ assess_domains_batch(
 ```
 
 Assess multiple questions against available terms in batch.
+
+##### assess_topic_relevance_prob_batch
+
+```python
+assess_topic_relevance_prob_batch(
+    questions: List[str],
+    topic_descriptors: Union[List[str], List[Dict], str, Dict],
+    batch_size: Optional[int] = None,
+    show_progress: bool = True
+) -> List[Optional[Dict[str, Any]]]
+```
+
+Assess relevance probabilities for multiple questions against topic descriptors in batch.
+
+**Parameters:**
+- `questions`: List of questions to analyze
+- `topic_descriptors`: Topic descriptors in any supported format (shared across all questions)
+- `batch_size`: Batch size for processing (default: uses agent's batch_size)
+- `show_progress`: Show progress bar (default: True)
+
+**Returns:** List of dictionaries, each with `topic_scores`, `total_topics`, and optional `question_summary`
 
 #### DataFrame Processing
 
@@ -639,6 +837,7 @@ Process entire DataFrame based on operation mode.
    - Use EXTRACT for categorizing content
    - Use GUESS for question routing
    - Use ASSESS for matching questions to knowledge bases
+   - Use TOPIC_RELEVANCE_PROB for calculating semantic similarity probabilities with cluster descriptors
 
 2. **Set Reasonable Temperature**: Use 0.3-0.5 for consistent results
 
@@ -651,6 +850,8 @@ Process entire DataFrame based on operation mode.
 6. **Monitor Costs**: Each operation requires 1 LLM call (+ retries if parsing fails)
 
 7. **Handle Structured Output**: Results contain stringified Python objects; use `eval()` or `json.loads()` carefully
+
+8. **Control Reasoning Explanations**: Set `include_reason=True` when initializing the agent if you need explanations for topic relevance probabilities. Note that this increases token usage but provides valuable insights into the model's decision-making process. Only applies to TOPIC_RELEVANCE_PROB mode.
 
 ## Performance Considerations
 
