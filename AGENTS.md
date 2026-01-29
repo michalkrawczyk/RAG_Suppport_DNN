@@ -24,7 +24,7 @@ pip install -r RAG_supporters/requirements.txt
 # Install agent dependencies with LLM provider (choose one):
 pip install -e .[openai]   # For OpenAI support
 pip install -e .[nvidia]   # For NVIDIA support
-pip install -e .           # Base agents only (no LLM provider)
+pip install -e .[base]     # Base agents only (no LLM provider)
 
 # Install development tools (linting, testing, formatting)
 pip install -e .[dev]

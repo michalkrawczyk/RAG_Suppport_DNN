@@ -448,7 +448,7 @@ for idx, row in assessed.iterrows():
 # Install with LLM provider (choose one)
 pip install -e .[openai]   # For OpenAI support
 pip install -e .[nvidia]   # For NVIDIA support
-pip install -e .           # Base agents only
+pip install -e .[base]     # Base agents only
 
 # Or install individually (if not using pyproject.toml)
 pip install langgraph pydantic pandas tqdm
