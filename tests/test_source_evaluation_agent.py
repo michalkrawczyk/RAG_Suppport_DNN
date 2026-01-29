@@ -1,7 +1,6 @@
 """Tests for SourceEvaluationAgent."""
 
-import logging
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
