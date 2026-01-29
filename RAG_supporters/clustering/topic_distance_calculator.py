@@ -459,7 +459,7 @@ class TopicDistanceCalculator:
                 f"\nProcessing interrupted by user at row {last_processed_idx + 1}/{len(df)}"
             )
 
-            if save_on_interrupt and output_path and last_processed_idx >= 0:
+            if interrupted and save_on_interrupt and output_path and last_processed_idx >= 0:
                 # Keep the whole original DataFrame but only fill processed rows
                 df_partial = df.copy()
 
