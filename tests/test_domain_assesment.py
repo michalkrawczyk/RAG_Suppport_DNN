@@ -326,7 +326,9 @@ def test_parse_topic_descriptors_invalid_file():
 
     # Non-existent file paths are treated as single descriptors (not validated as files)
     result = agent._parse_topic_descriptors("/nonexistent/path/to/file.json")
-    assert result == ["/nonexistent/path/to/file.json"], "Non-existent paths should be treated as single descriptors"
+    assert result == [
+        "/nonexistent/path/to/file.json"
+    ], "Non-existent paths should be treated as single descriptors"
 
 
 def test_parse_topic_descriptors_single_string():
@@ -891,7 +893,9 @@ def test_parse_topic_descriptors_with_duplicate_descriptors():
     # Should deduplicate to unique descriptors only
     assert "common_term" in result, "common_term should be in the result"
     # Should have only one occurrence (deduplication)
-    assert result.count("common_term") == 1, "Duplicates should be removed, expecting unique descriptors only"
+    assert (
+        result.count("common_term") == 1
+    ), "Duplicates should be removed, expecting unique descriptors only"
     # Verify all expected unique descriptors are present
     expected_descriptors = {"machine learning", "AI", "common_term", "databases", "SQL"}
     assert set(result) == expected_descriptors, "All unique descriptors should be present"

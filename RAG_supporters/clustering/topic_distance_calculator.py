@@ -466,11 +466,15 @@ class TopicDistanceCalculator:
                 # Initialize columns with None for all rows
                 df_partial["question_term_distance_scores"] = None
                 df_partial["source_term_distance_scores"] = None
-                
+
                 # Fill in only the processed rows
                 for i in range(last_processed_idx + 1):
-                    df_partial.at[df_partial.index[i], "question_term_distance_scores"] = question_distance_scores[i]
-                    df_partial.at[df_partial.index[i], "source_term_distance_scores"] = source_distance_scores[i]
+                    df_partial.at[df_partial.index[i], "question_term_distance_scores"] = (
+                        question_distance_scores[i]
+                    )
+                    df_partial.at[df_partial.index[i], "source_term_distance_scores"] = (
+                        source_distance_scores[i]
+                    )
 
                 # Generate partial output filename
                 output_path_obj = Path(output_path)
