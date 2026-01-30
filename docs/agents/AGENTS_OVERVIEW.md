@@ -445,12 +445,15 @@ for idx, row in assessed.iterrows():
 ### Quick Start
 
 ```bash
-# Install with LLM provider (choose one)
-pip install -e .[openai]   # For OpenAI support
-pip install -e .[nvidia]   # For NVIDIA support
-pip install -e .           # Base agents only
+# Install core library only (no agents)
+pip install -e .
 
-# Or install individually (if not using pyproject.toml)
+# Install with agent support (choose one)
+pip install -e .[openai]   # Agents with OpenAI support
+pip install -e .[nvidia]   # Agents with NVIDIA support
+pip install -e .[base]     # Agents only (no LLM provider)
+
+# Or install agent dependencies individually (if not using pyproject.toml)
 pip install langgraph pydantic pandas tqdm
 pip install langchain-openai  # For OpenAI
 ```

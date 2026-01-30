@@ -18,13 +18,13 @@ This is a Python library for experiments on creating non-LLM solutions (specific
 ### Installation
 
 ```bash
-# Install core dependencies
-pip install -r RAG_supporters/requirements.txt
+# Install core dependencies only (no agents)
+pip install -e .
 
-# Install agent dependencies with LLM provider (choose one):
-pip install -e .[openai]   # For OpenAI support
-pip install -e .[nvidia]   # For NVIDIA support
-pip install -e .           # Base agents only (no LLM provider)
+# Install with agent support (choose one):
+pip install -e .[openai]   # Agents with OpenAI support
+pip install -e .[nvidia]   # Agents with NVIDIA support
+pip install -e .[base]     # Agents only (no LLM provider)
 
 # Install development tools (linting, testing, formatting)
 pip install -e .[dev]
