@@ -39,8 +39,10 @@ Documentation = "https://github.com/michalkrawczyk/RAG_Suppport_DNN/tree/main/do
 Repository = "https://github.com/michalkrawczyk/RAG_Suppport_DNN"
 Issues = "https://github.com/michalkrawczyk/RAG_Suppport_DNN/issues"
 
-[tool.setuptools]
-packages = ["RAG_supporters"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["RAG_supporters*"]
+exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 RAG_supporters = ["py.typed"]
