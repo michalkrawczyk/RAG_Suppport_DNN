@@ -263,6 +263,56 @@ class TopicDistanceCalculator:
 
         return embedding
 
+    def _get_embeddings_batch(self, texts: list) -> Dict[str, np.ndarray]:
+        """
+        Get embeddings for multiple texts in batch using KeywordEmbedder.
+
+        Uses caching and batch processing for efficiency.
+
+        Parameters
+        ----------
+        texts : list
+            List of texts to embed
+
+        Returns
+        -------
+        Dict[str, np.ndarray]
+            Dictionary mapping original text to embedding vector
+        """
+        if self.embedder is None:
+            raise ValueError(
+                "Embedder is required to embed text. "
+                "Provide a KeywordEmbedder during initialization or use database IDs."
+            )
+
+        result = {}
+        texts_to_embed = []
+        text_indices = []  # Track which texts need embedding
+
+        # Check cache for each text
+        for i, text in enumerate(texts):
+            if self._enable_cache and text in self._embedding_cache:
+                result[text] = self._embedding_cache[text]
+            else:
+                texts_to_embed.append(text)
+                text_indices.append(i)
+
+        # Batch embed uncached texts
+        if texts_to_embed:
+            embeddings_dict = self.embedder.create_embeddings(texts_to_embed)
+            
+            # Map back to original texts and cache
+            for i, text in enumerate(texts_to_embed):
+                normalized_text = normalize_string(text)
+                embedding = embeddings_dict[normalized_text]
+                result[text] = embedding
+                
+                # Cache the result (if enabled)
+                if self._enable_cache:
+                    self._embedding_cache[text] = embedding
+
+        return result
+
     def _get_embedding_from_database(
         self, item_id: str, database: Any, collection_name: str = "questions"
     ) -> Optional[np.ndarray]:
@@ -385,7 +435,50 @@ class TopicDistanceCalculator:
         skipped_questions = 0
         skipped_sources = 0
 
-        # Process each row
+        # Batch process: collect all texts first, then generate embeddings in batch
+        question_texts = []
+        source_texts = []
+        question_indices = []  # Track which rows have questions
+        source_indices = []  # Track which rows have sources
+        
+        # Step 1: Collect all texts that need embedding
+        LOGGER.info("Collecting texts for batch embedding...")
+        for idx in range(len(df)):
+            row = df.iloc[idx]
+            
+            # Collect question texts (if not using database IDs)
+            if not question_id_col or question_id_col not in df.columns or pd.isna(row.get(question_id_col)):
+                if question_col in df.columns and pd.notna(row[question_col]):
+                    question_text = str(row[question_col])
+                    # Only add if not already in cache
+                    if not self._enable_cache or question_text not in self._embedding_cache:
+                        if question_text not in question_texts:  # Avoid duplicates
+                            question_texts.append(question_text)
+                    question_indices.append((idx, question_text))
+            
+            # Collect source texts (if not using database IDs)
+            if not source_id_col or source_id_col not in df.columns or pd.isna(row.get(source_id_col)):
+                if source_col in df.columns and pd.notna(row[source_col]):
+                    source_text = str(row[source_col])
+                    # Only add if not already in cache
+                    if not self._enable_cache or source_text not in self._embedding_cache:
+                        if source_text not in source_texts:  # Avoid duplicates
+                            source_texts.append(source_text)
+                    source_indices.append((idx, source_text))
+        
+        # Step 2: Generate embeddings in batch
+        question_embeddings_map = {}
+        source_embeddings_map = {}
+        
+        if question_texts:
+            LOGGER.info(f"Generating embeddings for {len(question_texts)} unique questions...")
+            question_embeddings_map = self._get_embeddings_batch(question_texts)
+        
+        if source_texts:
+            LOGGER.info(f"Generating embeddings for {len(source_texts)} unique sources...")
+            source_embeddings_map = self._get_embeddings_batch(source_texts)
+        
+        # Step 3: Process each row with pre-computed embeddings
         iterator = range(len(df))
         if show_progress:
             iterator = tqdm(iterator, desc="Calculating topic distances", unit="row")
@@ -411,8 +504,11 @@ class TopicDistanceCalculator:
                         str(row[question_id_col]), database, "questions"
                     )
                 elif question_col in df.columns and pd.notna(row[question_col]):
-                    # Embed text
-                    question_embedding = self._get_embedding_from_text(str(row[question_col]))
+                    # Get from batch-generated embeddings or cache
+                    question_text = str(row[question_col])
+                    question_embedding = question_embeddings_map.get(question_text)
+                    if question_embedding is None and self._enable_cache:
+                        question_embedding = self._embedding_cache.get(question_text)
                 else:
                     LOGGER.warning(f"Row {idx}: No valid question data")
                     question_embedding = None
@@ -437,8 +533,11 @@ class TopicDistanceCalculator:
                         str(row[source_id_col]), database, "sources"
                     )
                 elif source_col in df.columns and pd.notna(row[source_col]):
-                    # Embed text
-                    source_embedding = self._get_embedding_from_text(str(row[source_col]))
+                    # Get from batch-generated embeddings or cache
+                    source_text = str(row[source_col])
+                    source_embedding = source_embeddings_map.get(source_text)
+                    if source_embedding is None and self._enable_cache:
+                        source_embedding = self._embedding_cache.get(source_text)
                 else:
                     LOGGER.warning(f"Row {idx}: No valid source data")
                     source_embedding = None

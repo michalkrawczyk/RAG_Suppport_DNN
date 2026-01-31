@@ -181,6 +181,100 @@ def test_compute_distances():
     assert distances[0] < distances[2]
 
 
+def test_get_embeddings_batch():
+    """Test batch embedding generation with caching."""
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
+    from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+
+    # Create mock KeywordClusterer data
+    mock_clusterer_data = {
+        "centroids": [
+            np.random.rand(384).tolist(),
+            np.random.rand(384).tolist(),
+        ],
+        "cluster_stats": {
+            "0": {"topic_descriptors": ["topic1"], "size": 5},
+            "1": {"topic_descriptors": ["topic2"], "size": 5},
+        },
+    }
+
+    # Create mock embedder
+    class MockEmbedModel:
+        def encode(self, texts, **kwargs):
+            if isinstance(texts, str):
+                texts = [texts]
+            return np.array([np.random.rand(384) for _ in texts])
+
+    embedder = KeywordEmbedder(embedding_model=MockEmbedModel())
+    calculator = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        embedder=embedder,
+        enable_cache=True,
+    )
+
+    # Test batch embedding
+    texts = ["text1", "text2", "text3"]
+    embeddings_map = calculator._get_embeddings_batch(texts)
+
+    assert len(embeddings_map) == 3, "Should return embeddings for all texts"
+    assert all(text in embeddings_map for text in texts), "All texts should have embeddings"
+    assert all(
+        embeddings_map[text].shape == (384,) for text in texts
+    ), "Embeddings should have correct shape"
+
+    # Test caching - texts should now be in cache
+    assert len(calculator._embedding_cache) == 3, "Cache should contain all 3 texts"
+    
+    # Test batch with some cached texts
+    new_texts = ["text2", "text3", "text4"]  # text2, text3 are cached
+    embeddings_map2 = calculator._get_embeddings_batch(new_texts)
+    
+    assert len(embeddings_map2) == 3, "Should return embeddings for all texts"
+    assert len(calculator._embedding_cache) == 4, "Cache should now contain 4 texts"
+    
+    # Verify cached embeddings are reused
+    assert np.array_equal(
+        embeddings_map["text2"], embeddings_map2["text2"]
+    ), "Cached embeddings should be reused"
+
+
+def test_get_embeddings_batch_no_cache():
+    """Test batch embedding without caching."""
+    from RAG_supporters.clustering.topic_distance_calculator import (
+        TopicDistanceCalculator,
+    )
+    from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+
+    # Create mock KeywordClusterer data
+    mock_clusterer_data = {
+        "centroids": [np.random.rand(384).tolist()],
+        "cluster_stats": {"0": {"topic_descriptors": ["topic1"], "size": 5}},
+    }
+
+    # Create mock embedder
+    class MockEmbedModel:
+        def encode(self, texts, **kwargs):
+            if isinstance(texts, str):
+                texts = [texts]
+            return np.array([np.random.rand(384) for _ in texts])
+
+    embedder = KeywordEmbedder(embedding_model=MockEmbedModel())
+    calculator = TopicDistanceCalculator(
+        keyword_clusterer_json=mock_clusterer_data,
+        embedder=embedder,
+        enable_cache=False,  # Disable cache
+    )
+
+    # Test batch embedding
+    texts = ["text1", "text2", "text3"]
+    embeddings_map = calculator._get_embeddings_batch(texts)
+
+    assert len(embeddings_map) == 3, "Should return embeddings for all texts"
+    assert len(calculator._embedding_cache) == 0, "Cache should be empty when disabled"
+
+
 def test_invalid_metric():
     """Test that invalid metric raises ValueError."""
     from RAG_supporters.clustering.topic_distance_calculator import (
