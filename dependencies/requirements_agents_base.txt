@@ -1,2 +1,2 @@
-langgraph==0.3.8
+langgraph>=1.0.0
 pydantic==2.10.3
