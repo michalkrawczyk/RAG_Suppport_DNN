@@ -8,9 +8,11 @@ version = "1.0.0"
 description = "RAG (Retrieval-Augmented Generation) support tools and agents for dataset creation, curation, and enhancement"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
 authors = [
-    {name = "Michal Krawczyk", email = "michalkrawczyk@example.com"}
+    {name = "Michal Krawczyk"}
+]
+maintainers = [
+    {name = "Michal Krawczyk"}
 ]
 keywords = [
     "RAG",
@@ -24,7 +26,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -38,6 +39,7 @@ Homepage = "https://github.com/michalkrawczyk/RAG_Suppport_DNN"
 Documentation = "https://github.com/michalkrawczyk/RAG_Suppport_DNN/tree/main/docs"
 Repository = "https://github.com/michalkrawczyk/RAG_Suppport_DNN"
 Issues = "https://github.com/michalkrawczyk/RAG_Suppport_DNN/issues"
+"GitHub" = "https://github.com/michalkrawczyk"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -49,6 +51,9 @@ RAG_supporters = ["py.typed"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["dependencies/requirements.txt"]}
+
+[project.optional-dependencies]
+all = ["rag-support-dnn[openai,dev]"]
 
 [tool.setuptools.dynamic.optional-dependencies]
 openai = {file = ["dependencies/requirements_agents_openai.txt"]}
@@ -62,15 +67,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = [
-    "-v",
-    "--strict-markers",
-    "--tb=short",
-    # Coverage options require pytest-cov: pip install pytest-cov
-    # "--cov=RAG_supporters",
-    # "--cov-report=term-missing",
-    # "--cov-report=html",
-]
+addopts = ["-v", "--strict-markers", "--tb=short"]
 markers = [
     "integration: marks tests as integration tests (require API keys)",
     "slow: marks tests as slow running",
