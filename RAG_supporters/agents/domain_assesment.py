@@ -375,14 +375,20 @@ try:
                             f"Successfully parsed with regular parser for mode: {state.mode}"
                         )
                     except Exception as e:
-                        LOGGER.error(f"All parsing attempts failed: {e}")
-                        return {"result": None, "error": f"Parsing error: {str(e)}"}
+                        LOGGER.error(
+                            f"All parsing attempts failed: {type(e).__name__}: {e!r}",
+                            exc_info=True
+                        )
+                        return {"result": None, "error": f"Parsing error: {type(e).__name__}: {str(e) or repr(e)}"}
 
                 return {"result": result, "error": None}
 
             except Exception as e:
-                LOGGER.error(f"Analysis error: {e}")
-                return {"result": None, "error": str(e)}
+                LOGGER.error(
+                    f"Analysis error: {type(e).__name__}: {e!r}",
+                    exc_info=True
+                )
+                return {"result": None, "error": f"{type(e).__name__}: {str(e) or repr(e)}"}
 
         def _validate_response(self, state: AgentState) -> Dict[str, Any]:
             """Validate the response."""
@@ -411,8 +417,11 @@ try:
                     raise ValueError(f"Unexpected result type: {type(state.result)}")
 
             except Exception as e:
-                LOGGER.error(f"Validation error: {e}")
-                return {"result": None, "error": f"Validation error: {str(e)}"}
+                LOGGER.error(
+                    f"Validation error: {type(e).__name__}: {e!r}",
+                    exc_info=True
+                )
+                return {"result": None, "error": f"Validation error: {type(e).__name__}: {str(e) or repr(e)}"}
 
         def _should_retry(self, state: AgentState) -> str:
             """Determine if we should retry or end."""
@@ -421,7 +430,9 @@ try:
             elif state.retry_count < state.max_retries:
                 return "retry"
             else:
-                LOGGER.error(f"Max retries ({state.max_retries}) reached")
+                LOGGER.error(
+                    f"Max retries ({state.max_retries}) reached. Last error: {state.error}"
+                )
                 return "end"
 
         def _handle_retry(self, state: AgentState) -> Dict[str, Any]:
