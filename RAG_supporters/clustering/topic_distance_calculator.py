@@ -341,7 +341,8 @@ class TopicDistanceCalculator:
             If True, saves partial results when interrupted with KeyboardInterrupt.
             The whole original DataFrame is saved with distance scores filled only for
             processed rows (unprocessed rows have None/NaN).
-            Partial results are saved with "_partial" suffix added to the filename.
+            Results are saved to output_path (overwrites if exists).
+            The function returns the partial DataFrame instead of raising the interrupt.
             Default is True.
 
         Returns
@@ -459,42 +460,37 @@ class TopicDistanceCalculator:
                 f"\nProcessing interrupted by user at row {last_processed_idx + 1}/{len(df)}"
             )
 
-            if save_on_interrupt and output_path and last_processed_idx >= 0:
-                # Keep the whole original DataFrame but only fill processed rows
-                df_partial = df.copy()
+            # Keep the whole original DataFrame but only fill processed rows
+            df_partial = df.copy()
 
-                # Initialize columns with None for all rows
-                df_partial["question_term_distance_scores"] = None
-                df_partial["source_term_distance_scores"] = None
+            # Initialize columns with None for all rows
+            df_partial["question_term_distance_scores"] = None
+            df_partial["source_term_distance_scores"] = None
 
-                # Fill in only the processed rows
-                for i in range(last_processed_idx + 1):
-                    df_partial.at[df_partial.index[i], "question_term_distance_scores"] = (
-                        question_distance_scores[i]
-                    )
-                    df_partial.at[df_partial.index[i], "source_term_distance_scores"] = (
-                        source_distance_scores[i]
-                    )
-
-                # Generate partial output filename
-                output_path_obj = Path(output_path)
-                partial_output_path = output_path_obj.parent / (
-                    output_path_obj.stem + "_partial" + output_path_obj.suffix
+            # Fill in only the processed rows
+            for i in range(last_processed_idx + 1):
+                df_partial.at[df_partial.index[i], "question_term_distance_scores"] = (
+                    question_distance_scores[i]
+                )
+                df_partial.at[df_partial.index[i], "source_term_distance_scores"] = (
+                    source_distance_scores[i]
                 )
 
-                # Save partial results
-                df_partial.to_csv(partial_output_path, index=False)
+            if save_on_interrupt and output_path:
+                # Save to output path directly (overwrite)
+                df_partial.to_csv(output_path, index=False)
                 LOGGER.info(
-                    f"Saved partial results ({last_processed_idx + 1}/{len(df)} rows processed) to {partial_output_path}"
+                    f"Saved partial results ({last_processed_idx + 1}/{len(df)} rows processed) to {output_path}"
                 )
-                LOGGER.info(
-                    f"Partial processing summary - Questions: {successful_questions} processed, "
-                    f"{skipped_questions} skipped. Sources: {successful_sources} processed, "
-                    f"{skipped_sources} skipped."
-                )
-
-            # Re-raise to allow caller to handle if needed
-            raise
+            
+            LOGGER.info(
+                f"Partial processing summary - Questions: {successful_questions} processed, "
+                f"{skipped_questions} skipped. Sources: {successful_sources} processed, "
+                f"{skipped_sources} skipped."
+            )
+            
+            # Return partial DataFrame instead of raising
+            return df_partial
 
         # Assign results to dataframe columns
         df["question_term_distance_scores"] = question_distance_scores
@@ -569,7 +565,8 @@ def calculate_topic_distances_from_csv(
         If True, saves partial results when interrupted with KeyboardInterrupt.
         The whole original DataFrame is saved with distance scores filled only for
         processed rows (unprocessed rows have None/NaN).
-        Partial results are saved with "_partial" suffix added to the filename.
+        Results are saved to output_path (overwrites if exists).
+        The function returns the partial DataFrame instead of raising the interrupt.
         Default is True.
 
     Returns

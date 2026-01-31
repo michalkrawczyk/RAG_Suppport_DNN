@@ -870,21 +870,22 @@ def test_keyboard_interrupt_handling_with_save():
 
         output_path = tmpdir / "results.csv"
 
-        # Should raise KeyboardInterrupt but save partial results
-        with pytest.raises(KeyboardInterrupt):
-            calculator.calculate_distances_for_csv(
-                csv_path=csv_path,
-                output_path=output_path,
-                show_progress=False,
-                save_on_interrupt=True,
-            )
+        # Should return DataFrame with partial results and save to file
+        result_df = calculator.calculate_distances_for_csv(
+            csv_path=csv_path,
+            output_path=output_path,
+            show_progress=False,
+            save_on_interrupt=True,
+        )
 
-        # Check that partial file was created
-        partial_output_path = tmpdir / "results_partial.csv"
-        assert partial_output_path.exists()
+        # Check that result DataFrame is returned
+        assert result_df is not None, "Should return DataFrame on interrupt"
+        
+        # Check that output file was created (overwrites original output_path)
+        assert output_path.exists(), "Output file should be created on interrupt with save_on_interrupt=True"
 
-        # Verify partial results
-        partial_df = pd.read_csv(partial_output_path)
+        # Verify partial results from returned DataFrame
+        partial_df = result_df
         assert (
             len(partial_df) == 10
         ), "Partial results should contain all rows from original DataFrame"
@@ -946,18 +947,19 @@ def test_keyboard_interrupt_handling_no_save():
 
         output_path = tmpdir / "results.csv"
 
-        # Should raise KeyboardInterrupt without saving
-        with pytest.raises(KeyboardInterrupt):
-            calculator.calculate_distances_for_csv(
-                csv_path=csv_path,
-                output_path=output_path,
-                show_progress=False,
-                save_on_interrupt=False,
-            )
+        # Should return DataFrame with partial results but not save
+        result_df = calculator.calculate_distances_for_csv(
+            csv_path=csv_path,
+            output_path=output_path,
+            show_progress=False,
+            save_on_interrupt=False,
+        )
 
-        # Partial file should not exist
-        partial_output_path = tmpdir / "results_partial.csv"
-        assert not partial_output_path.exists()
+        # Check that result DataFrame is returned
+        assert result_df is not None, "Should return DataFrame on interrupt even without saving"
+        
+        # Output file should not exist when save_on_interrupt=False
+        assert not output_path.exists(), "Output file should not be created when save_on_interrupt=False"
 
 
 def test_database_interface_chromadb_style():
