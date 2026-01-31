@@ -12,7 +12,7 @@ try:
     from typing import Any, Dict, List, Optional, Union
 
     import pandas as pd
-    from langchain.output_parsers import OutputFixingParser, PydanticOutputParser
+    from langchain_core.output_parsers import OutputFixingParser, PydanticOutputParser
     from langchain_core.language_models import BaseChatModel
     from langchain_core.prompts import PromptTemplate
     from langgraph.graph import END, StateGraph

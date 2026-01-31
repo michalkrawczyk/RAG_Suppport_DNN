@@ -505,7 +505,7 @@ for item in tqdm(items, desc="Processing"):
 ### Validating LLM Outputs
 
 ```python
-from langchain.output_parsers import PydanticOutputParser, OutputFixingParser
+from langchain_core.output_parsers import PydanticOutputParser, OutputFixingParser
 
 parser = PydanticOutputParser(pydantic_object=YourModel)
 fixing_parser = OutputFixingParser.from_llm(parser=parser, llm=llm)
