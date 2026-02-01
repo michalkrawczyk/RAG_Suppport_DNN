@@ -80,15 +80,11 @@ class TestKeywordClustererInit:
         assert (
             clusterer.algorithm == "kmeans"
         ), f"Expected algorithm 'kmeans', got '{clusterer.algorithm}'"
-        assert (
-            clusterer.n_clusters == 8
-        ), f"Expected n_clusters 8, got {clusterer.n_clusters}"
+        assert clusterer.n_clusters == 8, f"Expected n_clusters 8, got {clusterer.n_clusters}"
         assert (
             clusterer.random_state == 42
         ), f"Expected random_state 42, got {clusterer.random_state}"
-        assert (
-            clusterer.keywords is None
-        ), f"Expected keywords None, got {clusterer.keywords}"
+        assert clusterer.keywords is None, f"Expected keywords None, got {clusterer.keywords}"
         assert (
             clusterer.embeddings_matrix is None
         ), f"Expected embeddings_matrix None, got {clusterer.embeddings_matrix}"
@@ -108,15 +104,11 @@ class TestKeywordClustererInit:
         ), f"Expected default metric 'cosine', got '{clusterer._default_metric}'"
 
         # Test custom parameters
-        clusterer = KeywordClusterer(
-            algorithm="bisecting_kmeans", n_clusters=5, random_state=123
-        )
+        clusterer = KeywordClusterer(algorithm="bisecting_kmeans", n_clusters=5, random_state=123)
         assert (
             clusterer.algorithm == "bisecting_kmeans"
         ), f"Expected algorithm 'bisecting_kmeans', got '{clusterer.algorithm}'"
-        assert (
-            clusterer.n_clusters == 5
-        ), f"Expected n_clusters 5, got {clusterer.n_clusters}"
+        assert clusterer.n_clusters == 5, f"Expected n_clusters 5, got {clusterer.n_clusters}"
         assert (
             clusterer.random_state == 123
         ), f"Expected random_state 123, got {clusterer.random_state}"
@@ -140,9 +132,7 @@ class TestKeywordClustererFitting:
         assert result is clusterer, "fit() should return self for method chaining"
 
         # Check state after fitting
-        assert (
-            clusterer.cluster_labels is not None
-        ), "cluster_labels should be set after fitting"
+        assert clusterer.cluster_labels is not None, "cluster_labels should be set after fitting"
         assert len(clusterer.keywords) == len(
             sample_embeddings
         ), f"Expected {len(sample_embeddings)} keywords, got {len(clusterer.keywords)}"
@@ -178,15 +168,11 @@ class TestKeywordClustererFitting:
 
         # Check all keywords are assigned
         total_keywords = sum(len(kws) for kws in clusters.values())
-        assert (
-            total_keywords == 20
-        ), f"Expected 20 total keywords assigned, got {total_keywords}"
+        assert total_keywords == 20, f"Expected 20 total keywords assigned, got {total_keywords}"
 
         # Test get_centroids
         centroids = fitted_clusterer.get_centroids()
-        assert (
-            centroids.shape[0] == 3
-        ), f"Expected 3 centroids, got {centroids.shape[0]}"
+        assert centroids.shape[0] == 3, f"Expected 3 centroids, got {centroids.shape[0]}"
         assert (
             centroids.shape[1] == 10
         ), f"Expected 10-dimensional centroids, got {centroids.shape[1]}"
@@ -217,12 +203,8 @@ class TestTopicDescriptorExtraction:
         ), f"Expected 3 topics with euclidean, got {len(topics_euclidean)}"
 
         # Test with cosine metric
-        topics_cosine = fitted_clusterer.extract_topic_descriptors(
-            n_descriptors=3, metric="cosine"
-        )
-        assert (
-            len(topics_cosine) == 3
-        ), f"Expected 3 topics with cosine, got {len(topics_cosine)}"
+        topics_cosine = fitted_clusterer.extract_topic_descriptors(n_descriptors=3, metric="cosine")
+        assert len(topics_cosine) == 3, f"Expected 3 topics with cosine, got {len(topics_cosine)}"
 
     def test_extract_topic_descriptors_ignore_n_closest(self, fitted_clusterer):
         """Test topic descriptor extraction with ignore_n_closest_keywords parameter."""
@@ -263,9 +245,7 @@ class TestTopicDescriptorExtraction:
             n_descriptors=10, metric="euclidean", min_descriptor_distance=0.5
         )
 
-        assert (
-            len(topics_filtered) == 3
-        ), f"Expected 3 topics, got {len(topics_filtered)}"
+        assert len(topics_filtered) == 3, f"Expected 3 topics, got {len(topics_filtered)}"
 
         # Verify that descriptors respect the minimum distance
         centroids = fitted_clusterer.get_centroids()
@@ -300,9 +280,7 @@ class TestTopicDescriptorExtraction:
 
         # Each topic should have some descriptors
         for topic_id, descriptors in topics.items():
-            assert (
-                len(descriptors) >= 0
-            ), f"Expected non-negative descriptors for topic {topic_id}"
+            assert len(descriptors) >= 0, f"Expected non-negative descriptors for topic {topic_id}"
 
     def test_extract_topic_descriptors_invalid_metric(self, fitted_clusterer):
         """Test topic extraction with invalid metric."""
@@ -326,9 +304,7 @@ class TestAssignmentConfiguration:
         )
 
         # Check return value is self for chaining
-        assert (
-            result is fitted_clusterer
-        ), "configure_assignment() should return self for chaining"
+        assert result is fitted_clusterer, "configure_assignment() should return self for chaining"
 
         # Check configuration was set
         assert (
@@ -379,34 +355,24 @@ class TestAssignmentOperations:
 
         # Test hard mode
         result_hard = fitted_clusterer.assign(test_embedding, mode="hard")
-        assert (
-            result_hard["mode"] == "hard"
-        ), f"Expected mode 'hard', got '{result_hard['mode']}'"
+        assert result_hard["mode"] == "hard", f"Expected mode 'hard', got '{result_hard['mode']}'"
         assert (
             len(result_hard["assigned_clusters"]) <= 1
         ), f"Hard mode should assign to at most 1 cluster, got {len(result_hard['assigned_clusters'])}"
 
         # Test soft mode
-        result_soft = fitted_clusterer.assign(
-            test_embedding, mode="soft", threshold=0.1
-        )
-        assert (
-            result_soft["mode"] == "soft"
-        ), f"Expected mode 'soft', got '{result_soft['mode']}'"
+        result_soft = fitted_clusterer.assign(test_embedding, mode="soft", threshold=0.1)
+        assert result_soft["mode"] == "soft", f"Expected mode 'soft', got '{result_soft['mode']}'"
         assert (
             len(result_soft["assigned_clusters"]) > 0
         ), "Soft mode should assign to at least 1 cluster"
 
         # Test threshold filtering
-        result_threshold = fitted_clusterer.assign(
-            test_embedding, mode="soft", threshold=0.3
-        )
+        result_threshold = fitted_clusterer.assign(test_embedding, mode="soft", threshold=0.3)
         # Only clusters above threshold should be included
         for cluster_id in result_threshold["assigned_clusters"]:
             prob = result_threshold["probabilities"][cluster_id]
-            assert (
-                prob >= 0.3
-            ), f"Cluster {cluster_id} has probability {prob} below threshold 0.3"
+            assert prob >= 0.3, f"Cluster {cluster_id} has probability {prob} below threshold 0.3"
 
     def test_assign_invalid_mode(self, fitted_clusterer, test_embedding):
         """Test assignment with invalid mode."""
@@ -431,17 +397,11 @@ class TestAssignmentOperations:
         results = fitted_clusterer.assign_batch(embeddings)
         assert len(results) == 5, f"Expected 5 results, got {len(results)}"
         for source_id, result in results.items():
-            assert (
-                "assigned_clusters" in result
-            ), f"Expected 'assigned_clusters' for {source_id}"
-            assert (
-                "primary_cluster" in result
-            ), f"Expected 'primary_cluster' for {source_id}"
+            assert "assigned_clusters" in result, f"Expected 'assigned_clusters' for {source_id}"
+            assert "primary_cluster" in result, f"Expected 'primary_cluster' for {source_id}"
 
         # Test with custom parameters
-        results_custom = fitted_clusterer.assign_batch(
-            embeddings, mode="hard", threshold=0.5
-        )
+        results_custom = fitted_clusterer.assign_batch(embeddings, mode="hard", threshold=0.5)
         for source_id, result in results_custom.items():
             assert (
                 result["mode"] == "hard"
@@ -474,9 +434,7 @@ class TestPersistence:
                 data = json.load(f)
 
             assert "metadata" in data, "Expected 'metadata' in saved data"
-            assert (
-                "cluster_assignments" in data
-            ), "Expected 'cluster_assignments' in saved data"
+            assert "cluster_assignments" in data, "Expected 'cluster_assignments' in saved data"
             assert "clusters" in data, "Expected 'clusters' in saved data"
             assert "centroids" in data, "Expected 'centroids' in saved data"
             assert (
@@ -499,9 +457,7 @@ class TestPersistence:
             loaded = KeywordClusterer.from_results(str(output_path))
 
             # Verify basic properties
-            assert (
-                loaded.n_clusters == 3
-            ), f"Expected loaded n_clusters 3, got {loaded.n_clusters}"
+            assert loaded.n_clusters == 3, f"Expected loaded n_clusters 3, got {loaded.n_clusters}"
             assert (
                 loaded.algorithm == "kmeans"
             ), f"Expected loaded algorithm 'kmeans', got '{loaded.algorithm}'"
@@ -519,9 +475,7 @@ class TestPersistence:
             ), f"Expected loaded metric 'cosine', got '{loaded._default_metric}'"
 
             # Verify topics are restored
-            assert (
-                len(loaded.topics) == 3
-            ), f"Expected 3 loaded topics, got {len(loaded.topics)}"
+            assert len(loaded.topics) == 3, f"Expected 3 loaded topics, got {len(loaded.topics)}"
             for topic_id, topic_descriptors in loaded.topics.items():
                 assert (
                     len(topic_descriptors) == 5
@@ -535,9 +489,7 @@ class TestPersistence:
             assert (
                 "assigned_clusters" in result
             ), "Expected 'assigned_clusters' in assignment result"
-            assert (
-                "primary_cluster" in result
-            ), "Expected 'primary_cluster' in assignment result"
+            assert "primary_cluster" in result, "Expected 'primary_cluster' in assignment result"
 
 
 class TestConvenienceFunction:

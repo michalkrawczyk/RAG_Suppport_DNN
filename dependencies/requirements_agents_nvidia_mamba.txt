@@ -1,0 +1,4 @@
+langchain-nvidia-ai-endpoints>=0.3.0
+langgraph>=1.0.0
+pydantic==2.10.3
+mamba-ssm[causal-conv1d]

@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
-from utils.text_utils import normalize_string
+from RAG_supporters.utils.text_utils import normalize_string
 
 LOGGER = logging.getLogger(__name__)
 
@@ -140,9 +140,7 @@ class KeywordEmbedder:
                 if hasattr(model, attr):
                     value = getattr(model, attr)
                     if value is not None and isinstance(value, str):
-                        LOGGER.info(
-                            f"Extracted model name from attribute '{attr}': {value}"
-                        )
+                        LOGGER.info(f"Extracted model name from attribute '{attr}': {value}")
                         return value
 
             # If no model name found, try to get from class name
@@ -442,8 +440,7 @@ class KeywordEmbedder:
 
         # Convert lists back to numpy arrays
         keyword_embeddings = {
-            keyword: np.array(embedding)
-            for keyword, embedding in data["embeddings"].items()
+            keyword: np.array(embedding) for keyword, embedding in data["embeddings"].items()
         }
 
         metadata = data.get("metadata", {})

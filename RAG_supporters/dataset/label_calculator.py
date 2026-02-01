@@ -12,9 +12,9 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from clustering.clustering_data import ClusteringData
+from RAG_supporters.clustering.clustering_data import ClusteringData
 from scipy.spatial.distance import cdist
-from utils.text_utils import normalize_string
+from RAG_supporters.utils.text_utils import normalize_string
 
 logger = logging.getLogger(__name__)
 
@@ -193,9 +193,7 @@ class LabelCalculator:
         embeddings_matrix = np.vstack(valid_embeddings)
 
         # Compute distances to all centroids for each suggestion
-        distances = cdist(
-            embeddings_matrix, self.clustering_data.centroids, metric="cosine"
-        )
+        distances = cdist(embeddings_matrix, self.clustering_data.centroids, metric="cosine")
 
         # Average distances across all suggestions
         avg_distances = np.mean(distances, axis=0)
@@ -218,9 +216,7 @@ class LabelCalculator:
             Probability vector of shape (n_clusters,)
         """
         if cluster_probabilities is None:
-            logger.warning(
-                "No cluster_probabilities in CSV, returning uniform distribution"
-            )
+            logger.warning("No cluster_probabilities in CSV, returning uniform distribution")
             return np.ones(self.n_clusters) / self.n_clusters
 
         # Validate length
@@ -311,9 +307,7 @@ class LabelCalculator:
             Combined probability vector
         """
         if not 0.0 <= steering_weight <= 1.0:
-            raise ValueError(
-                f"steering_weight must be in [0, 1], got {steering_weight}"
-            )
+            raise ValueError(f"steering_weight must be in [0, 1], got {steering_weight}")
 
         # Weighted average
         combined = (

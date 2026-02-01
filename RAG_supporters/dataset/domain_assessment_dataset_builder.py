@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Any, List, Optional, Union
 
 import numpy as np
-from clustering.clustering_data import ClusteringData
-from embeddings.keyword_embedder import KeywordEmbedder
+from RAG_supporters.clustering.clustering_data import ClusteringData
+from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
 from tqdm import tqdm
 
 from .domain_assessment_parser import DomainAssessmentParser
@@ -93,9 +93,7 @@ class DomainAssessmentDatasetBuilder:
         self.suggestion_embeddings = self._load_suggestion_embeddings()
 
         # Initialize steering config
-        self.steering_config = steering_config or SteeringConfig(
-            mode=[(SteeringMode.ZERO, 1.0)]
-        )
+        self.steering_config = steering_config or SteeringConfig(mode=[(SteeringMode.ZERO, 1.0)])
 
         # Initialize label calculator
         self.label_calculator = LabelCalculator(
@@ -123,9 +121,7 @@ class DomainAssessmentDatasetBuilder:
         logging.info(f"Initialized DomainAssessmentDatasetBuilder")
         logging.info(f"  Output: {self.output_dir}")
         logging.info(f"  Clusters: {self.clustering_data.n_clusters}")
-        logging.info(
-            f"  Steering modes: {[m.value for m, _ in self.steering_config.mode]}"
-        )
+        logging.info(f"  Steering modes: {[m.value for m, _ in self.steering_config.mode]}")
 
     def build(self) -> None:
         """Build complete dataset from CSV + clustering data."""
@@ -179,9 +175,7 @@ class DomainAssessmentDatasetBuilder:
 
             # Calculate labels
             source_label = self._calculate_source_label(sample, base_emb, sample_type)
-            steering_label = self.label_calculator.calculate_steering_labels(
-                steering_emb
-            )
+            steering_label = self.label_calculator.calculate_steering_labels(steering_emb)
             combined_label = self.label_calculator.calculate_combined_labels(
                 source_label, steering_label, self.combined_label_weight
             )
@@ -222,25 +216,17 @@ class DomainAssessmentDatasetBuilder:
 
         # Store dataset metadata
         self.storage.set_dataset_info("n_clusters", self.clustering_data.n_clusters)
-        self.storage.set_dataset_info(
-            "embedding_dim", int(base_embeddings_array.shape[1])
-        )
-        self.storage.set_dataset_info(
-            "clustering_json_path", str(self.clustering_json_path)
-        )
+        self.storage.set_dataset_info("embedding_dim", int(base_embeddings_array.shape[1]))
+        self.storage.set_dataset_info("clustering_json_path", str(self.clustering_json_path))
         self.storage.set_dataset_info(
             "label_normalizer", type(self.label_calculator.normalizer).__name__
         )
-        self.storage.set_dataset_info(
-            "combined_label_weight", self.combined_label_weight
-        )
+        self.storage.set_dataset_info("combined_label_weight", self.combined_label_weight)
 
         logging.info(f"Dataset build complete: {len(data)} samples")
         logging.info(f"  Database: {self.storage.db_path}")
         logging.info(f"  Base embeddings: {self.output_dir / 'base_embeddings.npy'}")
-        logging.info(
-            f"  Steering embeddings: {self.output_dir / 'steering_embeddings.npy'}"
-        )
+        logging.info(f"  Steering embeddings: {self.output_dir / 'steering_embeddings.npy'}")
 
     def _calculate_source_label(
         self, sample: dict, base_embedding: np.ndarray, sample_type: str
@@ -270,9 +256,7 @@ class DomainAssessmentDatasetBuilder:
             )
 
         # Last resort: use embedding distance
-        return self.label_calculator.calculate_question_labels_from_embedding(
-            base_embedding
-        )
+        return self.label_calculator.calculate_question_labels_from_embedding(base_embedding)
 
     def _get_primary_cluster(self, sample: dict, sample_type: str) -> Optional[int]:
         """Get primary cluster ID from sample.
@@ -294,10 +278,8 @@ class DomainAssessmentDatasetBuilder:
         )
         if suggestions:
             try:
-                source_label = (
-                    self.label_calculator.calculate_source_labels_from_suggestions(
-                        suggestions, self.suggestion_embeddings
-                    )
+                source_label = self.label_calculator.calculate_source_labels_from_suggestions(
+                    suggestions, self.suggestion_embeddings
                 )
                 primary_cluster = int(np.argmax(source_label))
                 logging.debug(
@@ -305,15 +287,11 @@ class DomainAssessmentDatasetBuilder:
                 )
                 return primary_cluster
             except Exception as e:
-                logging.warning(
-                    f"Failed to calculate primary cluster from suggestions: {e}"
-                )
+                logging.warning(f"Failed to calculate primary cluster from suggestions: {e}")
                 return None
 
         # No way to determine cluster
-        logging.debug(
-            "No cluster_probabilities or suggestions available, returning None"
-        )
+        logging.debug("No cluster_probabilities or suggestions available, returning None")
         return None
 
     def _load_suggestion_embeddings(self) -> dict:
@@ -340,8 +318,7 @@ class DomainAssessmentDatasetBuilder:
 
         # Convert lists back to numpy arrays
         suggestion_embeddings = {
-            term: np.array(emb, dtype=np.float32)
-            for term, emb in embeddings_dict.items()
+            term: np.array(emb, dtype=np.float32) for term, emb in embeddings_dict.items()
         }
 
         logging.info(f"Loaded {len(suggestion_embeddings)} suggestion embeddings")

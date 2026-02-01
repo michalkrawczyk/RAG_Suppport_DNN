@@ -18,14 +18,16 @@ This is a Python library for experiments on creating non-LLM solutions (specific
 ### Installation
 
 ```bash
-# Install core dependencies
-pip install -r RAG_supporters/requirements.txt
+# Install core dependencies only (no agents)
+pip install -e .
 
-# Install agent dependencies
-pip install -r RAG_supporters/requirements_agents.txt
+# Install with agent support (choose one):
+pip install -e .[openai]   # Agents with OpenAI support
+pip install -e .[nvidia]   # Agents with NVIDIA support
+pip install -e .[base]     # Agents only (no LLM provider)
 
 # Install development tools (linting, testing, formatting)
-pip install -r RAG_supporters/requirements-dev.txt
+pip install -e .[dev]
 ```
 
 ### Testing
@@ -162,6 +164,23 @@ LOGGER = logging.getLogger(__name__)
       _IMPORT_ERROR = str(e)
   ```
 
+### Testing Conventions
+
+- **Always include assertion messages** - Every `assert` statement must have a descriptive message
+- Use clear, informative messages that explain what is being tested
+- Example:
+  ```python
+  # ❌ WRONG - No message
+  assert result is not None
+  assert len(items) == 5
+  
+  # ✅ CORRECT - Clear messages
+  assert result is not None, "Agent should return result for valid input"
+  assert len(items) == 5, "Should return exactly 5 items from batch processing"
+  ```
+- Messages help diagnose failures quickly without reading test code
+- Especially important for complex conditions or edge cases
+
 ### Code Formatting
 
 - Use **Black** for code formatting (line length: 88)
@@ -224,8 +243,10 @@ tests/                 # Unit tests
 ### Configuration Files
 
 - **requirements.txt**: Core dependencies (torch, datasets, sklearn)
-- **requirements_agents.txt**: Agent dependencies (langchain, langgraph, pydantic)
-- **requirements-dev.txt**: Development tools (black, isort, pytest, pylint)
+- **pyproject.toml**: Package configuration with optional dependencies:
+  - `[openai]`: OpenAI LLM provider support
+  - `[nvidia]`: NVIDIA LLM provider support
+  - `[dev]`: Development tools (black, isort, pytest, pylint)
 
 ## Project-Specific Gotchas
 
@@ -245,7 +266,7 @@ tests/                 # Unit tests
   try:
       from RAG_supporters.agents import DatasetCheckAgent
   except ImportError as e:
-      print(f"Install agent dependencies: pip install -r requirements_agents.txt")
+      print(f"Install agent dependencies: pip install -e .[openai] or pip install -e .[nvidia]")
   ```
 
 ### State Management in Agents
@@ -309,8 +330,8 @@ venv\Scripts\activate
 
 # Install all dependencies
 pip install -r RAG_supporters/requirements.txt
-pip install -r RAG_supporters/requirements_agents.txt
-pip install -r RAG_supporters/requirements-dev.txt
+pip install -e .[openai]   # or .[nvidia] for NVIDIA support
+pip install -e .[dev]
 ```
 
 ### Environment Variables
@@ -484,7 +505,8 @@ for item in tqdm(items, desc="Processing"):
 ### Validating LLM Outputs
 
 ```python
-from langchain.output_parsers import PydanticOutputParser, OutputFixingParser
+from langchain_classic.output_parsers import OutputFixingParser
+from langchain_core.output_parsers import PydanticOutputParser
 
 parser = PydanticOutputParser(pydantic_object=YourModel)
 fixing_parser = OutputFixingParser.from_llm(parser=parser, llm=llm)
@@ -522,10 +544,10 @@ except Exception:
 
 ### When Adding Dependencies
 
-1. Add to appropriate requirements file:
+1. Add to appropriate location:
    - Core: `requirements.txt`
-   - Agents: `requirements_agents.txt`
-   - Dev tools: `requirements-dev.txt`
+   - Agent extras: `pyproject.toml` under `[project.optional-dependencies]`
+   - Dev tools: `pyproject.toml` under `[project.optional-dependencies]` dev section
 2. Use lazy imports for optional dependencies
 3. Provide helpful error messages if imports fail
 

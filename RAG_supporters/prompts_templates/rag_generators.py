@@ -1,3 +1,5 @@
+"""RAG generation prompt templates."""
+
 SUB_TEXT_SPLIT_PROMPT = """
 Task: You are a text extractor. Given a question and a relevant text source, your goal is to extract two short text snippets from the source.
 

@@ -4,13 +4,19 @@ on:
   push:
     branches: [main]
     paths:
-      - RAG_supporters/requirements.txt
-      - RAG_supporters/requirements_agents.txt
+      - dependencies/requirements.txt
+      - dependencies/requirements_agents_base.txt
+      - dependencies/requirements_agents_openai.txt
+      - dependencies/requirements_agents_nvidia.txt
+      - dependencies/requirements_agents_nvidia_mamba.txt
   pull_request:
     branches: [main]
     paths:
-      - RAG_supporters/requirements.txt
-      - RAG_supporters/requirements_agents.txt
+      - dependencies/requirements.txt
+      - dependencies/requirements_agents_base.txt
+      - dependencies/requirements_agents_openai.txt
+      - dependencies/requirements_agents_nvidia.txt
+      - dependencies/requirements_agents_nvidia_mamba.txt
 
 jobs:
   dependency-check:
@@ -27,25 +33,25 @@ jobs:
       - name: Install mandatory dependencies (requirements.txt)
         run: |
           python -m pip install --upgrade pip
-          if [ -f "RAG_supporters/requirements.txt" ]; then
+          if [ -f "dependencies/requirements.txt" ]; then
             # Install torch CPU version to avoid slow CUDA installation
             pip install 'torch>=2.3.0' --index-url https://download.pytorch.org/whl/cpu
             # Install remaining dependencies (torch will be skipped as already satisfied)
-            pip install -r RAG_supporters/requirements.txt
+            pip install -r dependencies/requirements.txt
           else
-            echo "Error: RAG_supporters/requirements.txt not found."
+            echo "Error: dependencies/requirements.txt not found."
             exit 1
           fi
 
       - name: Check for dependency issues (mandatory)
         run: pip check
 
-      - name: Install optional dependencies (requirements_agents.txt)
+      - name: Install optional dependencies (requirements_agents_base.txt)
         run: |
-          if [ -f "RAG_supporters/requirements_agents.txt" ]; then
-            pip install -r RAG_supporters/requirements_agents.txt
+          if [ -f "dependencies/requirements_agents_base.txt" ]; then
+            pip install -r dependencies/requirements_agents_base.txt
           else
-            echo "Warning: RAG_supporters/requirements_agents.txt not found. Skipping optional dependencies."
+            echo "Warning: dependencies/requirements_agents_base.txt not found. Skipping optional dependencies."
           fi
         continue-on-error: true
 
