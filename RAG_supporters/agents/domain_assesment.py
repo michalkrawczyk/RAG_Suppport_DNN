@@ -1579,6 +1579,12 @@ try:
             checkpoint_size,
         ):
             """Process DataFrame sequentially."""
+            # Pre-parse data once to avoid repeated loading/parsing on each iteration
+            parsed_data = {}
+            if mode == OperationMode.TOPIC_RELEVANCE_PROB and topic_descriptors is not None:
+                LOGGER.info("Pre-parsing topic descriptors to avoid repeated file loading")
+                parsed_data['topic_descriptors'] = self._parse_topic_descriptors(topic_descriptors)
+
             iterator = (
                 tqdm(zip(indices, rows), total=len(rows), desc="Processing rows")
                 if progress_bar
@@ -1598,8 +1604,9 @@ try:
                     elif mode == OperationMode.ASSESS:
                         result = self.assess_domains(row[question_col], available_terms)
                     elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                        # Use pre-parsed descriptors to avoid repeated file loading
                         result = self.assess_topic_relevance_prob(
-                            row[question_col], topic_descriptors
+                            row[question_col], parsed_data['topic_descriptors']
                         )
 
                     if result is not None:
