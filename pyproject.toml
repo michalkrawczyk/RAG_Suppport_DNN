@@ -59,6 +59,7 @@ all = ["rag-support-dnn[openai,dev]"]
 openai = {file = ["dependencies/requirements_agents_openai.txt"]}
 nvidia = {file = ["dependencies/requirements_agents_nvidia.txt"]}
 nvidia-mamba = {file = ["dependencies/requirements_agents_nvidia_mamba.txt"]}
+hf = {file = ["dependencies/requirements_agents_hf.txt"]}
 base = {file = ["dependencies/requirements_agents_base.txt"]}
 dev = {file = ["dependencies/requirements-dev.txt"]}
 
