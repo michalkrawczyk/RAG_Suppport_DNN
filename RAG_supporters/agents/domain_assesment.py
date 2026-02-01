@@ -811,7 +811,13 @@ try:
             ... )
             """
             # Parse topic_descriptors using helper method
-            descriptors_list = self._parse_topic_descriptors(topic_descriptors)
+            # Optimization: Skip parsing if already a list of strings (pre-parsed)
+            if isinstance(topic_descriptors, list) and all(
+                isinstance(x, str) for x in topic_descriptors
+            ):
+                descriptors_list = topic_descriptors
+            else:
+                descriptors_list = self._parse_topic_descriptors(topic_descriptors)
 
             # Convert to JSON string for the agent
             descriptors_str = json.dumps(descriptors_list, indent=2)
