@@ -1355,6 +1355,24 @@ try:
                     batch_size,
                 )
 
+            # Check if we should use question grouping (TOPIC_RELEVANCE_PROB mode)
+            use_question_grouping = mode == OperationMode.TOPIC_RELEVANCE_PROB
+
+            if use_question_grouping:
+                LOGGER.info("TOPIC_RELEVANCE_PROB mode - using question grouping optimization")
+                return self._process_dataframe_with_question_grouping(
+                    result_df,
+                    question_col,
+                    topic_descriptors,
+                    prefix,
+                    skip_existing,
+                    progress_bar,
+                    save_path,
+                    checkpoint_batch_size,
+                    should_batch,
+                    batch_size,
+                )
+
             # Regular processing without source grouping
             # Collect rows to process
             rows_to_process = []
@@ -2063,7 +2081,394 @@ try:
             self._save_and_log_stats(result_df, save_path, stats)
             return result_df
 
-        def _save_and_log_stats(self, result_df, save_path, stats):
+        def _process_dataframe_with_question_grouping(
+            self,
+            result_df,
+            question_col,
+            topic_descriptors,
+            prefix,
+            skip_existing,
+            progress_bar,
+            save_path,
+            checkpoint_batch_size,
+            should_batch,
+            batch_size,
+        ):
+            """Process DataFrame by grouping rows with identical question text.
+
+            Only processes each unique question once and applies results to all rows with that question.
+            Handles interrupts gracefully at any stage.
+
+            Parameters
+            ----------
+            result_df : pd.DataFrame
+                DataFrame to process (will be modified in place)
+            question_col : str
+                Column name containing question text
+            topic_descriptors : Union[List[str], List[Dict], str, Dict]
+                Topic descriptors for relevance assessment
+            prefix : str
+                Column prefix for results (e.g., 'topic_relevance')
+            skip_existing : bool
+                If True, skip questions that already have results
+            progress_bar : bool
+                Show progress bars
+            save_path : str, optional
+                Path to save checkpoints and final results
+            checkpoint_batch_size : int, optional
+                Save checkpoint every N rows
+            should_batch : bool
+                Use batch processing if True
+            batch_size : int
+                Batch size for processing
+
+            Returns
+            -------
+            pd.DataFrame
+                Processed DataFrame with results
+            """
+            LOGGER.info("Starting question grouping optimization for TOPIC_RELEVANCE_PROB mode")
+
+            # Pre-parse topic descriptors once to avoid repeated file loading
+            parsed_descriptors = self._parse_topic_descriptors(topic_descriptors)
+
+            # Statistics tracking
+            stats = {
+                "total_rows": 0,
+                "skipped_rows": 0,
+                "copied_rows": 0,
+                "processed_rows": 0,
+                "error_rows": 0,
+                "interrupted": False,
+            }
+
+            # ============================================================
+            # PHASE 1: Build question text mapping
+            # ============================================================
+            try:
+                LOGGER.info("Phase 1: Building question text mapping...")
+
+                question_mapping = {}  # question_text -> [(row_idx, has_results_bool), ...]
+
+                iterator = (
+                    tqdm(
+                        result_df.iterrows(),
+                        total=len(result_df),
+                        desc="Mapping questions",
+                    )
+                    if progress_bar
+                    else result_df.iterrows()
+                )
+
+                for idx, row in iterator:
+                    question_text = row.get(question_col)
+
+                    # Skip rows with empty question
+                    if pd.isna(question_text) or is_empty_text(question_text):
+                        result_df.at[idx, f"{prefix}_error"] = "Missing or empty question"
+                        stats["error_rows"] += 1
+                        continue
+
+                    # Normalize question text (strip whitespace)
+                    question_text = str(question_text).strip()
+
+                    # Check if this row has results (boolean only)
+                    has_results = pd.notna(row.get(f"{prefix}_total_topics"))
+
+                    # Add to mapping
+                    if question_text not in question_mapping:
+                        question_mapping[question_text] = []
+                    question_mapping[question_text].append((idx, has_results))
+                    stats["total_rows"] += 1
+
+                if not question_mapping:
+                    LOGGER.info("No valid rows to process")
+                    return result_df
+
+                LOGGER.info(
+                    f"Found {len(question_mapping)} unique questions across "
+                    f"{stats['total_rows']} valid rows"
+                )
+
+            except KeyboardInterrupt:
+                LOGGER.warning("Interrupted during Phase 1 (mapping)")
+                stats["interrupted"] = True
+                self._save_and_log_stats(result_df, save_path, stats, "Question grouping")
+                return result_df
+
+            # ============================================================
+            # PHASE 2: Categorize questions (skip/copy/process)
+            # ============================================================
+            try:
+                LOGGER.info("Phase 2: Categorizing questions...")
+
+                questions_to_skip = []  # questions with all rows already processed
+                questions_to_copy = []  # questions with some rows processed
+                questions_to_process = {}  # question_text -> first_row_idx
+
+                for question_text, row_list in question_mapping.items():
+                    has_results_list = [has_results for _, has_results in row_list]
+                    any_has_results = any(has_results_list)
+                    all_have_results = all(has_results_list)
+
+                    if skip_existing and all_have_results:
+                        # All rows for this question already have results
+                        questions_to_skip.append(question_text)
+                        stats["skipped_rows"] += len(row_list)
+
+                    elif skip_existing and any_has_results:
+                        # Some rows have results, need to copy to others
+                        questions_to_copy.append(question_text)
+
+                    else:
+                        # Need to process this question
+                        # Store the first row index for reference
+                        first_row_idx = row_list[0][0]
+                        questions_to_process[question_text] = first_row_idx
+
+                LOGGER.info(
+                    f"Categorized: {len(questions_to_skip)} to skip, "
+                    f"{len(questions_to_copy)} to copy, "
+                    f"{len(questions_to_process)} to process"
+                )
+
+            except KeyboardInterrupt:
+                LOGGER.warning("Interrupted during Phase 2 (categorization)")
+                stats["interrupted"] = True
+                self._save_and_log_stats(result_df, save_path, stats, "Question grouping")
+                return result_df
+
+            # ============================================================
+            # PHASE 3: Copy existing results to rows without them
+            # ============================================================
+            try:
+                if questions_to_copy:
+                    LOGGER.info(
+                        f"Phase 3: Copying results for {len(questions_to_copy)} questions..."
+                    )
+
+                    iterator = (
+                        tqdm(questions_to_copy, desc="Copying results")
+                        if progress_bar
+                        else questions_to_copy
+                    )
+
+                    for question_text in iterator:
+                        row_list = question_mapping[question_text]
+
+                        # Find first row that has results
+                        source_idx = None
+                        for idx, has_results in row_list:
+                            if has_results:
+                                source_idx = idx
+                                break
+
+                        if source_idx is None:
+                            LOGGER.warning(f"No results found for question, will process instead")
+                            # Add to processing queue
+                            first_idx = row_list[0][0]
+                            questions_to_process[question_text] = first_idx
+                            continue
+
+                        # Copy results from source_idx row to all rows without results
+                        source_row = result_df.loc[source_idx]
+
+                        for idx, has_results in row_list:
+                            if not has_results:
+                                # Copy result columns
+                                result_df.at[idx, "question_term_relevance_scores"] = source_row[
+                                    "question_term_relevance_scores"
+                                ]
+                                result_df.at[idx, f"{prefix}_topic_scores"] = source_row[
+                                    f"{prefix}_topic_scores"
+                                ]
+                                result_df.at[idx, f"{prefix}_total_topics"] = source_row[
+                                    f"{prefix}_total_topics"
+                                ]
+                                if pd.notna(source_row.get(f"{prefix}_question_summary")):
+                                    result_df.at[idx, f"{prefix}_question_summary"] = source_row[
+                                        f"{prefix}_question_summary"
+                                    ]
+
+                                # Clear any existing error
+                                result_df.at[idx, f"{prefix}_error"] = None
+
+                                stats["copied_rows"] += 1
+
+                    LOGGER.info(f"Copied results to {stats['copied_rows']} rows")
+
+                    # Save checkpoint after copying
+                    if save_path:
+                        result_df.to_csv(save_path, index=False)
+                        LOGGER.info("Checkpoint saved after copying phase")
+
+            except KeyboardInterrupt:
+                LOGGER.warning(
+                    f"Interrupted during Phase 3 (copying). "
+                    f"Copied {stats['copied_rows']} rows so far."
+                )
+                stats["interrupted"] = True
+                self._save_and_log_stats(result_df, save_path, stats, "Question grouping")
+                return result_df
+
+            # Check if there's anything to process
+            if not questions_to_process:
+                LOGGER.info(
+                    f"No questions to process. "
+                    f"Skipped {len(questions_to_skip)} questions, "
+                    f"copied results for {len(questions_to_copy)} questions."
+                )
+                self._save_and_log_stats(result_df, save_path, stats, "Question grouping")
+                return result_df
+
+            # ============================================================
+            # PHASE 4: Process new questions (batch or sequential)
+            # ============================================================
+            assessment_results = []  # Initialize to handle interrupts
+
+            try:
+                LOGGER.info(f"Phase 4: Processing {len(questions_to_process)} unique questions...")
+
+                # Prepare inputs: maintain order for mapping back
+                questions_ordered = list(questions_to_process.keys())
+
+                # Process with batch or sequential
+                if should_batch:
+                    LOGGER.info(f"Using batch processing (batch_size={batch_size})")
+                    assessment_results = self.assess_topic_relevance_prob_batch(
+                        questions_ordered,
+                        parsed_descriptors,
+                        batch_size=batch_size,
+                        show_progress=progress_bar,
+                    )
+                    # Check if batch processing was interrupted
+                    if any(r is None for r in assessment_results):
+                        stats["interrupted"] = True
+                else:
+                    LOGGER.info("Using sequential processing")
+
+                    iterator = (
+                        tqdm(questions_ordered, desc="Assessing topic relevance")
+                        if progress_bar
+                        else questions_ordered
+                    )
+
+                    for question in iterator:
+                        try:
+                            result = self.assess_topic_relevance_prob(question, parsed_descriptors)
+                            assessment_results.append(result)
+                        except KeyboardInterrupt:
+                            LOGGER.warning(
+                                f"Interrupted during sequential processing. "
+                                f"Processed {len(assessment_results)}/{len(questions_ordered)} questions."
+                            )
+                            # Pad remaining with None to maintain alignment
+                            remaining = len(questions_ordered) - len(assessment_results)
+                            assessment_results.extend([None] * remaining)
+                            stats["interrupted"] = True
+                            break
+                        except Exception as e:
+                            LOGGER.error(f"Error assessing topic relevance: {e}")
+                            assessment_results.append(None)
+
+                LOGGER.info(
+                    f"Assessment complete. Got {len(assessment_results)} results "
+                    f"({sum(1 for r in assessment_results if r is not None)} successful)."
+                )
+
+            except KeyboardInterrupt:
+                LOGGER.warning("Interrupted during Phase 4 (processing)")
+                stats["interrupted"] = True
+                # Pad assessment_results if incomplete
+                if len(assessment_results) < len(questions_to_process):
+                    remaining = len(questions_to_process) - len(assessment_results)
+                    assessment_results.extend([None] * remaining)
+
+            # ============================================================
+            # PHASE 5: Apply assessment results to all rows with same question
+            # ============================================================
+            try:
+                LOGGER.info("Phase 5: Applying results to rows...")
+
+                if not assessment_results:
+                    LOGGER.warning("No assessment results to apply")
+                else:
+                    iterator = (
+                        tqdm(
+                            zip(questions_ordered, assessment_results),
+                            total=len(questions_ordered),
+                            desc="Applying results",
+                        )
+                        if progress_bar
+                        else zip(questions_ordered, assessment_results)
+                    )
+
+                    rows_updated_since_checkpoint = 0
+
+                    for question_text, result in iterator:
+                        # Get all row indices for this question
+                        row_indices = [idx for idx, _ in question_mapping[question_text]]
+
+                        if result is not None:
+                            # Apply successful result to all rows with this question
+                            for idx in row_indices:
+                                result_df.at[idx, "question_term_relevance_scores"] = (
+                                    self._create_relevance_json_mapping(result["topic_scores"])
+                                )
+                                result_df.at[idx, f"{prefix}_topic_scores"] = str(
+                                    result["topic_scores"]
+                                )
+                                result_df.at[idx, f"{prefix}_total_topics"] = result["total_topics"]
+                                # question_summary is optional
+                                if result.get("question_summary"):
+                                    result_df.at[idx, f"{prefix}_question_summary"] = result[
+                                        "question_summary"
+                                    ]
+
+                                # Clear any existing error
+                                result_df.at[idx, f"{prefix}_error"] = None
+
+                                stats["processed_rows"] += 1
+                                rows_updated_since_checkpoint += 1
+                        else:
+                            # Mark as failed (either processing failed or interrupted before this question)
+                            error_msg = (
+                                "Processing interrupted"
+                                if stats["interrupted"]
+                                else "Analysis failed"
+                            )
+                            for idx in row_indices:
+                                # Only set error if row doesn't already have results
+                                if pd.isna(result_df.at[idx, f"{prefix}_total_topics"]):
+                                    result_df.at[idx, f"{prefix}_error"] = error_msg
+                                    stats["error_rows"] += 1
+
+                        # Checkpoint based on rows updated
+                        if (
+                            save_path
+                            and checkpoint_batch_size
+                            and rows_updated_since_checkpoint >= checkpoint_batch_size
+                        ):
+                            result_df.to_csv(save_path, index=False)
+                            LOGGER.info(
+                                f"Checkpoint saved: {stats['processed_rows']} rows processed"
+                            )
+                            rows_updated_since_checkpoint = 0
+
+            except KeyboardInterrupt:
+                LOGGER.warning(
+                    f"Interrupted during Phase 5 (applying results). "
+                    f"Applied results to {stats['processed_rows']} rows."
+                )
+                stats["interrupted"] = True
+
+            # ============================================================
+            # PHASE 6: Save and return
+            # ============================================================
+            self._save_and_log_stats(result_df, save_path, stats, "Question grouping")
+            return result_df
+
+        def _save_and_log_stats(self, result_df, save_path, stats, mode_name="Source grouping"):
             """Save results and log statistics.
 
             Parameters
@@ -2074,11 +2479,13 @@ try:
                 Path to save results
             stats : dict
                 Statistics dictionary with processing metrics
+            mode_name : str, optional
+                Name of the processing mode for logging. Default is 'Source grouping'.
             """
             # Log summary
             status = "INTERRUPTED" if stats["interrupted"] else "COMPLETE"
             LOGGER.info("=" * 60)
-            LOGGER.info(f"Source grouping processing {status}")
+            LOGGER.info(f"{mode_name} processing {status}")
             LOGGER.info(f"  Total valid rows:     {stats['total_rows']}")
             LOGGER.info(f"  Skipped rows:         {stats['skipped_rows']}")
             LOGGER.info(f"  Copied rows:          {stats['copied_rows']}")
