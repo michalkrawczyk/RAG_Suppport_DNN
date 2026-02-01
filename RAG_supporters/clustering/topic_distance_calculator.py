@@ -300,13 +300,13 @@ class TopicDistanceCalculator:
         # Batch embed uncached texts
         if texts_to_embed:
             embeddings_dict = self.embedder.create_embeddings(texts_to_embed)
-            
+
             # Map back to original texts and cache
             for i, text in enumerate(texts_to_embed):
                 normalized_text = normalize_string(text)
                 embedding = embeddings_dict[normalized_text]
                 result[text] = embedding
-                
+
                 # Cache the result (if enabled)
                 if self._enable_cache:
                     self._embedding_cache[text] = embedding
@@ -440,14 +440,18 @@ class TopicDistanceCalculator:
         source_texts = []
         question_indices = []  # Track which rows have questions
         source_indices = []  # Track which rows have sources
-        
+
         # Step 1: Collect all texts that need embedding
         LOGGER.info("Collecting texts for batch embedding...")
         for idx in range(len(df)):
             row = df.iloc[idx]
-            
+
             # Collect question texts (if not using database IDs)
-            if not question_id_col or question_id_col not in df.columns or pd.isna(row.get(question_id_col)):
+            if (
+                not question_id_col
+                or question_id_col not in df.columns
+                or pd.isna(row.get(question_id_col))
+            ):
                 if question_col in df.columns and pd.notna(row[question_col]):
                     question_text = str(row[question_col])
                     # Only add if not already in cache
@@ -455,9 +459,13 @@ class TopicDistanceCalculator:
                         if question_text not in question_texts:  # Avoid duplicates
                             question_texts.append(question_text)
                     question_indices.append((idx, question_text))
-            
+
             # Collect source texts (if not using database IDs)
-            if not source_id_col or source_id_col not in df.columns or pd.isna(row.get(source_id_col)):
+            if (
+                not source_id_col
+                or source_id_col not in df.columns
+                or pd.isna(row.get(source_id_col))
+            ):
                 if source_col in df.columns and pd.notna(row[source_col]):
                     source_text = str(row[source_col])
                     # Only add if not already in cache
@@ -465,19 +473,19 @@ class TopicDistanceCalculator:
                         if source_text not in source_texts:  # Avoid duplicates
                             source_texts.append(source_text)
                     source_indices.append((idx, source_text))
-        
+
         # Step 2: Generate embeddings in batch
         question_embeddings_map = {}
         source_embeddings_map = {}
-        
+
         if question_texts:
             LOGGER.info(f"Generating embeddings for {len(question_texts)} unique questions...")
             question_embeddings_map = self._get_embeddings_batch(question_texts)
-        
+
         if source_texts:
             LOGGER.info(f"Generating embeddings for {len(source_texts)} unique sources...")
             source_embeddings_map = self._get_embeddings_batch(source_texts)
-        
+
         # Step 3: Process each row with pre-computed embeddings
         iterator = range(len(df))
         if show_progress:
@@ -581,13 +589,13 @@ class TopicDistanceCalculator:
                 LOGGER.info(
                     f"Saved partial results ({last_processed_idx + 1}/{len(df)} rows processed) to {output_path}"
                 )
-            
+
             LOGGER.info(
                 f"Partial processing summary - Questions: {successful_questions} processed, "
                 f"{skipped_questions} skipped. Sources: {successful_sources} processed, "
                 f"{skipped_sources} skipped."
             )
-            
+
             # Return partial DataFrame instead of raising
             return df_partial
 

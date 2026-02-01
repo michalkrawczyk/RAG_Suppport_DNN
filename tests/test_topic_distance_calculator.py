@@ -226,14 +226,14 @@ def test_get_embeddings_batch():
 
     # Test caching - texts should now be in cache
     assert len(calculator._embedding_cache) == 3, "Cache should contain all 3 texts"
-    
+
     # Test batch with some cached texts
     new_texts = ["text2", "text3", "text4"]  # text2, text3 are cached
     embeddings_map2 = calculator._get_embeddings_batch(new_texts)
-    
+
     assert len(embeddings_map2) == 3, "Should return embeddings for all texts"
     assert len(calculator._embedding_cache) == 4, "Cache should now contain 4 texts"
-    
+
     # Verify cached embeddings are reused
     assert np.array_equal(
         embeddings_map["text2"], embeddings_map2["text2"]
@@ -974,9 +974,11 @@ def test_keyboard_interrupt_handling_with_save():
 
         # Check that result DataFrame is returned
         assert result_df is not None, "Should return DataFrame on interrupt"
-        
+
         # Check that output file was created (overwrites original output_path)
-        assert output_path.exists(), "Output file should be created on interrupt with save_on_interrupt=True"
+        assert (
+            output_path.exists()
+        ), "Output file should be created on interrupt with save_on_interrupt=True"
 
         # Verify partial results from returned DataFrame
         partial_df = result_df
@@ -1051,9 +1053,11 @@ def test_keyboard_interrupt_handling_no_save():
 
         # Check that result DataFrame is returned
         assert result_df is not None, "Should return DataFrame on interrupt even without saving"
-        
+
         # Output file should not exist when save_on_interrupt=False
-        assert not output_path.exists(), "Output file should not be created when save_on_interrupt=False"
+        assert (
+            not output_path.exists()
+        ), "Output file should not be created when save_on_interrupt=False"
 
 
 def test_database_interface_chromadb_style():

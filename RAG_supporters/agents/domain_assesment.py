@@ -376,18 +376,17 @@ try:
                         )
                     except Exception as e:
                         LOGGER.error(
-                            f"All parsing attempts failed: {type(e).__name__}: {e!r}",
-                            exc_info=True
+                            f"All parsing attempts failed: {type(e).__name__}: {e!r}", exc_info=True
                         )
-                        return {"result": None, "error": f"Parsing error: {type(e).__name__}: {str(e) or repr(e)}"}
+                        return {
+                            "result": None,
+                            "error": f"Parsing error: {type(e).__name__}: {str(e) or repr(e)}",
+                        }
 
                 return {"result": result, "error": None}
 
             except Exception as e:
-                LOGGER.error(
-                    f"Analysis error: {type(e).__name__}: {e!r}",
-                    exc_info=True
-                )
+                LOGGER.error(f"Analysis error: {type(e).__name__}: {e!r}", exc_info=True)
                 return {"result": None, "error": f"{type(e).__name__}: {str(e) or repr(e)}"}
 
         def _validate_response(self, state: AgentState) -> Dict[str, Any]:
@@ -417,11 +416,11 @@ try:
                     raise ValueError(f"Unexpected result type: {type(state.result)}")
 
             except Exception as e:
-                LOGGER.error(
-                    f"Validation error: {type(e).__name__}: {e!r}",
-                    exc_info=True
-                )
-                return {"result": None, "error": f"Validation error: {type(e).__name__}: {str(e) or repr(e)}"}
+                LOGGER.error(f"Validation error: {type(e).__name__}: {e!r}", exc_info=True)
+                return {
+                    "result": None,
+                    "error": f"Validation error: {type(e).__name__}: {str(e) or repr(e)}",
+                }
 
         def _should_retry(self, state: AgentState) -> str:
             """Determine if we should retry or end."""
