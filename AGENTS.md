@@ -419,6 +419,30 @@ Each agent has detailed documentation in `docs/agents/`:
 - **[docs/DATASET_SPLITTING.md](docs/DATASET_SPLITTING.md)** - Dataset splitting with persistence
 - **[docs/CLUSTERING_AND_ASSIGNMENT.md](docs/CLUSTERING_AND_ASSIGNMENT.md)** - Clustering workflows
 
+### Project Structure Documentation
+
+- **[agents_notes/PROJECT_STRUCTURE.md](agents_notes/PROJECT_STRUCTURE.md)** - Comprehensive file-by-file project structure reference
+
+The `agents_notes/` directory contains project structure documentation and agent-specific notes:
+- **PROJECT_STRUCTURE.md** - Complete listing of all project files with concise descriptions of their purpose and contents
+- **Maintenance Requirement**: Every PR that adds, deletes, or significantly modifies files MUST update PROJECT_STRUCTURE.md
+
+## #@agent Flag Convention
+
+The `#@agent` flag marks instructions in code/prompts that should be extracted to documentation:
+
+1. **Search** for `#@agent` markers in changed files
+2. **Extract** the instruction text following the flag
+3. **Remove** the `#@agent` comment from source
+4. **Document** in AGENTS.md and copilot-instructions.md
+5. **Format** as precise, concise rules matching existing style
+
+**Example:**
+```python
+# #@agent: All DataFrame operations must preserve original index
+```
+→ Extract to AGENTS.md as: "Preserve original DataFrame index in all operations"
+
 ## Quick Reference
 
 ### Initialize an Agent
