@@ -182,6 +182,65 @@ mypy RAG_supporters/agents/            # Type check
 - [ ] Prompts in `prompts_templates/`
 - [ ] Agent added to `AGENTS_OVERVIEW.md`
 - [ ] Architecture boundaries respected (no forbidden imports)
+- [ ] **PROJECT_STRUCTURE.md updated** if files were added, deleted, or significantly modified
+- [ ] **#@agent flags processed** - instructions extracted and documented, flags removed from code
+
+## #@agent Flag Processing
+
+The `#@agent` flag marks instructions in code/prompts that should be extracted to documentation:
+
+### Processing Steps
+1. **Search** for `#@agent` markers in changed files
+2. **Extract** the instruction text following the flag
+3. **Remove** the `#@agent` comment from source
+4. **Document** in AGENTS.md and this file (copilot-instructions.md)
+5. **Format** as precise, concise rules matching existing style
+
+### Example
+**Before** (in code):
+```python
+# #@agent: Validate DataFrame columns before processing
+```
+
+**After** (in copilot-instructions.md):
+```markdown
+### DataFrame Validation
+- Always validate required columns exist before processing DataFrames
+```
+
+### Rules
+- Process all #@agent flags in every PR
+- Add extracted rules to appropriate sections (testing, architecture, style, etc.)
+- Keep original instruction intent but make concise
+- Update both AGENTS.md and copilot-instructions.md
+
+## Project Structure Documentation
+
+### agents_notes/ Directory
+
+The `agents_notes/` directory contains project structure documentation:
+- **PROJECT_STRUCTURE.md** - File-by-file listing with purpose descriptions
+- Organized by directory (RAG_supporters/, tests/, docs/, etc.)
+- Each file has one-line description of its primary purpose
+
+### Update Requirements
+
+**When adding files:**
+- Add entry to PROJECT_STRUCTURE.md under appropriate section
+- Include concise description of file's purpose
+
+**When deleting files:**
+- Remove entry from PROJECT_STRUCTURE.md
+
+**When significantly modifying files:**
+- Update description in PROJECT_STRUCTURE.md if purpose changes
+
+**Format:**
+```markdown
+- **filename.py** - Brief description of primary purpose
+```
+
+Keep descriptions **precise and concise** - one line per file.
 
 ## Resources
 

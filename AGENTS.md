@@ -419,6 +419,54 @@ Each agent has detailed documentation in `docs/agents/`:
 - **[docs/DATASET_SPLITTING.md](docs/DATASET_SPLITTING.md)** - Dataset splitting with persistence
 - **[docs/CLUSTERING_AND_ASSIGNMENT.md](docs/CLUSTERING_AND_ASSIGNMENT.md)** - Clustering workflows
 
+### Project Structure Documentation
+
+- **[agents_notes/PROJECT_STRUCTURE.md](agents_notes/PROJECT_STRUCTURE.md)** - Comprehensive file-by-file project structure reference
+
+The `agents_notes/` directory contains project structure documentation and agent-specific notes:
+- **PROJECT_STRUCTURE.md** - Complete listing of all project files with concise descriptions of their purpose and contents
+- **Maintenance Requirement**: Every PR that adds, deletes, or significantly modifies files MUST update PROJECT_STRUCTURE.md
+
+## #@agent Flag Convention
+
+The `#@agent` flag is a special marker used in code comments and prompts to signal instructions that should be:
+
+1. **Removed** from the original source location
+2. **Extracted** and added to AGENTS.md and copilot-instructions.md in a precise, concise format
+
+### Usage Pattern
+
+When you encounter `#@agent` in code:
+```python
+# #@agent: This agent should validate all inputs before processing
+# Remove this comment and add validation rules to AGENTS.md
+```
+
+### Processing Rules
+
+- **Identify**: Look for `#@agent` markers in code, prompts, or documentation
+- **Extract**: Copy the instruction text following the flag
+- **Remove**: Delete the `#@agent` comment from the original location
+- **Document**: Add the instruction to:
+  - AGENTS.md under appropriate section (architecture, conventions, etc.)
+  - .github/copilot-instructions.md under relevant rule category
+- **Format**: Convert to precise, concise format matching existing documentation style
+- **PR Requirement**: Include #@agent processing in every code review and PR
+
+### Example Workflow
+
+**Before** (in source code):
+```python
+# #@agent: All DataFrame operations must preserve original index
+result_df = process_data(df)
+```
+
+**After** (instruction moved to AGENTS.md):
+```markdown
+### DataFrame Processing Rules
+- Preserve original DataFrame index in all operations
+```
+
 ## Quick Reference
 
 ### Initialize an Agent
