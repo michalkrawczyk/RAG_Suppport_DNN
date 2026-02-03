@@ -429,43 +429,19 @@ The `agents_notes/` directory contains project structure documentation and agent
 
 ## #@agent Flag Convention
 
-The `#@agent` flag is a special marker used in code comments and prompts to signal instructions that should be:
+The `#@agent` flag marks instructions in code/prompts that should be extracted to documentation:
 
-1. **Removed** from the original source location
-2. **Extracted** and added to AGENTS.md and copilot-instructions.md in a precise, concise format
+1. **Search** for `#@agent` markers in changed files
+2. **Extract** the instruction text following the flag
+3. **Remove** the `#@agent` comment from source
+4. **Document** in AGENTS.md and copilot-instructions.md
+5. **Format** as precise, concise rules matching existing style
 
-### Usage Pattern
-
-When you encounter `#@agent` in code:
-```python
-# #@agent: This agent should validate all inputs before processing
-# Remove this comment and add validation rules to AGENTS.md
-```
-
-### Processing Rules
-
-- **Identify**: Look for `#@agent` markers in code, prompts, or documentation
-- **Extract**: Copy the instruction text following the flag
-- **Remove**: Delete the `#@agent` comment from the original location
-- **Document**: Add the instruction to:
-  - AGENTS.md under appropriate section (architecture, conventions, etc.)
-  - .github/copilot-instructions.md under relevant rule category
-- **Format**: Convert to precise, concise format matching existing documentation style
-- **PR Requirement**: Include #@agent processing in every code review and PR
-
-### Example Workflow
-
-**Before** (in source code):
+**Example:**
 ```python
 # #@agent: All DataFrame operations must preserve original index
-result_df = process_data(df)
 ```
-
-**After** (instruction moved to AGENTS.md):
-```markdown
-### DataFrame Processing Rules
-- Preserve original DataFrame index in all operations
-```
+→ Extract to AGENTS.md as: "Preserve original DataFrame index in all operations"
 
 ## Quick Reference
 

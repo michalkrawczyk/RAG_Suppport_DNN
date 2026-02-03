@@ -196,23 +196,12 @@ The `#@agent` flag marks instructions in code/prompts that should be extracted t
 4. **Document** in AGENTS.md and this file (copilot-instructions.md)
 5. **Format** as precise, concise rules matching existing style
 
-### Example
-**Before** (in code):
-```python
-# #@agent: Validate DataFrame columns before processing
-```
-
-**After** (in copilot-instructions.md):
-```markdown
-### DataFrame Validation
-- Always validate required columns exist before processing DataFrames
-```
-
 ### Rules
 - Process all #@agent flags in every PR
 - Add extracted rules to appropriate sections (testing, architecture, style, etc.)
-- Keep original instruction intent but make concise
 - Update both AGENTS.md and copilot-instructions.md
+
+**Example:** `# #@agent: Validate DataFrame columns` → "Always validate required columns exist before processing DataFrames"
 
 ## Project Structure Documentation
 
@@ -225,15 +214,7 @@ The `agents_notes/` directory contains project structure documentation:
 
 ### Update Requirements
 
-**When adding files:**
-- Add entry to PROJECT_STRUCTURE.md under appropriate section
-- Include concise description of file's purpose
-
-**When deleting files:**
-- Remove entry from PROJECT_STRUCTURE.md
-
-**When significantly modifying files:**
-- Update description in PROJECT_STRUCTURE.md if purpose changes
+**When adding/deleting/modifying files:** Update PROJECT_STRUCTURE.md
 
 **Format:**
 ```markdown
