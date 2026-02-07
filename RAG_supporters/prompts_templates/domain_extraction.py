@@ -140,3 +140,59 @@ Output the results in the following JSON format:
 }}}}
 
 Provide only the JSON output, no additional text."""
+
+
+def QUESTION_GROUP_TOPIC_RELEVANCE_PROB_PROMPT(include_reason: bool = False) -> str:
+    """Generate prompt for assessing grouped topic relevance probabilities.
+
+    This prompt is designed for cluster-based assessment where descriptors are
+    grouped by their cluster assignments. The LLM assigns a probability to each
+    cluster/group rather than individual descriptors.
+
+    Parameters
+    ----------
+    include_reason : bool, optional
+        If True, includes 'reason' field in each group assessment. Default is False.
+
+    Returns
+    -------
+    str
+        The formatted prompt template string
+    """
+    reason_field = ', "reason": "Brief explanation for this probability"' if include_reason else ""
+
+    return f"""Given a user question and a list of topic descriptor groups (clusters), assess the probability that the question belongs to or is semantically related to each cluster/group. Each group represents a cluster of related topic descriptors.
+
+NOTE: For large numbers of clusters, consider batching to stay within context limits.
+
+QUESTION:
+{{question}}
+
+TOPIC DESCRIPTOR GROUPS (CLUSTERS):
+{{cluster_data}}
+
+Requirements:
+- Analyze the question's semantic content in relation to each cluster/group
+- Consider the collective meaning of all descriptors within each cluster
+- For each cluster, determine the probability (0-1) that the question is semantically connected to that group
+- A probability of 1.0 means the question is highly relevant to the cluster
+- A probability of 0.0 means no semantic connection
+- Provide probabilities for ALL clusters provided
+- Base probabilities on semantic similarity between the question and the cluster's topic themes
+- Consider that the descriptors in each cluster represent related topics/concepts
+
+Output the results in the following JSON format:
+{{{{
+  "question_text": "The given question text",
+  "group_probs": [
+    {{{{
+      "cluster_id": 0,
+      "descriptors": ["descriptor1", "descriptor2", "descriptor3"],
+      "probability": 0.85{reason_field}
+    }}}}
+  ],
+  "total_groups": 5,
+  "question_summary": "Brief summary of the question's main topic (optional)"
+}}}}
+
+Provide only the JSON output, no additional text."""
