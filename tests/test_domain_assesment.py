@@ -901,5 +901,383 @@ def test_parse_topic_descriptors_with_duplicate_descriptors():
     assert set(result) == expected_descriptors, "All unique descriptors should be present"
 
 
+# Tests for GROUP_TOPIC_RELEVANCE_PROB mode
+
+
+def test_group_topic_relevance_pydantic_models():
+    """Test GroupTopicRelevance and GroupTopicRelevanceResult Pydantic models."""
+    from RAG_supporters.agents.domain_assesment import (
+        GroupTopicRelevance,
+        GroupTopicRelevanceResult,
+    )
+
+    # Test GroupTopicRelevance
+    group = GroupTopicRelevance(
+        cluster_id=0,
+        descriptors=["machine learning", "AI"],
+        probability=0.85,
+        reason="Test reason",
+    )
+    assert group.cluster_id == 0, "Cluster ID should be 0"
+    assert len(group.descriptors) == 2, "Should have 2 descriptors"
+    assert group.probability == 0.85, "Probability should be 0.85"
+    assert group.reason == "Test reason", "Reason should be set"
+
+    # Test with string cluster_id
+    group_str = GroupTopicRelevance(
+        cluster_id="cluster_a",
+        descriptors=["web dev"],
+        probability=0.5,
+    )
+    assert group_str.cluster_id == "cluster_a", "String cluster IDs should be allowed"
+
+    # Test GroupTopicRelevanceResult
+    groups = [
+        GroupTopicRelevance(cluster_id=0, descriptors=["ml", "ai"], probability=0.9),
+        GroupTopicRelevance(cluster_id=1, descriptors=["db", "sql"], probability=0.3),
+    ]
+
+    result = GroupTopicRelevanceResult(
+        question_text="What is gradient descent?",
+        group_probs=groups,
+        total_groups=2,
+        question_summary="ML question",
+    )
+
+    assert result.question_text == "What is gradient descent?", "Question text should match"
+    assert len(result.group_probs) == 2, "Should have 2 groups"
+    assert result.total_groups == 2, "Total groups should be 2"
+    assert result.question_summary == "ML question", "Summary should match"
+
+
+def test_group_topic_relevance_result_validation():
+    """Test GroupTopicRelevanceResult auto-correction."""
+    from RAG_supporters.agents.domain_assesment import (
+        GroupTopicRelevance,
+        GroupTopicRelevanceResult,
+    )
+
+    groups = [
+        GroupTopicRelevance(cluster_id=0, descriptors=["ml"], probability=0.8),
+        GroupTopicRelevance(cluster_id=1, descriptors=["db"], probability=0.2),
+    ]
+
+    # Mismatched total_groups should be corrected
+    result = GroupTopicRelevanceResult(
+        question_text="Test question",
+        group_probs=groups,
+        total_groups=10,  # Wrong count
+    )
+
+    # Should be auto-corrected to 2
+    assert result.total_groups == 2, "total_groups should be auto-corrected to actual count"
+
+
+def test_operation_mode_enum_includes_group_topic_relevance_prob():
+    """Test that OperationMode enum includes GROUP_TOPIC_RELEVANCE_PROB."""
+    from RAG_supporters.agents.domain_assesment import OperationMode
+
+    assert hasattr(OperationMode, "GROUP_TOPIC_RELEVANCE_PROB"), "GROUP_TOPIC_RELEVANCE_PROB should exist"
+    assert (
+        OperationMode.GROUP_TOPIC_RELEVANCE_PROB.value == "group_topic_relevance_prob"
+    ), "Value should be 'group_topic_relevance_prob'"
+
+
+def test_prepare_cluster_data_from_dict():
+    """Test _prepare_cluster_data with KeywordClusterer dict."""
+    from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    cluster_data = {
+        "cluster_stats": {
+            "0": {"topic_descriptors": ["ml", "ai"], "size": 10},
+            "1": {"topic_descriptors": ["db", "sql"], "size": 8},
+            "2": {"topic_descriptors": ["web"], "size": 5},
+        }
+    }
+
+    result = agent._prepare_cluster_data(cluster_data)
+
+    assert isinstance(result, list), "Result should be a list"
+    assert len(result) == 3, "Should have 3 clusters"
+    assert all("cluster_id" in cluster for cluster in result), "Each cluster should have cluster_id"
+    assert all("descriptors" in cluster for cluster in result), "Each cluster should have descriptors"
+
+    # Check cluster IDs are integers
+    cluster_ids = [cluster["cluster_id"] for cluster in result]
+    assert all(isinstance(cid, int) for cid in cluster_ids), "Cluster IDs should be integers"
+
+    # Check descriptors
+    assert result[0]["descriptors"] == ["ml", "ai"], "First cluster descriptors should match"
+    assert result[1]["descriptors"] == ["db", "sql"], "Second cluster descriptors should match"
+
+
+def test_prepare_cluster_data_from_file():
+    """Test _prepare_cluster_data with file path."""
+    from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+
+        # Create cluster data file
+        cluster_file = tmpdir / "clusters.json"
+        cluster_data = {
+            "cluster_stats": {
+                "0": {"topic_descriptors": ["topic1", "topic2"], "size": 10},
+                "1": {"topic_descriptors": ["topic3"], "size": 5},
+            }
+        }
+
+        with open(cluster_file, "w", encoding="utf-8") as f:
+            json.dump(cluster_data, f)
+
+        # Parse from file path
+        result = agent._prepare_cluster_data(str(cluster_file))
+
+        assert len(result) == 2, "Should have 2 clusters"
+        assert result[0]["descriptors"] == ["topic1", "topic2"], "First cluster descriptors should match"
+
+
+def test_prepare_cluster_data_missing_cluster_stats():
+    """Test _prepare_cluster_data error when cluster_stats is missing."""
+    from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    # Dict without cluster_stats
+    invalid_data = {"some_key": "some_value"}
+
+    with pytest.raises(ValueError, match="cluster_data must contain 'cluster_stats'"):
+        agent._prepare_cluster_data(invalid_data)
+
+
+def test_prepare_cluster_data_invalid_cluster():
+    """Test _prepare_cluster_data skips invalid clusters."""
+    from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    cluster_data = {
+        "cluster_stats": {
+            "0": {"topic_descriptors": ["valid1"], "size": 10},
+            "1": {},  # Invalid - no topic_descriptors
+            "2": {"topic_descriptors": "not_a_list", "size": 5},  # Invalid - not a list
+            "3": {"topic_descriptors": ["valid2"], "size": 3},
+        }
+    }
+
+    result = agent._prepare_cluster_data(cluster_data)
+
+    # Should only include valid clusters (0 and 3)
+    assert len(result) == 2, "Should only include valid clusters with topic_descriptors as lists"
+    assert result[0]["descriptors"] == ["valid1"], "Should include cluster 0"
+    assert result[1]["descriptors"] == ["valid2"], "Should include cluster 3"
+
+
+def test_assess_group_topic_relevance_prob_success():
+    """Test assess_group_topic_relevance_prob with successful result."""
+    from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    # Mock successful result
+    mock_result = {
+        "result": {
+            "question_text": "What is gradient descent?",
+            "group_probs": [
+                {"cluster_id": 0, "descriptors": ["ml", "ai"], "probability": 0.9},
+                {"cluster_id": 1, "descriptors": ["db", "sql"], "probability": 0.1},
+            ],
+            "total_groups": 2,
+            "question_summary": "ML question",
+        },
+        "error": None,
+    }
+
+    mock_graph = MagicMock()
+    mock_graph.invoke = MagicMock(return_value=mock_result)
+    agent.graph = mock_graph
+
+    cluster_data = {
+        "cluster_stats": {
+            "0": {"topic_descriptors": ["ml", "ai"], "size": 10},
+            "1": {"topic_descriptors": ["db", "sql"], "size": 8},
+        }
+    }
+
+    result = agent.assess_group_topic_relevance_prob("What is gradient descent?", cluster_data)
+
+    assert result is not None, "Result should not be None for successful assessment"
+    assert "group_probs" in result, "Result should contain group_probs"
+    assert "total_groups" in result, "Result should contain total_groups"
+    assert "question_text" in result, "Result should contain question_text"
+    assert result["total_groups"] == 2, "Should have 2 groups"
+
+
+def test_assess_group_topic_relevance_prob_failure():
+    """Test assess_group_topic_relevance_prob with failure."""
+    from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    # Mock failure result
+    mock_result = {
+        "result": None,
+        "error": "Parsing failed",
+    }
+
+    mock_graph = MagicMock()
+    mock_graph.invoke = MagicMock(return_value=mock_result)
+    agent.graph = mock_graph
+
+    cluster_data = {
+        "cluster_stats": {
+            "0": {"topic_descriptors": ["ml"], "size": 10},
+        }
+    }
+
+    result = agent.assess_group_topic_relevance_prob("Test question", cluster_data)
+
+    assert result is None, "Result should be None when assessment fails"
+
+
+def test_assess_group_topic_relevance_prob_batch_sequential():
+    """Test assess_group_topic_relevance_prob_batch with sequential processing."""
+    from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    # Force sequential processing
+    agent._is_openai_llm = False
+
+    mock_result = {
+        "question_text": "Test question",
+        "group_probs": [
+            {"cluster_id": 0, "descriptors": ["ml"], "probability": 0.9},
+        ],
+        "total_groups": 1,
+    }
+
+    with patch.object(agent, "assess_group_topic_relevance_prob", return_value=mock_result):
+        questions = ["Question 1?", "Question 2?"]
+        cluster_data = {
+            "cluster_stats": {
+                "0": {"topic_descriptors": ["ml"], "size": 10},
+            }
+        }
+        results = agent.assess_group_topic_relevance_prob_batch(
+            questions, cluster_data, show_progress=False
+        )
+
+        assert len(results) == 2, "Should return results for both questions"
+        assert all(r == mock_result for r in results), "All results should match mock"
+
+
+def test_get_column_prefix_group_topic_relevance_prob():
+    """Test _get_column_prefix for GROUP_TOPIC_RELEVANCE_PROB mode."""
+    from RAG_supporters.agents.domain_assesment import (
+        DomainAnalysisAgent,
+        OperationMode,
+    )
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    assert (
+        agent._get_column_prefix(OperationMode.GROUP_TOPIC_RELEVANCE_PROB)
+        == "group_topic_relevance_prob"
+    ), "Column prefix should match mode value"
+
+
+def test_get_parser_for_mode_group_topic_relevance_prob():
+    """Test _get_parser_for_mode for GROUP_TOPIC_RELEVANCE_PROB mode."""
+    from RAG_supporters.agents.domain_assesment import (
+        DomainAnalysisAgent,
+        OperationMode,
+    )
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    parser, fixing_parser = agent._get_parser_for_mode(OperationMode.GROUP_TOPIC_RELEVANCE_PROB)
+
+    assert parser is not None, "Parser should not be None"
+    assert fixing_parser is not None, "Fixing parser should not be None"
+    assert parser == agent.group_topic_relevance_prob_parser, "Should return correct parser"
+
+
+def test_get_template_for_mode_group_topic_relevance_prob():
+    """Test _get_template_for_mode for GROUP_TOPIC_RELEVANCE_PROB mode."""
+    from RAG_supporters.agents.domain_assesment import (
+        DomainAnalysisAgent,
+        OperationMode,
+    )
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    template = agent._get_template_for_mode(OperationMode.GROUP_TOPIC_RELEVANCE_PROB)
+
+    assert template is not None, "Template should not be None"
+    assert (
+        template == agent.group_topic_relevance_prob_template
+    ), "Should return correct template"
+
+
+def test_agent_initialization_includes_group_parsers():
+    """Test that agent initialization includes GROUP_TOPIC_RELEVANCE_PROB parsers and templates."""
+    from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    assert hasattr(agent, "group_topic_relevance_prob_parser"), "Should have group parser"
+    assert hasattr(
+        agent, "group_topic_relevance_prob_fixing_parser"
+    ), "Should have group fixing parser"
+    assert hasattr(
+        agent, "group_topic_relevance_prob_template"
+    ), "Should have group template"
+    assert agent.group_topic_relevance_prob_parser is not None, "Parser should be initialized"
+    assert (
+        agent.group_topic_relevance_prob_fixing_parser is not None
+    ), "Fixing parser should be initialized"
+    assert agent.group_topic_relevance_prob_template is not None, "Template should be initialized"
+
+
+def test_prepare_cluster_data_preserves_cluster_id_types():
+    """Test that _prepare_cluster_data preserves or converts cluster IDs appropriately."""
+    from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent
+
+    mock_llm = create_mock_llm()
+    agent = DomainAnalysisAgent(llm=mock_llm)
+
+    cluster_data = {
+        "cluster_stats": {
+            "0": {"topic_descriptors": ["ml"], "size": 10},
+            "cluster_a": {"topic_descriptors": ["db"], "size": 5},
+        }
+    }
+
+    result = agent._prepare_cluster_data(cluster_data)
+
+    assert len(result) == 2, "Should have 2 clusters"
+
+    # Check that numeric strings are converted to ints
+    cluster_ids = [cluster["cluster_id"] for cluster in result]
+    assert 0 in cluster_ids, "Numeric string '0' should be converted to int 0"
+    assert "cluster_a" in cluster_ids, "Non-numeric string should remain as string"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
