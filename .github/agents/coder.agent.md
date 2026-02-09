@@ -411,3 +411,4 @@ When you see `#@agent` in code:
 6. **Lazy imports for all LangChain dependencies**
 7. **DataFrame operations preserve index and support incremental processing**
 8. **Check for #@agent flags in every PR**
+9. **Prove that solution works**
