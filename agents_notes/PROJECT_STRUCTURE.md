@@ -58,7 +58,9 @@ Dataset creation, manipulation, splitting, and storage.
 - **dataset_splitter.py** - DatasetSplitter: Train/val/test splitting with persistence to JSON
 - **domain_assessment_dataset_builder.py** - DomainAssessmentDatasetBuilder: Builds datasets for domain assessment tasks
 - **domain_assessment_parser.py** - Parsers for domain assessment data formats
+- **jepa_steering_dataset.py** - JEPASteeringDataset: PyTorch dataset for pre-computed embedding triplets with hard negatives
 - **label_calculator.py** - Label calculation utilities for dataset annotations
+- **loader.py** - DataLoader factory and utilities for JEPA Steering Dataset (create_loader, validate_first_batch)
 - **rag_dataset.py** - RAGDataset: Core dataset class for RAG question-answer-source triples
 - **sqlite_storage.py** - SQLite-based storage backend for dataset persistence
 - **steering_embedding_generator.py** - Generates steering embeddings for model control
@@ -118,7 +120,9 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_dataset_check_agent.py** - Tests for DatasetCheckAgent (LangGraph workflow, mocking)
 - **test_dataset_splitter.py** - Tests for DatasetSplitter (splitting logic, persistence)
 - **test_domain_assesment.py** - Tests for DomainAnalysisAgent (all three operation modes)
+- **test_jepa_steering_dataset.py** - Tests for JEPASteeringDataset (initialization, getitem, steering, curriculum)
 - **test_keyword_clustering.py** - Tests for KeywordClustering (clustering algorithms)
+- **test_loader.py** - Tests for JEPA Steering DataLoader (batch shapes, iteration, validation)
 - **test_question_augmentation_agent.py** - Tests for QuestionAugmentationAgent
 - **test_source_evaluation_agent.py** - Tests for SourceEvaluationAgent
 - **test_text_augmentation_agent.py** - Tests for TextAugmentationAgent
@@ -158,8 +162,8 @@ Detailed usage guides for each agent with examples.
 
 ## File Count Summary
 
-- **Python Source Files**: 44 files in RAG_supporters/
-- **Test Files**: 9 files in tests/
+- **Python Source Files**: 46 files in RAG_supporters/ (added jepa_steering_dataset.py, loader.py)
+- **Test Files**: 11 files in tests/ (added test_jepa_steering_dataset.py, test_loader.py)
 - **Documentation Files**: 16 markdown files in docs/
 - **Configuration**: 2 files (pyproject.toml, .gitignore)
 - **Root Documentation**: 2 files (AGENTS.md, README.md)
