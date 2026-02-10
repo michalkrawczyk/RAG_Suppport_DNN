@@ -89,6 +89,9 @@ Each agent documentation includes:
 
 ### Datasets
 
+- **[JEPA_STEERING_DATASET.md](./dataset/JEPA_STEERING_DATASET.md)** - PyTorch dataset for pre-computed embedding triplets with hard negatives
+- **[JEPA_TRAINING_EXAMPLE.md](./dataset/JEPA_TRAINING_EXAMPLE.md)** - Training examples for JEPA steering dataset
+- **[DATASET_SPLITTING.md](./dataset/DATASET_SPLITTING.md)** - Guide for splitting datasets with persistent sample tracking
 - **[SAMPLE_GENERATION_GUIDE.md](../RAG_supporters/dataset/SAMPLE_GENERATION_GUIDE.md)** - Guide for generating RAG dataset samples
 - **[QUICK_REFERENCE.md](../RAG_supporters/dataset/QUICK_REFERENCE.md)** - Quick reference for dataset utilities
 - **[DOMAIN_ASSESSMENT_CLUSTERING_DATASET_EXAMPLE.md](./dataset/DOMAIN_ASSESSMENT_CLUSTERING_DATASET_EXAMPLE.md)** - Domain assessment with clustering examples
