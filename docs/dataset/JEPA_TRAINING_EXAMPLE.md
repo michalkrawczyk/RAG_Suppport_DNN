@@ -1,0 +1,243 @@
+# Training Example: JEPA Steering Dataset
+
+This example demonstrates how to train a JEPA-like predictor using the JEPASteeringDataset.
+
+## Model Architecture
+
+```python
+import torch.nn as nn
+
+class SimpleJEPAPredictor(nn.Module):
+    """Predict target embedding from question and steering."""
+    
+    def __init__(self, embedding_dim: int, hidden_dim: int = 512):
+        super().__init__()
+        self.predictor = nn.Sequential(
+            nn.Linear(embedding_dim * 2, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, embedding_dim),
+        )
+    
+    def forward(self, question_emb, steering):
+        x = torch.cat([question_emb, steering], dim=-1)
+        return self.predictor(x)
+```
+
+## Loss Function
+
+```python
+def contrastive_loss(predicted, target, negatives, temperature=0.07):
+    """InfoNCE contrastive loss."""
+    B, D = predicted.shape
+    
+    # Normalize
+    predicted = F.normalize(predicted, dim=-1)
+    target = F.normalize(target, dim=-1)
+    negatives = F.normalize(negatives, dim=-1)
+    
+    # Positive similarity
+    pos_sim = (predicted * target).sum(dim=-1) / temperature  # [B]
+    
+    # Negative similarities
+    neg_sim = torch.bmm(negatives, predicted.unsqueeze(-1)).squeeze(-1)
+    neg_sim = neg_sim / temperature  # [B, N_neg]
+    
+    # Logits: [positive, negative1, negative2, ...]
+    logits = torch.cat([pos_sim.unsqueeze(1), neg_sim], dim=1)
+    
+    # Labels: position 0 is positive
+    labels = torch.zeros(B, dtype=torch.long, device=predicted.device)
+    
+    return F.cross_entropy(logits, labels)
+```
+
+## Training Loop
+
+```python
+from RAG_supporters.dataset import create_loader, set_epoch
+
+# Create dataloaders
+train_loader = create_loader(
+    dataset_dir="./my_dataset",
+    split="train",
+    batch_size=128,
+    num_workers=4,
+)
+
+val_loader = create_loader(
+    dataset_dir="./my_dataset",
+    split="val",
+    batch_size=128,
+    num_workers=4,
+)
+
+# Create model
+embedding_dim = train_loader.dataset_obj.embedding_dim
+model = SimpleJEPAPredictor(embedding_dim).cuda()
+optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+
+# Training
+for epoch in range(100):
+    # Update curriculum
+    set_epoch(train_loader, epoch)
+    
+    model.train()
+    for batch in train_loader:
+        question_emb = batch["question_emb"].cuda()
+        target_emb = batch["target_source_emb"].cuda()
+        steering = batch["steering"].cuda()
+        negatives = batch["negative_embs"].cuda()
+        
+        # Forward + backward
+        predicted = model(question_emb, steering)
+        loss = contrastive_loss(predicted, target_emb, negatives)
+        
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    
+    # Evaluate
+    if epoch % 10 == 0:
+        model.eval()
+        with torch.no_grad():
+            val_loss = evaluate(model, val_loader)
+        print(f"Epoch {epoch}: Val Loss = {val_loss:.4f}")
+```
+
+## Validation with Different Steering
+
+```python
+# Test with zero steering (baseline)
+val_loader.dataset_obj.force_steering("zero")
+zero_loss = evaluate(model, val_loader)
+
+# Test with centroid steering (with guidance)
+val_loader.dataset_obj.force_steering("centroid")
+centroid_loss = evaluate(model, val_loader)
+
+# Restore stochastic steering
+val_loader.dataset_obj.force_steering(None)
+
+print(f"Zero steering loss: {zero_loss:.4f}")
+print(f"Centroid steering loss: {centroid_loss:.4f}")
+print(f"Improvement: {(zero_loss - centroid_loss) / zero_loss * 100:.1f}%")
+```
+
+## Distributed Training
+
+```python
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+# Initialize process group
+dist.init_process_group(backend="nccl")
+local_rank = int(os.environ["LOCAL_RANK"])
+torch.cuda.set_device(local_rank)
+
+# Create distributed loader
+train_loader = create_loader(
+    dataset_dir="./my_dataset",
+    split="train",
+    batch_size=128,
+    num_workers=4,
+    distributed=True,
+)
+
+# Wrap model
+model = SimpleJEPAPredictor(embedding_dim).cuda()
+model = DDP(model, device_ids=[local_rank])
+
+# Training loop
+for epoch in range(100):
+    set_epoch(train_loader, epoch)  # Updates both sampler and dataset
+    
+    for batch in train_loader:
+        # Train...
+```
+
+## Hot-Reloading Negatives
+
+```python
+# Every 10 epochs, refresh negatives
+for epoch in range(100):
+    if epoch % 10 == 0 and epoch > 0:
+        # External script updates hard_negatives.pt
+        # (e.g., re-mine with current model)
+        
+        train_loader.dataset_obj.reload_negatives()
+        print(f"Reloaded negatives at epoch {epoch}")
+    
+    # Train...
+```
+
+## Monitoring Steering Distribution
+
+```python
+from collections import Counter
+
+# Check steering variant distribution
+variants = []
+for batch in train_loader:
+    variants.extend(batch["steering_variant"].tolist())
+
+dist = Counter(variants)
+print("Steering distribution:")
+print(f"  Zero: {dist[0] / len(variants) * 100:.1f}%")
+print(f"  Centroid: {dist[1] / len(variants) * 100:.1f}%")
+print(f"  Keyword: {dist[2] / len(variants) * 100:.1f}%")
+print(f"  Residual: {dist[3] / len(variants) * 100:.1f}%")
+```
+
+## Complete Example
+
+See `RAG_supporters/dataset/dataset_builder_README.md` for building the dataset.
+
+Full training script structure:
+
+```python
+#!/usr/bin/env python3
+"""Train JEPA predictor on steering dataset."""
+
+import torch
+from RAG_supporters.dataset import create_loader, set_epoch, validate_first_batch
+
+def main():
+    # Configuration
+    DATASET_DIR = "./my_dataset"
+    BATCH_SIZE = 128
+    NUM_EPOCHS = 100
+    
+    # Create loaders
+    train_loader = create_loader(DATASET_DIR, "train", BATCH_SIZE, num_workers=4)
+    val_loader = create_loader(DATASET_DIR, "val", BATCH_SIZE, num_workers=4)
+    
+    # Validate
+    validate_first_batch(train_loader)
+    
+    # Create model
+    embedding_dim = train_loader.dataset_obj.embedding_dim
+    model = SimpleJEPAPredictor(embedding_dim).cuda()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+    
+    # Train
+    for epoch in range(NUM_EPOCHS):
+        set_epoch(train_loader, epoch)
+        train_loss = train_epoch(model, train_loader, optimizer)
+        
+        if epoch % 10 == 0:
+            val_loss = evaluate(model, val_loader)
+            print(f"Epoch {epoch}: Train={train_loss:.4f}, Val={val_loss:.4f}")
+
+if __name__ == "__main__":
+    main()
+```
+
+## Tips
+
+1. **Start small**: Use small batch size and embedding dim for debugging
+2. **Monitor curriculum**: Log steering probabilities per epoch
+3. **Ablation studies**: Compare with/without steering
+4. **Negative tiers**: Analyze which tier negatives are hardest
+5. **Cluster analysis**: Check if model learns cluster structure
