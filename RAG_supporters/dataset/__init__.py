@@ -18,9 +18,13 @@ Domain Assessment Dataset (Recommended):
 
 JASPER Steering Dataset (Pre-computed embeddings):
 - JASPERSteeringDataset: PyTorch dataset for pre-computed embedding triplets
+  (JASPER: Joint Architecture for Subspace Prediction with Explainable Routing)
 - create_loader: DataLoader factory with distributed training support
 - set_epoch: Set epoch for curriculum and distributed training
 - validate_first_batch: Validate DataLoader output shapes
+
+Note: JEPA has been renamed to JASPER. Legacy code using JEPASteeringDataset
+will receive an ImportError with migration instructions.
 """
 
 # ClusteringData from clustering module
@@ -43,9 +47,6 @@ from .steering_embedding_generator import SteeringEmbeddingGenerator
 # JASPER Steering Dataset components
 from .jasper_steering_dataset import JASPERSteeringDataset
 from .loader import create_loader, set_epoch, validate_first_batch
-
-# Backward compatibility aliases (deprecated)
-JEPASteeringDataset = JASPERSteeringDataset  # Deprecated: Use JASPERSteeringDataset
 
 # (Removed legacy backward-compatibility imports)
 
@@ -70,6 +71,4 @@ __all__ = [
     "create_loader",
     "set_epoch",
     "validate_first_batch",
-    # Deprecated aliases
-    "JEPASteeringDataset",  # Deprecated: Use JASPERSteeringDataset
 ]

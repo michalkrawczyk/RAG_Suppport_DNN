@@ -39,6 +39,6 @@ for epoch in range(100):
         # Train model...
 ```
 
-See `docs/dataset/JASPER_STEERING_DATASET.md` for complete documentation.
+See [docs/dataset/JASPER_STEERING_DATASET.md](docs/dataset/JASPER_STEERING_DATASET.md) for complete documentation.
 
 For more info read about functionalities read the docs.

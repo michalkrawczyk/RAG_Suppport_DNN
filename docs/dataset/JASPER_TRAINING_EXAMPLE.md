@@ -1,13 +1,14 @@
-# Training Example: JEPA Steering Dataset
+````markdown
+# Training Example: JASPER Steering Dataset
 
-This example demonstrates how to train a JEPA-like predictor using the JEPASteeringDataset.
+This example demonstrates how to train a JASPER predictor (Joint Architecture for Subspace Prediction with Explainable Routing) using the JASPERSteeringDataset.
 
 ## Model Architecture
 
 ```python
 import torch.nn as nn
 
-class SimpleJEPAPredictor(nn.Module):
+class SimpleJASPERPredictor(nn.Module):
     """Predict target embedding from question and steering."""
     
     def __init__(self, embedding_dim: int, hidden_dim: int = 512):
@@ -75,7 +76,7 @@ val_loader = create_loader(
 
 # Create model
 embedding_dim = train_loader.dataset_obj.embedding_dim
-model = SimpleJEPAPredictor(embedding_dim).cuda()
+model = SimpleJASPERPredictor(embedding_dim).cuda()
 optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
 
 # Training
@@ -146,7 +147,7 @@ train_loader = create_loader(
 )
 
 # Wrap model
-model = SimpleJEPAPredictor(embedding_dim).cuda()
+model = SimpleJASPERPredictor(embedding_dim).cuda()
 model = DDP(model, device_ids=[local_rank])
 
 # Training loop
@@ -198,7 +199,7 @@ Full training script structure:
 
 ```python
 #!/usr/bin/env python3
-"""Train JEPA predictor on steering dataset."""
+"""Train JASPER predictor on steering dataset."""
 
 import torch
 from RAG_supporters.dataset import create_loader, set_epoch, validate_first_batch
@@ -218,7 +219,7 @@ def main():
     
     # Create model
     embedding_dim = train_loader.dataset_obj.embedding_dim
-    model = SimpleJEPAPredictor(embedding_dim).cuda()
+    model = SimpleJASPERPredictor(embedding_dim).cuda()
     optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
     
     # Train
@@ -241,3 +242,5 @@ if __name__ == "__main__":
 3. **Ablation studies**: Compare with/without steering
 4. **Negative tiers**: Analyze which tier negatives are hardest
 5. **Cluster analysis**: Check if model learns cluster structure
+
+````

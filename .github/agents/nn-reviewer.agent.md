@@ -11,7 +11,7 @@ You are an expert code reviewer for PyTorch neural network components. Ensure mo
 1. **Check `agents_notes/PROJECT_STRUCTURE.md`** for current file/directory structure
 2. **Cross-reference `AGENTS.md`** for architecture boundaries
 3. **Review relevant docs:**
-   - `docs/dataset/JEPA_TRAINING_EXAMPLE.md`
+   - `docs/dataset/JASPER_TRAINING_EXAMPLE.md`
    - `docs/dataset/JASPER_STEERING_DATASET.md`
 4. **If PROJECT_STRUCTURE.md missing:** Flag and proceed with static analysis
 5. **Review scope:**

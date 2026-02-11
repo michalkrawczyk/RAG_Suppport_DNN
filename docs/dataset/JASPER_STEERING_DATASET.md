@@ -1,8 +1,9 @@
-# JEPA Steering Dataset
+````markdown
+# JASPER Steering Dataset
 
 ## Overview
 
-The **JEPA Steering Dataset** is a PyTorch Dataset that serves pre-computed embedding triplets `(question, steering, target_source)` with hard negatives and subspace labels. It enables training JEPA-like predictors to learn: *given a question embedding and an optional steering signal, predict where in latent space the correct source embedding lives*.
+The **JASPER Steering Dataset** is a PyTorch Dataset that serves pre-computed embedding triplets `(question, steering, target_source)` with hard negatives and subspace labels. It enables training JASPER predictors (Joint Architecture for Subspace Prediction with Explainable Routing) to learn: *given a question embedding and an optional steering signal, predict where in latent space the correct source embedding lives*.
 
 **Key Features:**
 - **Zero I/O during training**: All embeddings preloaded at initialization
@@ -192,10 +193,10 @@ Negatives are sampled in 4 tiers (configurable proportions, e.g., `[3, 4, 3, 2]`
 
 ## API Reference
 
-### `JEPASteeringDataset`
+### `JASPERSteeringDataset`
 
 ```python
-class JEPASteeringDataset(Dataset):
+class JASPERSteeringDataset(Dataset):
     def __init__(
         self,
         dataset_dir: str | Path,
@@ -380,7 +381,7 @@ Comprehensive test suite covers:
 Run tests:
 
 ```bash
-pytest tests/test_jepa_steering_dataset.py -v
+pytest tests/test_jasper_steering_dataset.py -v
 pytest tests/test_loader.py -v
 ```
 
@@ -415,12 +416,15 @@ pytest tests/test_loader.py -v
 
 - **PyTorch Dataset**: https://pytorch.org/docs/stable/data.html#torch.utils.data.Dataset
 - **DistributedSampler**: https://pytorch.org/docs/stable/data.html#torch.utils.data.distributed.DistributedSampler
-- **JEPA Paper**: https://arxiv.org/abs/2301.08243 (Joint-Embedding Predictive Architecture)
+- **JEPA Paper**: https://arxiv.org/abs/2301.08243 (Joint-Embedding Predictive Architecture - inspiration for JASPER)
 
 ---
 
 ## See Also
 
 - `dataset_builder/` - Dataset build pipeline documentation
-- `tests/test_jepa_steering_dataset.py` - Test examples
+- `tests/test_jasper_steering_dataset.py` - Test examples
 - `docs/dataset/DATASET_SPLITTING.md` - Split strategy details
+- `JEPA_STEERING_DATASET.md` - Legacy documentation (deprecated, use this document)
+
+````

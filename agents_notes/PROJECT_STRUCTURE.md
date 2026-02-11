@@ -59,7 +59,7 @@ Dataset creation, manipulation, splitting, and storage.
 - **domain_assessment_dataset_builder.py** - DomainAssessmentDatasetBuilder: Builds datasets for domain assessment tasks
 - **domain_assessment_parser.py** - Parsers for domain assessment data formats
 - **jasper_steering_dataset.py** - JASPERSteeringDataset: PyTorch dataset for JASPER (Joint Architecture for Subspace Prediction with Explainable Routing) - pre-computed embedding triplets with hard negatives
-- **jepa_steering_dataset.py** - Deprecated: Use jasper_steering_dataset.py
+- **jepa_steering_dataset.py** - REMOVED: JEPA renamed to JASPER, file raises ImportError with migration instructions
 - **label_calculator.py** - Label calculation utilities for dataset annotations
 - **loader.py** - DataLoader factory and utilities for JASPER Steering Dataset (create_loader, validate_first_batch)
 - **rag_dataset.py** - RAGDataset: Core dataset class for RAG question-answer-source triples
@@ -122,7 +122,7 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_dataset_splitter.py** - Tests for DatasetSplitter (splitting logic, persistence)
 - **test_domain_assesment.py** - Tests for DomainAnalysisAgent (all three operation modes)
 - **test_jasper_steering_dataset.py** - Tests for JASPERSteeringDataset (initialization, getitem, steering, curriculum)
-- **test_jepa_steering_dataset.py** - Deprecated: Tests for backward compatibility (uses JASPERSteeringDataset internally)
+- **test_jepa_steering_dataset.py** - Legacy filename: Tests JASPERSteeringDataset (JEPA renamed to JASPER)
 - **test_keyword_clustering.py** - Tests for KeywordClustering (clustering algorithms)
 - **test_loader.py** - Tests for JASPER Steering DataLoader (batch shapes, iteration, validation)
 - **test_question_augmentation_agent.py** - Tests for QuestionAugmentationAgent
@@ -159,13 +159,17 @@ Detailed usage guides for each agent with examples.
 - **DATASET_SPLITTING.md** - DatasetSplitter guide with persistence examples
 - **DOMAIN_ASSESSMENT_CLUSTERING_DATASET_EXAMPLE.md** - Domain assessment with clustering examples
 - **DOMAIN_ASSESSMENT_EXAMPLES.md** - Domain assessment usage examples
+- **JASPER_STEERING_DATASET.md** - JASPER Steering Dataset guide: PyTorch dataset for pre-computed embedding triplets with curriculum learning and hard negatives
+- **JASPER_TRAINING_EXAMPLE.md** - Training examples for JASPER Steering Dataset with curriculum learning and hard negatives
+- **JEPA_STEERING_DATASET.md** - Deprecated: Use JASPER_STEERING_DATASET.md (JEPA renamed to JASPER)
+- **JEPA_TRAINING_EXAMPLE.md** - Deprecated: Use JASPER_TRAINING_EXAMPLE.md (JEPA renamed to JASPER)
 
 ---
 
 ## File Count Summary
 
-- **Python Source Files**: 47 files in RAG_supporters/ (added jasper_steering_dataset.py, jepa_steering_dataset.py deprecated, loader.py)
-- **Test Files**: 12 files in tests/ (added test_jasper_steering_dataset.py, test_jepa_steering_dataset.py updated for compatibility, test_loader.py)
+- **Python Source Files**: 47 files in RAG_supporters/ (added jasper_steering_dataset.py, jepa_steering_dataset.py removed/stub only, loader.py)
+- **Test Files**: 12 files in tests/ (added test_jasper_steering_dataset.py, test_jepa_steering_dataset.py tests JASPER, test_loader.py)
 - **Documentation Files**: 16 markdown files in docs/
 - **Configuration**: 2 files (pyproject.toml, .gitignore)
 - **Root Documentation**: 2 files (AGENTS.md, README.md)
