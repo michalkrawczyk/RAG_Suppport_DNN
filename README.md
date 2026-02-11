@@ -4,13 +4,13 @@ This is a Python library for experiments on creating non-LLM solutions (specific
 
 - **LLM-Powered Agents**: Dataset preparation, quality control, and augmentation
 - **PyTorch Datasets**: Pre-computed embedding datasets for efficient training
-  - **JEPA Steering Dataset**: Zero I/O dataset with curriculum learning and hard negatives
+  - **JASPER Steering Dataset**: Zero I/O dataset with curriculum learning and hard negatives (Joint Architecture for Subspace Prediction with Explainable Routing)
   - **Cluster Labeled Dataset**: Domain assessment with cluster steering
 - **Dataset Splitting**: Reproducible train/val/test splits with persistence
 - **Clustering**: Keyword-based and topic-based clustering utilities
 - **Embedding Generation**: Batch embedding with sentence-transformers and LangChain
 
-## Quick Start: JEPA Steering Dataset
+## Quick Start: JASPER Steering Dataset
 
 ```python
 from RAG_supporters.dataset import create_loader, validate_first_batch
@@ -39,6 +39,6 @@ for epoch in range(100):
         # Train model...
 ```
 
-See `docs/dataset/JEPA_STEERING_DATASET.md` for complete documentation.
+See `docs/dataset/JASPER_STEERING_DATASET.md` for complete documentation.
 
 For more info read about functionalities read the docs.

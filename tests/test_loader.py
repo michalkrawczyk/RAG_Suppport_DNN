@@ -1,4 +1,4 @@
-"""Tests for JEPA Steering DataLoader."""
+"""Tests for JASPER Steering DataLoader."""
 
 import json
 import tempfile
@@ -8,7 +8,7 @@ import pytest
 import torch
 
 from RAG_supporters.dataset import (
-    JEPASteeringDataset,
+    JASPERSteeringDataset,
     create_loader,
     set_epoch,
     validate_first_batch,

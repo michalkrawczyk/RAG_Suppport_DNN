@@ -16,8 +16,8 @@ Domain Assessment Dataset (Recommended):
 - DatasetSplitter: Split datasets with persistent sample tracking
 - create_train_val_split: Convenience function for creating splits
 
-JEPA Steering Dataset (Pre-computed embeddings):
-- JEPASteeringDataset: PyTorch dataset for pre-computed embedding triplets
+JASPER Steering Dataset (Pre-computed embeddings):
+- JASPERSteeringDataset: PyTorch dataset for pre-computed embedding triplets
 - create_loader: DataLoader factory with distributed training support
 - set_epoch: Set epoch for curriculum and distributed training
 - validate_first_batch: Validate DataLoader output shapes
@@ -40,9 +40,12 @@ from .sqlite_storage import SQLiteStorageManager
 from .steering import SteeringConfig, SteeringMode
 from .steering_embedding_generator import SteeringEmbeddingGenerator
 
-# JEPA Steering Dataset components
-from .jepa_steering_dataset import JEPASteeringDataset
+# JASPER Steering Dataset components
+from .jasper_steering_dataset import JASPERSteeringDataset
 from .loader import create_loader, set_epoch, validate_first_batch
+
+# Backward compatibility aliases (deprecated)
+JEPASteeringDataset = JASPERSteeringDataset  # Deprecated: Use JASPERSteeringDataset
 
 # (Removed legacy backward-compatibility imports)
 
@@ -62,9 +65,11 @@ __all__ = [
     # Dataset splitting
     "DatasetSplitter",
     "create_train_val_split",
-    # JEPA Steering Dataset
-    "JEPASteeringDataset",
+    # JASPER Steering Dataset
+    "JASPERSteeringDataset",
     "create_loader",
     "set_epoch",
     "validate_first_batch",
+    # Deprecated aliases
+    "JEPASteeringDataset",  # Deprecated: Use JASPERSteeringDataset
 ]

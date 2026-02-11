@@ -1,5 +1,5 @@
 """
-DataLoader factory and utilities for JEPA Steering Dataset.
+DataLoader factory and utilities for JASPER Steering Dataset.
 
 Provides functions to create DataLoaders with proper configuration for
 distributed training, validation, and testing.
@@ -13,7 +13,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from .jepa_steering_dataset import JEPASteeringDataset
+from .jasper_steering_dataset import JASPERSteeringDataset
 
 LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def create_loader(
     pin_memory: bool = True,
 ) -> DataLoader:
     """
-    Create a DataLoader for JEPA Steering Dataset.
+    Create a DataLoader for JASPER Steering Dataset.
 
     Parameters
     ----------
@@ -69,7 +69,7 @@ def create_loader(
     ...     pass
     """
     # Create dataset
-    dataset = JEPASteeringDataset(dataset_dir=dataset_dir, split=split, epoch=epoch)
+    dataset = JASPERSteeringDataset(dataset_dir=dataset_dir, split=split, epoch=epoch)
 
     # Default drop_last based on split
     if drop_last is None:
@@ -134,7 +134,7 @@ def set_epoch(loader: DataLoader, epoch: int):
     # Set epoch on dataset for curriculum learning
     if hasattr(loader, "dataset_obj"):
         loader.dataset_obj.set_epoch(epoch)
-    elif isinstance(loader.dataset, JEPASteeringDataset):
+    elif isinstance(loader.dataset, JASPERSteeringDataset):
         loader.dataset.set_epoch(epoch)
 
     # Set epoch on sampler for distributed training
@@ -236,7 +236,7 @@ def validate_first_batch(loader: DataLoader) -> bool:
 
     # Check cluster_id range (must be valid indices)
     dataset = loader.dataset
-    if isinstance(dataset, JEPASteeringDataset):
+    if isinstance(dataset, JASPERSteeringDataset):
         n_clusters = len(dataset.centroid_embs)
         assert (batch["cluster_id"] >= 0).all(), "cluster_id must be non-negative"
         assert (batch["cluster_id"] < n_clusters).all(), (
