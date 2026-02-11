@@ -22,17 +22,18 @@ And produces a single self-contained dataset directory ready for training.
 ### Task 1: CSV Merger
 - [ ] `merge_csv.py` - Column normalization, deduplication, ID assignment
 - [ ] Merge rules: max scores, union keywords, longest answer
-- [ ] Outputs: `unified_pairs.parquet`, `unique_*.json` files
+- [ ] Outputs: `inspection.json` (optional human-readable metadata)
 
 ### Task 2: Cluster Parser
-- [ ] `parse_clusters.py` - Parse cluster JSON format
+- [ ] `parse_clusters.py` - Parse KeywordClusterer JSON format
+- [ ] Load cluster metadata: assignments, centroids, topic_descriptors, embeddings
 - [ ] Keyword matching (exact + cosine fallback)
-- [ ] Outputs: Cluster mappings and labels
+- [ ] Outputs: Reference to KeywordClusterer JSON stored in config.json
 
 ### Task 3: Source-Cluster Linker
-- [ ] `link_sources.py` - Link sources to clusters via keywords
-- [ ] Primary cluster resolution
-- [ ] Outputs: `pair_cluster_id.pt`, `pair_relevance.pt`
+- [ ] `link_sources.py` - Link sources to clusters via keywords from KeywordClusterer JSON
+- [ ] Primary cluster resolution using cluster memberships
+- [ ] Outputs: Pair-level cluster assignments (stored in dataset tensors)
 
 ### Task 4: Embedding Generator
 - [ ] `embed.py` - Batch embedding generation
@@ -77,52 +78,219 @@ Columns (flexible names via alias map):
 
 ### Cluster JSON Format
 
-Expected structure (from `keyword_clustering.py`):
+Expected structure from `KeywordClusterer.save_results()` in `keyword_clustering.py`:
 ```json
 {
   "metadata": {
+    "algorithm": "kmeans",
     "n_clusters": 20,
-    "embedding_dim": 384
+    "n_keywords": 100,
+    "embedding_dim": 384,
+    "assignment_config": {...}
   },
   "cluster_assignments": { "keyword": cluster_id },
-  "clusters": {
-    "0": { "keywords": [...], "centroid": [...] }
+  "clusters": { "0": ["keyword1", "keyword2", ...] },
+  "cluster_stats": {
+    "0": {
+      "size": 20,
+      "topic_descriptors": ["top_keyword1", "top_keyword2", ...]
+    }
   },
-  "embeddings": { "keyword": [embedding] }
+  "centroids": [[...], [...], ...],
+  "embeddings": { "keyword": [embedding] }  // Optional
 }
 ```
 
+**Note:** The builder references this file rather than duplicating cluster metadata.
+All keyword-to-cluster mappings, topic descriptors, and centroids come from this source.
+
 ## Expected Output Structure
+
+### Standard Format (PyTorch Tensors)
+
+Streamlined structure with redundant files removed:
 
 ```
 output_dir/
-├── config.json
-├── unified_pairs.parquet
-├── unique_questions.json
-├── unique_sources.json
-├── unique_keywords.json
-├── keyword_to_cluster.json
-├── cluster_to_keywords.json
-├── cluster_labels.json
-├── source_to_keywords.json
-├── source_to_clusters.json
-├── question_embs.pt
-├── source_embs.pt
-├── keyword_embs.pt
-├── centroid_embs.pt
-├── pair_index.pt
-├── pair_cluster_id.pt
-├── pair_relevance.pt
-├── pair_keyword_ids.pt
-├── steering_centroid.pt
-├── steering_keyword_weighted.pt
-├── steering_residual.pt
-├── centroid_distances.pt
-├── hard_negatives.pt
-├── negative_tiers.pt
-├── train_idx.pt
-├── val_idx.pt
-└── test_idx.pt
+├── config.json                      # Dataset configuration and metadata (see below)
+├── inspection.json                  # [OPTIONAL] Human-readable inspection metadata
+├── question_embs.pt                 # Question embeddings [N_questions, D]
+├── source_embs.pt                   # Source embeddings [N_sources, D]
+├── keyword_embs.pt                  # Keyword embeddings [N_keywords, D]
+├── centroid_embs.pt                 # Cluster centroid embeddings [N_clusters, D]
+├── pair_index.pt                    # Pair indices [N_pairs, 2] mapping to (q_idx, s_idx)
+├── pair_cluster_id.pt               # Primary cluster ID per pair [N_pairs]
+├── pair_relevance.pt                # Relevance scores [N_pairs] in range [0, 1]
+├── pair_keyword_ids.pt              # List[List[int]] - Keyword IDs associated with each pair
+├── steering_centroid.pt             # Centroid-based steering vectors [N_pairs, D]
+├── steering_keyword_weighted.pt     # Keyword-weighted steering vectors [N_pairs, D]
+├── steering_residual.pt             # Residual steering vectors [N_pairs, D]
+├── centroid_distances.pt            # Cosine distance to cluster centroid [N_pairs]
+├── hard_negatives.pt                # Hard negative source indices [N_pairs, n_neg]
+├── negative_tiers.pt                # Negative difficulty tiers [N_pairs, n_neg], values 1-4
+├── train_idx.pt                     # Training split indices [N_train]
+├── val_idx.pt                       # Validation split indices [N_val]
+└── test_idx.pt                      # Test split indices [N_test]
+```
+
+#### File Descriptions
+
+**Core Configuration:**
+- **config.json**: Single source of truth for dataset metadata. References KeywordClusterer JSON path, stores dimensions, split ratios, steering probabilities, and curriculum settings. Required for dataset loading.
+
+**Inspection File (Optional):**
+- **inspection.json**: Human-readable metadata for debugging and analysis. Contains question/source texts, keyword strings, cluster labels, and pair statistics. NOT loaded during training - for inspection only.
+
+**Embeddings (Precomputed):**
+- **question_embs.pt**: Dense embeddings for all unique questions. Indexed by question ID.
+- **source_embs.pt**: Dense embeddings for all unique sources. Indexed by source ID.
+- **keyword_embs.pt**: Dense embeddings for all unique keywords. Indexed by keyword ID.
+- **centroid_embs.pt**: Cluster centroid embeddings. Indexed by cluster ID.
+
+**Pair-Level Data:**
+- **pair_index.pt**: Maps each training pair to (question_id, source_id). Shape [N_pairs, 2].
+- **pair_cluster_id.pt**: Primary cluster assignment for each pair. Used for in-cluster negative sampling.
+- **pair_relevance.pt**: Relevance score for each pair. Used for training signal or filtering.
+- **pair_keyword_ids.pt**: Variable-length list of keyword IDs per pair. Saved as Python list for flexibility.
+
+**Steering Signals:**
+- **steering_centroid.pt**: Steering vector pointing to cluster centroid. Normalized to unit length.
+- **steering_keyword_weighted.pt**: Weighted average of keyword embeddings. Normalized to unit length.
+- **steering_residual.pt**: Residual between question and cluster centroid. Captures off-center signals.
+- **centroid_distances.pt**: Cosine distance from question to cluster centroid. Used for curriculum learning.
+
+**Hard Negatives:**
+- **hard_negatives.pt**: Source indices for hard negatives [N_pairs, n_neg]. Stratified by difficulty tier.
+- **negative_tiers.pt**: Tier labels (1-4) for each negative: 1=in-cluster, 2=adjacent-cluster, 3=high-similarity, 4=random.
+
+**Dataset Splits:**
+- **train_idx.pt**, **val_idx.pt**, **test_idx.pt**: Indices into pair arrays. Question-level splitting ensures no leakage.
+
+**Why This Structure:**
+- All embeddings preloaded → Zero I/O during training
+- Pair-level design → Efficient multi-source questions
+- Separate steering variants → Curriculum learning without recomputation
+- Hard negatives precomputed → Batch construction in <1ms
+- PyTorch tensors → Direct GPU transfer, no serialization overhead
+
+**Removed redundant files** (data available in KeywordClusterer JSON):
+- ❌ `unique_questions.json`, `unique_sources.json`, `unique_keywords.json`
+- ❌ `keyword_to_cluster.json` → Use `cluster_assignments` from KeywordClusterer JSON
+- ❌ `cluster_to_keywords.json` → Use `clusters` from KeywordClusterer JSON
+- ❌ `cluster_labels.json` → Use `cluster_stats.topic_descriptors` from KeywordClusterer JSON
+- ❌ `source_to_keywords.json`, `source_to_clusters.json` → Redundant with pair-level data
+
+**config.json structure:**
+```json
+{
+  "embedding_dim": 384,
+  "n_neg": 12,
+  "n_pairs": 10000,
+  "n_questions": 5000,
+  "n_sources": 8000,
+  "n_keywords": 200,
+  "n_clusters": 20,
+  "clustering_source": "/path/to/keyword_clusterer_results.json",
+  "steering_probabilities": {...},
+  "curriculum": {...},
+  "split_ratios": [0.8, 0.1, 0.1]
+}
+```
+
+**inspection.json structure (optional):**
+```json
+{
+  "metadata": {
+    "created_at": "2026-02-11T10:30:00Z",
+    "n_pairs": 10000,
+    "n_questions": 5000,
+    "n_sources": 8000,
+    "clustering_source": "keyword_clusterer_results.json"
+  },
+  "questions": [
+    {"id": 0, "text": "What is CRISPR?"},
+    {"id": 1, "text": "How does photosynthesis work?"}
+  ],
+  "sources": [
+    {"id": 0, "text": "CRISPR-Cas9 is a genome editing tool..."},
+    {"id": 1, "text": "Photosynthesis converts light energy..."}
+  ],
+  "keywords": [
+    {"id": 0, "term": "gene editing", "cluster_id": 2},
+    {"id": 1, "term": "photosynthesis", "cluster_id": 5}
+  ],
+  "clusters": [
+    {"id": 0, "label": "genomics", "size": 45},
+    {"id": 1, "label": "plant biology", "size": 32}
+  ],
+  "pair_samples": [
+    {
+      "pair_id": 0,
+      "question_id": 0,
+      "source_id": 0,
+      "cluster_id": 2,
+      "relevance": 0.95,
+      "keywords": ["gene editing", "CRISPR"],
+      "split": "train"
+    }
+  ]
+}
+```
+
+### HDF5 Format (Recommended for Large Datasets)
+
+For better organization and single-file distribution:
+
+```
+output_dir/
+├── config.json                      # References KeywordClusterer JSON
+├── dataset.h5                       # All tensors in structured groups
+│   ├── /embeddings/
+│   │   ├── questions                # [N_questions, D]
+│   │   ├── sources                  # [N_sources, D]
+│   │   ├── keywords                 # [N_keywords, D]
+│   │   └── centroids                # [N_clusters, D]
+│   ├── /pairs/
+│   │   ├── index                    # [N_pairs, 2]
+│   │   ├── cluster_id               # [N_pairs]
+│   │   ├── relevance                # [N_pairs]
+│   │   └── keyword_ids              # [N_pairs] - VLen int array
+│   ├── /steering/
+│   │   ├── centroid                 # [N_pairs, D]
+│   │   ├── keyword_weighted         # [N_pairs, D]
+│   │   ├── residual                 # [N_pairs, D]
+│   │   └── distances                # [N_pairs]
+│   ├── /negatives/
+│   │   ├── hard                     # [N_pairs, n_neg]
+│   │   └── tiers                    # [N_pairs, n_neg]
+│   └── /splits/
+│       ├── train                    # [N_train]
+│       ├── val                      # [N_val]
+│       └── test                     # [N_test]
+└── inspection.json                  # [OPTIONAL] Human-readable metadata
+```
+
+**HDF5 Advantages:**
+- Single file (easier to version, distribute, and manage)
+- Compression support (10-50% size reduction)
+- Lazy loading (load only needed tensors)
+- Atomic writes (no partial dataset states)
+- Native support for variable-length arrays (keyword_ids)
+
+**HDF5 Usage Example:**
+```python
+import h5py
+import torch
+
+# Save
+with h5py.File(output_dir / "dataset.h5", "w") as f:
+    emb_group = f.create_group("embeddings")
+    emb_group.create_dataset("questions", data=question_embs.numpy(), compression="gzip")
+    # ... other datasets
+
+# Load in JASPERSteeringDataset
+with h5py.File(self.dataset_dir / "dataset.h5", "r") as f:
+    self.question_embs = torch.from_numpy(f["embeddings/questions"][:])
 ```
 
 ## Usage (Planned)
@@ -133,10 +301,12 @@ from RAG_supporters.dataset.dataset_builder import build_dataset
 # Build dataset
 build_dataset(
     csv_paths=["data1.csv", "data2.csv"],
-    cluster_json_path="clusters.json",
+    cluster_json_path="clusters.json",  # From KeywordClusterer.save_results()
     embedding_model=model,
     output_dir="./my_dataset",
-    config={
+    storage_format="pt",  # "pt" or "hdf5"
+    include_inspection_file=True,  # Create inspection.json
+    config=
         "n_neg": 12,
         "split_ratios": [0.8, 0.1, 0.1],
         "steering_probs": {"zero": 0.25, "centroid": 0.25, "keyword": 0.25, "residual": 0.25},
@@ -169,6 +339,8 @@ All success criteria from problem statement apply:
 - `sentence-transformers` or LangChain embeddings
 - `scikit-learn` for stratified splitting
 - `tqdm` for progress bars
+- `h5py` (optional) for HDF5 format support
+- `json` (standard library) for inspection file
 
 ### Design Principles
 1. **Each task is independent**: Can be tested and debugged separately
