@@ -7,22 +7,33 @@ This directory will contain the complete pipeline for building JASPER Steering D
 ## Overview
 
 The dataset builder processes:
-- Multiple CSV files with question-source pairs
+- Multiple CSV files with question-source pairs (many-to-many relationships supported)
 - Cluster JSON with keyword embeddings and centroids
 - Embedding model for text encoding
 
 And produces a single self-contained dataset directory ready for training.
 
+**Key Features:**
+- ✅ **Many-to-Many Support**: Questions can have multiple sources; sources can answer multiple questions
+- ✅ **Smart Deduplication**: Only exact duplicate pairs are merged (preserves multi-source questions)
+- ✅ **Flexible Column Names**: Automatic detection of question/source/answer columns via aliases
+- ✅ **Keyword Clustering**: Links pairs to semantic clusters for curriculum learning
+- ✅ **Hard Negatives**: Pre-computed 4-tier negative sampling for contrastive learning
+- ✅ **Curriculum Ready**: Centroid distances and steering signals for progressive training
+
 ## Pipeline Tasks
 
-### Task 0: Scaffold ✅ Partial
-- [ ] `__init__.py` - Package constants and types
-- [ ] `config.py` - BuildConfig dataclass with serialization
+### Task 0: Scaffold ✅ DONE
+- [x] `__init__.py` - Package constants and types (updated with new exports)
+- [x] `builder_config.py` - BuildConfig dataclass with serialization
 
-### Task 1: CSV Merger
-- [ ] `merge_csv.py` - Column normalization, deduplication, ID assignment
-- [ ] Merge rules: max scores, union keywords, longest answer
-- [ ] Outputs: `inspection.json` (optional human-readable metadata)
+### Task 1: CSV Merger ✅ DONE
+- [x] `merge_csv.py` - Column normalization, deduplication, ID assignment
+- [x] **Many-to-many support**: One question can have multiple sources, one source can answer multiple questions
+- [x] **Deduplication**: Only exact duplicate pairs (same question + same source) are merged
+- [x] Merge rules for duplicates: max scores, union keywords, longest answer
+- [x] Outputs: `inspection.json` (optional human-readable metadata)
+- [x] Tests: `tests/test_merge_csv.py` with comprehensive coverage including many-to-many validation
 
 ### Task 2: Cluster Parser
 - [ ] `parse_clusters.py` - Parse KeywordClusterer JSON format
@@ -75,6 +86,21 @@ Columns (flexible names via alias map):
 - `answer` / `answer_text` (optional)
 - `keywords` (optional, JSON list or comma-separated)
 - `relevance_score` / `score` (optional, float 0-1)
+
+**Many-to-Many Relationships:**
+- ✅ Same question with different sources → Multiple pairs (preserved)
+- ✅ Different questions with same source → Multiple pairs (preserved)
+- ❌ Same question with same source → Duplicate pair (merged with max score)
+
+**Example:**
+```csv
+question,source,score
+"What is Python?","Python is a programming language",0.9
+"What is Python?","Python is used for AI and ML",0.8  # Different source - kept
+"What is Java?","Python is a programming language",0.7  # Different question - kept
+"What is Python?","Python is a programming language",0.85  # Exact duplicate - merged (score=0.9 kept)
+```
+→ Results in 3 unique pairs
 
 ### Cluster JSON Format
 
@@ -322,6 +348,8 @@ loader = create_loader("./my_dataset", split="train", batch_size=32)
 
 All success criteria from problem statement apply:
 - CSV merge handles duplicates and missing columns
+- **Many-to-many relationships preserved**: questions can have multiple sources, sources can answer multiple questions
+- **Deduplication**: only exact duplicate pairs (same question + same source) are merged with max score
 - Cluster parsing matches keywords with fallback
 - Every source has ≥1 cluster, one primary cluster
 - Embeddings aligned by ID, same dimension

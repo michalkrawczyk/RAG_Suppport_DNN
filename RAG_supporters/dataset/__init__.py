@@ -23,6 +23,11 @@ JASPER Steering Dataset (Pre-computed embeddings):
 - set_epoch: Set epoch for curriculum and distributed training
 - validate_first_batch: Validate DataLoader output shapes
 
+JASPER Dataset Builder (Dataset construction pipeline):
+- BuildConfig: Configuration dataclass for dataset building
+- CSVMerger: Merge and normalize multiple CSV files
+- merge_csv_files: Convenience function for CSV merging
+
 Note: JEPA has been renamed to JASPER. Legacy code using JEPASteeringDataset
 will receive an ImportError with migration instructions.
 """
@@ -48,6 +53,10 @@ from .steering_embedding_generator import SteeringEmbeddingGenerator
 from .jasper_steering_dataset import JASPERSteeringDataset
 from .loader import create_loader, set_epoch, validate_first_batch
 
+# JASPER Dataset Builder components
+from .builder_config import BuildConfig
+from .merge_csv import CSVMerger, merge_csv_files
+
 # (Removed legacy backward-compatibility imports)
 
 
@@ -71,4 +80,8 @@ __all__ = [
     "create_loader",
     "set_epoch",
     "validate_first_batch",
+    # JASPER Dataset Builder
+    "BuildConfig",
+    "CSVMerger",
+    "merge_csv_files",
 ]

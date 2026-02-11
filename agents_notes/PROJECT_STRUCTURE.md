@@ -54,7 +54,9 @@ Keyword-based and topic-based clustering for dataset organization.
 Dataset creation, manipulation, splitting, and storage.
 
 - **__init__.py** - Exports dataset classes
+- **builder_config.py** - BuildConfig: Configuration dataclass for JASPER dataset building with validation and JSON serialization
 - **cluster_labeled_dataset.py** - ClusterLabeledDataset: Dataset with cluster assignments and labels
+- **dataset_builder_README.md** - README and specifications for JASPER dataset builder pipeline (Tasks 0-9)
 - **dataset_splitter.py** - DatasetSplitter: Train/val/test splitting with persistence to JSON
 - **domain_assessment_dataset_builder.py** - DomainAssessmentDatasetBuilder: Builds datasets for domain assessment tasks
 - **domain_assessment_parser.py** - Parsers for domain assessment data formats
@@ -62,6 +64,7 @@ Dataset creation, manipulation, splitting, and storage.
 - **jepa_steering_dataset.py** - REMOVED: JEPA renamed to JASPER, file raises ImportError with migration instructions
 - **label_calculator.py** - Label calculation utilities for dataset annotations
 - **loader.py** - DataLoader factory and utilities for JASPER Steering Dataset (create_loader, validate_first_batch)
+- **merge_csv.py** - CSVMerger: Merges multiple CSV files with column normalization, deduplication, and ID assignment
 - **rag_dataset.py** - RAGDataset: Core dataset class for RAG question-answer-source triples
 - **sqlite_storage.py** - SQLite-based storage backend for dataset persistence
 - **steering_embedding_generator.py** - Generates steering embeddings for model control
@@ -118,6 +121,7 @@ Cross-cutting utilities for text processing and data manipulation.
 Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls for reproducibility.
 
 - **conftest.py** - Pytest configuration and shared fixtures
+- **test_builder_config.py** - Tests for BuildConfig (initialization, validation, serialization)
 - **test_dataset_check_agent.py** - Tests for DatasetCheckAgent (LangGraph workflow, mocking)
 - **test_dataset_splitter.py** - Tests for DatasetSplitter (splitting logic, persistence)
 - **test_domain_assesment.py** - Tests for DomainAnalysisAgent (all three operation modes)
@@ -125,6 +129,7 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_jepa_steering_dataset.py** - Legacy filename: Tests JASPERSteeringDataset (JEPA renamed to JASPER)
 - **test_keyword_clustering.py** - Tests for KeywordClustering (clustering algorithms)
 - **test_loader.py** - Tests for JASPER Steering DataLoader (batch shapes, iteration, validation)
+- **test_merge_csv.py** - Tests for CSVMerger (normalization, deduplication, ID assignment)
 - **test_question_augmentation_agent.py** - Tests for QuestionAugmentationAgent
 - **test_source_evaluation_agent.py** - Tests for SourceEvaluationAgent
 - **test_text_augmentation_agent.py** - Tests for TextAugmentationAgent
