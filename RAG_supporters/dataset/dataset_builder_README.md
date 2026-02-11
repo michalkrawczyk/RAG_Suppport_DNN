@@ -2,7 +2,7 @@
 
 > **Status:** 🚧 Not yet implemented. Specifications below.
 
-This directory will contain the complete pipeline for building JEPA Steering Datasets from CSV files and cluster JSON.
+This directory will contain the complete pipeline for building JASPER Steering Datasets from CSV files and cluster JSON.
 
 ## Overview
 
@@ -186,10 +186,10 @@ Create `tests/test_dataset_build.py` with:
 
 ## Related Files
 
-- **Runtime**: `RAG_supporters/dataset/jepa_steering_dataset.py` ✅ Implemented
+- **Runtime**: `RAG_supporters/dataset/jasper_steering_dataset.py` ✅ Implemented
 - **Loader**: `RAG_supporters/dataset/loader.py` ✅ Implemented
-- **Tests**: `tests/test_jepa_steering_dataset.py`, `tests/test_loader.py` ✅ Implemented
-- **Docs**: `docs/dataset/JEPA_STEERING_DATASET.md` ✅ Implemented
+- **Tests**: `tests/test_jasper_steering_dataset.py`, `tests/test_loader.py` ✅ Implemented
+- **Docs**: `docs/dataset/JASPER_STEERING_DATASET.md` ✅ Implemented
 
 ## References
 
