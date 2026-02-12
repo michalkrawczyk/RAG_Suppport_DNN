@@ -37,6 +37,8 @@ JASPER Dataset Builder (Dataset construction pipeline):
 - build_steering: Convenience function for steering generation
 - NegativeMiner: Mine hard negatives for contrastive learning
 - mine_negatives: Convenience function for negative mining
+- DatasetSplitter: Question-level stratified splitting
+- split_dataset: Convenience function for dataset splitting
 
 Note: JEPA has been renamed to JASPER. Legacy code using JEPASteeringDataset
 will receive an ImportError with migration instructions.
@@ -71,6 +73,7 @@ from .link_sources import SourceClusterLinker, link_sources
 from .embed import EmbeddingGenerator, generate_embeddings
 from .build_steering import SteeringBuilder, build_steering
 from .mine_negatives import NegativeMiner, mine_negatives
+from .split import DatasetSplitter as JASPERDatasetSplitter, split_dataset
 
 # (Removed legacy backward-compatibility imports)
 
@@ -109,4 +112,6 @@ __all__ = [
     "build_steering",
     "NegativeMiner",
     "mine_negatives",
+    "JASPERDatasetSplitter",
+    "split_dataset",
 ]

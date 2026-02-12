@@ -66,10 +66,11 @@ And produces a single self-contained dataset directory ready for training.
 - [x] Outputs: `hard_negatives.pt`, `negative_tiers.pt`
 - [x] Tests: `tests/test_mine_negatives.py` with comprehensive coverage
 
-### Task 7: Splitter
-- [ ] `split.py` - Question-level stratified splitting
-- [ ] No leakage: questions stay in one split
-- [ ] Outputs: `train_idx.pt`, `val_idx.pt`, `test_idx.pt`
+### Task 7: Splitter ✅ DONE
+- [x] `split.py` - Question-level stratified splitting
+- [x] No leakage: questions stay in one split
+- [x] Outputs: `train_idx.pt`, `val_idx.pt`, `test_idx.pt`
+- [x] Tests: `tests/test_split.py` with comprehensive coverage
 
 ### Task 8: Config Writer & Validation
 - [ ] `finalize.py` - Cross-validate all outputs

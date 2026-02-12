@@ -70,6 +70,7 @@ Dataset creation, manipulation, splitting, and storage.
 - **embed.py** - EmbeddingGenerator: Batch embedding generation with validation (NaN/Inf checks, centroid similarity)
 - **build_steering.py** - SteeringBuilder: Generates steering signals (centroid, keyword-weighted, residual) and centroid distances for curriculum learning
 - **mine_negatives.py** - NegativeMiner: 4-tier hard negative sampling (in-cluster, adjacent, high-similarity, random) for contrastive learning
+- **split.py** - DatasetSplitter: Question-level stratified train/val/test splitting with no leakage, saves to PyTorch tensors
 - **rag_dataset.py** - RAGDataset: Core dataset class for RAG question-answer-source triples
 - **sqlite_storage.py** - SQLite-based storage backend for dataset persistence
 - **steering_embedding_generator.py** - Generates steering embeddings for model control
@@ -140,6 +141,7 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_embed.py** - Tests for EmbeddingGenerator (batch generation, validation, sanity checks)
 - **test_build_steering.py** - Tests for SteeringBuilder (centroid, keyword-weighted, residual steering variants, distances, validations)
 - **test_mine_negatives.py** - Tests for NegativeMiner (4-tier negative sampling, validation, edge cases with small clusters)
+- **test_split.py** - Tests for DatasetSplitter (question-level splitting, stratification, no leakage validation, determinism)
 - **test_question_augmentation_agent.py** - Tests for QuestionAugmentationAgent
 - **test_source_evaluation_agent.py** - Tests for SourceEvaluationAgent
 - **test_text_augmentation_agent.py** - Tests for TextAugmentationAgent
@@ -183,8 +185,8 @@ Detailed usage guides for each agent with examples.
 
 ## File Count Summary
 
-- **Python Source Files**: 50 files in RAG_supporters/ (added link_sources.py, embed.py)
-- **Test Files**: 15 files in tests/ (added test_link_sources.py, test_embed.py)
+- **Python Source Files**: 51 files in RAG_supporters/ (added split.py for Task 7)
+- **Test Files**: 16 files in tests/ (added test_split.py)
 - **Documentation Files**: 16 markdown files in docs/
 - **Configuration**: 2 files (pyproject.toml, .gitignore)
 - **Root Documentation**: 2 files (AGENTS.md, README.md)
