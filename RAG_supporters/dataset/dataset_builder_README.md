@@ -35,21 +35,24 @@ And produces a single self-contained dataset directory ready for training.
 - [x] Outputs: `inspection.json` (optional human-readable metadata)
 - [x] Tests: `tests/test_merge_csv.py` with comprehensive coverage including many-to-many validation
 
-### Task 2: Cluster Parser
-- [ ] `parse_clusters.py` - Parse KeywordClusterer JSON format
-- [ ] Load cluster metadata: assignments, centroids, topic_descriptors, embeddings
-- [ ] Keyword matching (exact + cosine fallback)
-- [ ] Outputs: Reference to KeywordClusterer JSON stored in config.json
+### Task 2: Cluster Parser ✅ DONE
+- [x] `parse_clusters.py` - Parse KeywordClusterer JSON format
+- [x] Load cluster metadata: assignments, centroids, topic_descriptors, embeddings
+- [x] Keyword matching (exact + cosine fallback)
+- [x] Outputs: Reference to KeywordClusterer JSON stored in config.json
+- [x] Tests: `tests/test_parse_clusters.py` with comprehensive coverage
 
-### Task 3: Source-Cluster Linker
-- [ ] `link_sources.py` - Link sources to clusters via keywords from KeywordClusterer JSON
-- [ ] Primary cluster resolution using cluster memberships
-- [ ] Outputs: Pair-level cluster assignments (stored in dataset tensors)
+### Task 3: Source-Cluster Linker ✅ DONE
+- [x] `link_sources.py` - Link sources to clusters via keywords from KeywordClusterer JSON
+- [x] Primary cluster resolution using cluster memberships
+- [x] Outputs: Pair-level cluster assignments (stored in dataset tensors)
+- [x] Tests: `tests/test_link_sources.py` with comprehensive coverage
 
-### Task 4: Embedding Generator
-- [ ] `embed.py` - Batch embedding generation
-- [ ] Sanity checks: centroid similarity, no NaN/Inf
-- [ ] Outputs: `*_embs.pt` files
+### Task 4: Embedding Generator ✅ DONE
+- [x] `embed.py` - Batch embedding generation
+- [x] Sanity checks: centroid similarity, no NaN/Inf
+- [x] Outputs: `*_embs.pt` files
+- [x] Tests: `tests/test_embed.py` with comprehensive coverage
 
 ### Task 5: Steering Builder
 - [ ] `build_steering.py` - Generate steering signals

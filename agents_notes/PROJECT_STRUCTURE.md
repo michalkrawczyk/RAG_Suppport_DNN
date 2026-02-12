@@ -65,6 +65,9 @@ Dataset creation, manipulation, splitting, and storage.
 - **label_calculator.py** - Label calculation utilities for dataset annotations
 - **loader.py** - DataLoader factory and utilities for JASPER Steering Dataset (create_loader, validate_first_batch)
 - **merge_csv.py** - CSVMerger: Merges multiple CSV files with column normalization, deduplication, and ID assignment
+- **parse_clusters.py** - ClusterParser: Parses KeywordClusterer JSON format with keyword matching (exact + cosine fallback)
+- **link_sources.py** - SourceClusterLinker: Links question-source pairs to clusters via keyword intersection with majority voting
+- **embed.py** - EmbeddingGenerator: Batch embedding generation with validation (NaN/Inf checks, centroid similarity)
 - **rag_dataset.py** - RAGDataset: Core dataset class for RAG question-answer-source triples
 - **sqlite_storage.py** - SQLite-based storage backend for dataset persistence
 - **steering_embedding_generator.py** - Generates steering embeddings for model control
@@ -130,6 +133,9 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_keyword_clustering.py** - Tests for KeywordClustering (clustering algorithms)
 - **test_loader.py** - Tests for JASPER Steering DataLoader (batch shapes, iteration, validation)
 - **test_merge_csv.py** - Tests for CSVMerger (normalization, deduplication, ID assignment)
+- **test_parse_clusters.py** - Tests for ClusterParser (keyword matching, fuzzy matching, cluster metadata)
+- **test_link_sources.py** - Tests for SourceClusterLinker (pair-to-cluster linking, fallback strategies, validation)
+- **test_embed.py** - Tests for EmbeddingGenerator (batch generation, validation, sanity checks)
 - **test_question_augmentation_agent.py** - Tests for QuestionAugmentationAgent
 - **test_source_evaluation_agent.py** - Tests for SourceEvaluationAgent
 - **test_text_augmentation_agent.py** - Tests for TextAugmentationAgent
@@ -173,8 +179,8 @@ Detailed usage guides for each agent with examples.
 
 ## File Count Summary
 
-- **Python Source Files**: 47 files in RAG_supporters/ (added jasper_steering_dataset.py, jepa_steering_dataset.py removed/stub only, loader.py)
-- **Test Files**: 12 files in tests/ (added test_jasper_steering_dataset.py, test_jepa_steering_dataset.py tests JASPER, test_loader.py)
+- **Python Source Files**: 50 files in RAG_supporters/ (added link_sources.py, embed.py)
+- **Test Files**: 15 files in tests/ (added test_link_sources.py, test_embed.py)
 - **Documentation Files**: 16 markdown files in docs/
 - **Configuration**: 2 files (pyproject.toml, .gitignore)
 - **Root Documentation**: 2 files (AGENTS.md, README.md)

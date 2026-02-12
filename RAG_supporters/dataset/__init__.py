@@ -27,6 +27,12 @@ JASPER Dataset Builder (Dataset construction pipeline):
 - BuildConfig: Configuration dataclass for dataset building
 - CSVMerger: Merge and normalize multiple CSV files
 - merge_csv_files: Convenience function for CSV merging
+- ClusterParser: Parse KeywordClusterer JSON and match keywords to clusters
+- parse_clusters: Convenience function for cluster parsing
+- SourceClusterLinker: Link pairs to clusters via keyword intersection
+- link_sources: Convenience function for source-cluster linking
+- EmbeddingGenerator: Batch embedding generation with validation
+- generate_embeddings: Convenience function for embedding generation
 
 Note: JEPA has been renamed to JASPER. Legacy code using JEPASteeringDataset
 will receive an ImportError with migration instructions.
@@ -56,6 +62,9 @@ from .loader import create_loader, set_epoch, validate_first_batch
 # JASPER Dataset Builder components
 from .builder_config import BuildConfig
 from .merge_csv import CSVMerger, merge_csv_files
+from .parse_clusters import ClusterParser, parse_clusters
+from .link_sources import SourceClusterLinker, link_sources
+from .embed import EmbeddingGenerator, generate_embeddings
 
 # (Removed legacy backward-compatibility imports)
 
@@ -84,4 +93,10 @@ __all__ = [
     "BuildConfig",
     "CSVMerger",
     "merge_csv_files",
+    "ClusterParser",
+    "parse_clusters",
+    "SourceClusterLinker",
+    "link_sources",
+    "EmbeddingGenerator",
+    "generate_embeddings",
 ]
