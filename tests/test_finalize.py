@@ -217,7 +217,7 @@ class TestDatasetFinalizerValidation:
         )
 
         finalizer = DatasetFinalizer(output_dir)
-        with pytest.raises(ValueError, match="pair_index must have shape"):
+        with pytest.raises(ValueError, match="pair_index.*has 1 dimensions, expected 2 dimensions"):
             finalizer.finalize(config=config)
 
     def test_finalize_detects_true_source_in_negatives(self, valid_output_dir):

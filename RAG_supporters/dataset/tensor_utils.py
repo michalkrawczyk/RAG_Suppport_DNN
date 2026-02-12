@@ -99,7 +99,11 @@ def load_tensor_artifact(
                     f"expected {expected}"
                 )
     
-    LOGGER.debug(f"Loaded {filename}: shape={tuple(tensor.shape)}")
+    # Only log shape if it's a tensor (not for lists loaded with weights_only=False)
+    if isinstance(tensor, torch.Tensor):
+        LOGGER.debug(f"Loaded {filename}: shape={tuple(tensor.shape)}")
+    else:
+        LOGGER.debug(f"Loaded {filename}: type={type(tensor).__name__}")
     return tensor
 
 
