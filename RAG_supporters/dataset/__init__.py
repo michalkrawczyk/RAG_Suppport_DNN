@@ -33,6 +33,8 @@ JASPER Dataset Builder (Dataset construction pipeline):
 - link_sources: Convenience function for source-cluster linking
 - EmbeddingGenerator: Batch embedding generation with validation
 - generate_embeddings: Convenience function for embedding generation
+- SteeringBuilder: Generate steering signals for curriculum learning
+- build_steering: Convenience function for steering generation
 
 Note: JEPA has been renamed to JASPER. Legacy code using JEPASteeringDataset
 will receive an ImportError with migration instructions.
@@ -65,6 +67,7 @@ from .merge_csv import CSVMerger, merge_csv_files
 from .parse_clusters import ClusterParser, parse_clusters
 from .link_sources import SourceClusterLinker, link_sources
 from .embed import EmbeddingGenerator, generate_embeddings
+from .build_steering import SteeringBuilder, build_steering
 
 # (Removed legacy backward-compatibility imports)
 
@@ -99,4 +102,6 @@ __all__ = [
     "link_sources",
     "EmbeddingGenerator",
     "generate_embeddings",
+    "SteeringBuilder",
+    "build_steering",
 ]

@@ -54,10 +54,11 @@ And produces a single self-contained dataset directory ready for training.
 - [x] Outputs: `*_embs.pt` files
 - [x] Tests: `tests/test_embed.py` with comprehensive coverage
 
-### Task 5: Steering Builder
-- [ ] `build_steering.py` - Generate steering signals
-- [ ] Variants: centroid, keyword-weighted, residual
-- [ ] Outputs: `steering_*.pt`, `centroid_distances.pt`
+### Task 5: Steering Builder ✅ DONE
+- [x] `build_steering.py` - Generate steering signals
+- [x] Variants: centroid, keyword-weighted, residual
+- [x] Outputs: `steering_*.pt`, `centroid_distances.pt`
+- [x] Tests: `tests/test_build_steering.py` with comprehensive coverage
 
 ### Task 6: Hard Negative Miner
 - [ ] `mine_negatives.py` - 4-tier negative sampling
