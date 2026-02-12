@@ -23,6 +23,16 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from .validation_utils import (
+    validate_tensor_2d,
+    validate_tensor_1d,
+    validate_embedding_dimensions,
+    validate_pair_indices_bounds,
+    validate_cluster_ids_bounds,
+    validate_length_consistency,
+    validate_keyword_ids_list
+)
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -174,88 +184,44 @@ class SteeringBuilder:
         pair_keyword_ids: List[List[int]]
     ):
         """Validate input tensors and shapes."""
-        # Check tensor types
-        if not isinstance(question_embeddings, torch.Tensor):
-            raise TypeError(
-                f"question_embeddings must be torch.Tensor, got {type(question_embeddings)}"
-            )
-        if not isinstance(keyword_embeddings, torch.Tensor):
-            raise TypeError(
-                f"keyword_embeddings must be torch.Tensor, got {type(keyword_embeddings)}"
-            )
-        if not isinstance(centroid_embeddings, torch.Tensor):
-            raise TypeError(
-                f"centroid_embeddings must be torch.Tensor, got {type(centroid_embeddings)}"
-            )
-        if not isinstance(pair_indices, torch.Tensor):
-            raise TypeError(
-                f"pair_indices must be torch.Tensor, got {type(pair_indices)}"
-            )
-        if not isinstance(pair_cluster_ids, torch.Tensor):
-            raise TypeError(
-                f"pair_cluster_ids must be torch.Tensor, got {type(pair_cluster_ids)}"
-            )
+        # Validate embedding dimensions consistency
+        validate_embedding_dimensions(
+            (question_embeddings, "question_embeddings"),
+            (keyword_embeddings, "keyword_embeddings"),
+            (centroid_embeddings, "centroid_embeddings")
+        )
         
-        # Check shapes
-        if question_embeddings.ndim != 2:
-            raise ValueError(
-                f"question_embeddings must be 2D, got shape {question_embeddings.shape}"
-            )
-        if keyword_embeddings.ndim != 2:
-            raise ValueError(
-                f"keyword_embeddings must be 2D, got shape {keyword_embeddings.shape}"
-            )
-        if centroid_embeddings.ndim != 2:
-            raise ValueError(
-                f"centroid_embeddings must be 2D, got shape {centroid_embeddings.shape}"
-            )
-        if pair_indices.ndim != 2 or pair_indices.shape[1] != 2:
-            raise ValueError(
-                f"pair_indices must be [n_pairs, 2], got shape {pair_indices.shape}"
-            )
-        if pair_cluster_ids.ndim != 1:
-            raise ValueError(
-                f"pair_cluster_ids must be 1D, got shape {pair_cluster_ids.shape}"
-            )
+        # Validate pair structures
+        validate_tensor_2d(pair_indices, "pair_indices", expected_cols=2)
+        validate_tensor_1d(pair_cluster_ids, "pair_cluster_ids")
         
-        # Check dimension consistency
-        q_dim = question_embeddings.shape[1]
-        k_dim = keyword_embeddings.shape[1]
-        c_dim = centroid_embeddings.shape[1]
-        
-        if not (q_dim == k_dim == c_dim):
-            raise ValueError(
-                f"Embedding dimensions must match: "
-                f"question={q_dim}, keyword={k_dim}, centroid={c_dim}"
-            )
-        
-        # Check pair counts match
+        # Validate length consistency
         n_pairs = pair_indices.shape[0]
-        if pair_cluster_ids.shape[0] != n_pairs:
-            raise ValueError(
-                f"pair_cluster_ids length ({pair_cluster_ids.shape[0]}) "
-                f"must match pair_indices ({n_pairs})"
-            )
-        if len(pair_keyword_ids) != n_pairs:
-            raise ValueError(
-                f"pair_keyword_ids length ({len(pair_keyword_ids)}) "
-                f"must match pair_indices ({n_pairs})"
-            )
+        validate_length_consistency(
+            (pair_cluster_ids, "pair_cluster_ids", n_pairs),
+            (pair_keyword_ids, "pair_keyword_ids", n_pairs)
+        )
         
-        # Check index bounds
-        max_question_idx = pair_indices[:, 0].max().item()
-        if max_question_idx >= question_embeddings.shape[0]:
-            raise ValueError(
-                f"pair_indices contains question index {max_question_idx} "
-                f"but only {question_embeddings.shape[0]} questions exist"
-            )
+        # Validate index bounds
+        validate_pair_indices_bounds(
+            pair_indices,
+            n_questions=question_embeddings.shape[0],
+            n_sources=question_embeddings.shape[0]  # Not used for source validation here
+        )
         
-        max_cluster_id = pair_cluster_ids.max().item()
-        if max_cluster_id >= centroid_embeddings.shape[0]:
-            raise ValueError(
-                f"pair_cluster_ids contains cluster {max_cluster_id} "
-                f"but only {centroid_embeddings.shape[0]} clusters exist"
-            )
+        validate_cluster_ids_bounds(
+            pair_cluster_ids,
+            n_clusters=centroid_embeddings.shape[0],
+            name="pair_cluster_ids"
+        )
+        
+        # Validate keyword IDs structure
+        validate_keyword_ids_list(
+            pair_keyword_ids,
+            n_pairs=n_pairs,
+            n_keywords=keyword_embeddings.shape[0],
+            name="pair_keyword_ids"
+        )
     
     def build_centroid_steering(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """Build centroid-based steering vectors and distances.

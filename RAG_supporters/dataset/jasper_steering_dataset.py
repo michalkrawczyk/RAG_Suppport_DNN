@@ -15,6 +15,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from .tensor_utils import load_tensor_artifact
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -73,10 +75,10 @@ class JASPERSteeringDataset(Dataset):
         self.n_neg = self.config["n_neg"]
 
         # Load split indices
-        split_file = self.dataset_dir / f"{split}_idx.pt"
-        if not split_file.exists():
-            raise ValueError(f"Split file not found: {split_file}")
-        self.split_indices = torch.load(split_file, weights_only=True)
+        self.split_indices = load_tensor_artifact(
+            self.dataset_dir, f"{split}_idx.pt",
+            expected_shape=(None,)
+        )
 
         LOGGER.info(f"Split size: {len(self.split_indices)}")
 
@@ -108,30 +110,22 @@ class JASPERSteeringDataset(Dataset):
         """Load all embedding tensors."""
         LOGGER.info("Loading embeddings...")
 
-        self.question_embs = torch.load(
-            self.dataset_dir / "question_embs.pt", weights_only=True
+        self.question_embs = load_tensor_artifact(
+            self.dataset_dir, "question_embs.pt",
+            expected_shape=(None, self.embedding_dim)
         )
-        self.source_embs = torch.load(self.dataset_dir / "source_embs.pt", weights_only=True)
-        self.keyword_embs = torch.load(
-            self.dataset_dir / "keyword_embs.pt", weights_only=True
+        self.source_embs = load_tensor_artifact(
+            self.dataset_dir, "source_embs.pt",
+            expected_shape=(None, self.embedding_dim)
         )
-        self.centroid_embs = torch.load(
-            self.dataset_dir / "centroid_embs.pt", weights_only=True
+        self.keyword_embs = load_tensor_artifact(
+            self.dataset_dir, "keyword_embs.pt",
+            expected_shape=(None, self.embedding_dim)
         )
-
-        # Validate dimensions
-        assert (
-            self.question_embs.size(1) == self.embedding_dim
-        ), "Question embedding dimension mismatch"
-        assert (
-            self.source_embs.size(1) == self.embedding_dim
-        ), "Source embedding dimension mismatch"
-        assert (
-            self.keyword_embs.size(1) == self.embedding_dim
-        ), "Keyword embedding dimension mismatch"
-        assert (
-            self.centroid_embs.size(1) == self.embedding_dim
-        ), "Centroid embedding dimension mismatch"
+        self.centroid_embs = load_tensor_artifact(
+            self.dataset_dir, "centroid_embs.pt",
+            expected_shape=(None, self.embedding_dim)
+        )
 
         LOGGER.info(
             f"Loaded embeddings: {len(self.question_embs)} questions, "
@@ -143,17 +137,24 @@ class JASPERSteeringDataset(Dataset):
         """Load pair-level data."""
         LOGGER.info("Loading pair data...")
 
-        self.pair_index = torch.load(self.dataset_dir / "pair_index.pt", weights_only=True)
-        self.pair_cluster_id = torch.load(
-            self.dataset_dir / "pair_cluster_id.pt", weights_only=True
+        self.pair_index = load_tensor_artifact(
+            self.dataset_dir, "pair_index.pt",
+            expected_shape=(None, 2)
         )
-        self.pair_relevance = torch.load(
-            self.dataset_dir / "pair_relevance.pt", weights_only=True
+        self.pair_cluster_id = load_tensor_artifact(
+            self.dataset_dir, "pair_cluster_id.pt",
+            expected_shape=(None,)
+        )
+        self.pair_relevance = load_tensor_artifact(
+            self.dataset_dir, "pair_relevance.pt",
+            expected_shape=(None,)
         )
 
         # Load pair_keyword_ids (stored as PT file with list-of-lists)
-        pair_keyword_ids_path = self.dataset_dir / "pair_keyword_ids.pt"
-        self.pair_keyword_ids = torch.load(pair_keyword_ids_path, weights_only=False)
+        self.pair_keyword_ids = load_tensor_artifact(
+            self.dataset_dir, "pair_keyword_ids.pt",
+            weights_only=False
+        )
 
         LOGGER.info(f"Loaded data for {len(self.pair_index)} pairs")
 
@@ -161,14 +162,14 @@ class JASPERSteeringDataset(Dataset):
         """Load hard negative data."""
         LOGGER.info("Loading hard negatives...")
 
-        self.hard_negatives = torch.load(
-            self.dataset_dir / "hard_negatives.pt", weights_only=True
+        self.hard_negatives = load_tensor_artifact(
+            self.dataset_dir, "hard_negatives.pt",
+            expected_shape=(None, self.n_neg)
         )
-        self.negative_tiers = torch.load(
-            self.dataset_dir / "negative_tiers.pt", weights_only=True
+        self.negative_tiers = load_tensor_artifact(
+            self.dataset_dir, "negative_tiers.pt",
+            expected_shape=(None, self.n_neg)
         )
-
-        assert self.hard_negatives.size(1) == self.n_neg, "Hard negatives count mismatch"
 
         LOGGER.info(f"Loaded {self.n_neg} hard negatives per pair")
 
@@ -176,17 +177,21 @@ class JASPERSteeringDataset(Dataset):
         """Load steering tensors."""
         LOGGER.info("Loading steering tensors...")
 
-        self.steering_centroid = torch.load(
-            self.dataset_dir / "steering_centroid.pt", weights_only=True
+        self.steering_centroid = load_tensor_artifact(
+            self.dataset_dir, "steering_centroid.pt",
+            expected_shape=(None, self.embedding_dim)
         )
-        self.steering_keyword_weighted = torch.load(
-            self.dataset_dir / "steering_keyword_weighted.pt", weights_only=True
+        self.steering_keyword_weighted = load_tensor_artifact(
+            self.dataset_dir, "steering_keyword_weighted.pt",
+            expected_shape=(None, self.embedding_dim)
         )
-        self.steering_residual = torch.load(
-            self.dataset_dir / "steering_residual.pt", weights_only=True
+        self.steering_residual = load_tensor_artifact(
+            self.dataset_dir, "steering_residual.pt",
+            expected_shape=(None, self.embedding_dim)
         )
-        self.centroid_distances = torch.load(
-            self.dataset_dir / "centroid_distances.pt", weights_only=True
+        self.centroid_distances = load_tensor_artifact(
+            self.dataset_dir, "centroid_distances.pt",
+            expected_shape=(None,)
         )
 
         LOGGER.info("Steering tensors loaded")
@@ -348,17 +353,14 @@ class JASPERSteeringDataset(Dataset):
         """
         LOGGER.info("Reloading hard negatives from disk...")
 
-        self.hard_negatives = torch.load(
-            self.dataset_dir / "hard_negatives.pt", weights_only=True
+        self.hard_negatives = load_tensor_artifact(
+            self.dataset_dir, "hard_negatives.pt",
+            expected_shape=(None, self.n_neg)
         )
-        self.negative_tiers = torch.load(
-            self.dataset_dir / "negative_tiers.pt", weights_only=True
+        self.negative_tiers = load_tensor_artifact(
+            self.dataset_dir, "negative_tiers.pt",
+            expected_shape=(None, self.n_neg)
         )
-
-        # Verify shape consistency
-        assert (
-            self.hard_negatives.size(1) == self.n_neg
-        ), "Reloaded negatives have inconsistent count"
 
         LOGGER.info("Hard negatives reloaded successfully")
 

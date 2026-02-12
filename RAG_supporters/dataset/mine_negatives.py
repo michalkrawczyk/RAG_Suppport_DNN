@@ -23,6 +23,15 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from .validation_utils import (
+    validate_tensor_2d,
+    validate_tensor_1d,
+    validate_embedding_dimensions,
+    validate_pair_indices_bounds,
+    validate_cluster_ids_bounds,
+    validate_length_consistency
+)
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -195,103 +204,50 @@ class NegativeMiner:
         tier_proportions: Optional[List[int]]
     ):
         """Validate input tensors and parameters."""
-        # Check tensor types
-        if not isinstance(source_embeddings, torch.Tensor):
-            raise TypeError(
-                f"source_embeddings must be torch.Tensor, got {type(source_embeddings)}"
-            )
-        if not isinstance(question_embeddings, torch.Tensor):
-            raise TypeError(
-                f"question_embeddings must be torch.Tensor, got {type(question_embeddings)}"
-            )
-        if not isinstance(centroid_embeddings, torch.Tensor):
-            raise TypeError(
-                f"centroid_embeddings must be torch.Tensor, got {type(centroid_embeddings)}"
-            )
-        if not isinstance(pair_indices, torch.Tensor):
-            raise TypeError(
-                f"pair_indices must be torch.Tensor, got {type(pair_indices)}"
-            )
-        if not isinstance(pair_cluster_ids, torch.Tensor):
-            raise TypeError(
-                f"pair_cluster_ids must be torch.Tensor, got {type(pair_cluster_ids)}"
-            )
-        if not isinstance(source_cluster_ids, torch.Tensor):
-            raise TypeError(
-                f"source_cluster_ids must be torch.Tensor, got {type(source_cluster_ids)}"
-            )
+        # Validate embedding dimensions consistency
+        validate_embedding_dimensions(
+            (source_embeddings, "source_embeddings"),
+            (question_embeddings, "question_embeddings"),
+            (centroid_embeddings, "centroid_embeddings")
+        )
         
-        # Check shapes
-        if source_embeddings.ndim != 2:
-            raise ValueError(
-                f"source_embeddings must be 2D [n_sources, dim], got shape {source_embeddings.shape}"
-            )
-        if question_embeddings.ndim != 2:
-            raise ValueError(
-                f"question_embeddings must be 2D [n_questions, dim], got shape {question_embeddings.shape}"
-            )
-        if centroid_embeddings.ndim != 2:
-            raise ValueError(
-                f"centroid_embeddings must be 2D [n_clusters, dim], got shape {centroid_embeddings.shape}"
-            )
-        if pair_indices.ndim != 2 or pair_indices.shape[1] != 2:
-            raise ValueError(
-                f"pair_indices must be [n_pairs, 2], got shape {pair_indices.shape}"
-            )
-        if pair_cluster_ids.ndim != 1:
-            raise ValueError(
-                f"pair_cluster_ids must be 1D [n_pairs], got shape {pair_cluster_ids.shape}"
-            )
-        if source_cluster_ids.ndim != 1:
-            raise ValueError(
-                f"source_cluster_ids must be 1D [n_sources], got shape {source_cluster_ids.shape}"
-            )
+        # Validate pair structures
+        validate_tensor_2d(pair_indices, "pair_indices", expected_cols=2)
+        validate_tensor_1d(pair_cluster_ids, "pair_cluster_ids")
+        validate_tensor_1d(source_cluster_ids, "source_cluster_ids")
         
-        # Check dimension consistency
-        dim = source_embeddings.shape[1]
-        if question_embeddings.shape[1] != dim:
-            raise ValueError(
-                f"Embedding dimension mismatch: sources={dim}, questions={question_embeddings.shape[1]}"
-            )
-        if centroid_embeddings.shape[1] != dim:
-            raise ValueError(
-                f"Embedding dimension mismatch: sources={dim}, centroids={centroid_embeddings.shape[1]}"
-            )
+        # Validate length consistency
+        n_pairs = pair_indices.shape[0]
+        n_sources = source_embeddings.shape[0]
+        validate_length_consistency(
+            (pair_cluster_ids, "pair_cluster_ids", n_pairs),
+            (source_cluster_ids, "source_cluster_ids", n_sources)
+        )
         
-        # Check n_neg
+        # Validate index bounds
+        validate_pair_indices_bounds(
+            pair_indices,
+            n_questions=question_embeddings.shape[0],
+            n_sources=source_embeddings.shape[0]
+        )
+        
+        validate_cluster_ids_bounds(
+            pair_cluster_ids,
+            n_clusters=centroid_embeddings.shape[0],
+            name="pair_cluster_ids"
+        )
+        
+        validate_cluster_ids_bounds(
+            source_cluster_ids,
+            n_clusters=centroid_embeddings.shape[0],
+            name="source_cluster_ids"
+        )
+        
+        # Validate n_neg
         if not isinstance(n_neg, int) or n_neg < 1:
             raise ValueError(f"n_neg must be a positive integer, got {n_neg}")
         
-        # Check source_cluster_ids bounds
-        n_clusters = len(centroid_embeddings)
-        if source_cluster_ids.min() < 0 or source_cluster_ids.max() >= n_clusters:
-            raise ValueError(
-                f"source_cluster_ids out of bounds [0, {n_clusters}): "
-                f"min={source_cluster_ids.min()}, max={source_cluster_ids.max()}"
-            )
-        
-        # Check pair_cluster_ids bounds
-        if pair_cluster_ids.min() < 0 or pair_cluster_ids.max() >= n_clusters:
-            raise ValueError(
-                f"pair_cluster_ids out of bounds [0, {n_clusters}): "
-                f"min={pair_cluster_ids.min()}, max={pair_cluster_ids.max()}"
-            )
-        
-        # Check pair_indices bounds
-        n_questions = len(question_embeddings)
-        n_sources = len(source_embeddings)
-        if pair_indices[:, 0].min() < 0 or pair_indices[:, 0].max() >= n_questions:
-            raise ValueError(
-                f"Question indices out of bounds [0, {n_questions}): "
-                f"min={pair_indices[:, 0].min()}, max={pair_indices[:, 0].max()}"
-            )
-        if pair_indices[:, 1].min() < 0 or pair_indices[:, 1].max() >= n_sources:
-            raise ValueError(
-                f"Source indices out of bounds [0, {n_sources}): "
-                f"min={pair_indices[:, 1].min()}, max={pair_indices[:, 1].max()}"
-            )
-        
-        # Check tier proportions
+        # Validate tier_proportions if provided
         if tier_proportions is not None:
             if not isinstance(tier_proportions, list):
                 raise TypeError(

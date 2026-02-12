@@ -73,6 +73,8 @@ Dataset creation, manipulation, splitting, and storage.
 - **mine_negatives.py** - NegativeMiner: 4-tier hard negative sampling (in-cluster, adjacent, high-similarity, random) for contrastive learning
 - **split.py** - DatasetSplitter: Question-level stratified train/val/test splitting with no leakage, saves to PyTorch tensors
 - **finalize.py** - DatasetFinalizer: Cross-validates all builder outputs, checks referential integrity/dimensions, and writes final config.json
+- **validation_utils.py** - Shared validation utilities for tensor type/shape checking, dimension consistency, and bounds validation - eliminates code duplication across builder classes
+- **tensor_utils.py** - Tensor loading and storage utilities with shape validation and error handling - standardizes torch.load operations across dataset classes
 - **rag_dataset.py** - RAGDataset: Core dataset class for RAG question-answer-source triples
 - **sqlite_storage.py** - SQLite-based storage backend for dataset persistence
 - **steering_embedding_generator.py** - Generates steering embeddings for model control

@@ -23,6 +23,13 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from .validation_utils import (
+    validate_tensor_2d,
+    validate_tensor_1d,
+    validate_length_consistency,
+    validate_split_ratios
+)
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -149,57 +156,18 @@ class DatasetSplitter:
         test_ratio: float
     ) -> None:
         """Validate constructor inputs."""
-        # Check tensor types
-        if not isinstance(pair_indices, torch.Tensor):
-            raise TypeError(
-                f"pair_indices must be torch.Tensor, got {type(pair_indices)}"
-            )
+        # Validate tensor structures
+        validate_tensor_2d(pair_indices, "pair_indices", expected_cols=2, min_rows=1)
+        validate_tensor_1d(pair_cluster_ids, "pair_cluster_ids", min_length=1)
         
-        if not isinstance(pair_cluster_ids, torch.Tensor):
-            raise TypeError(
-                f"pair_cluster_ids must be torch.Tensor, got {type(pair_cluster_ids)}"
-            )
-        
-        # Check tensor shapes
-        if pair_indices.ndim != 2 or pair_indices.shape[1] != 2:
-            raise ValueError(
-                f"pair_indices must be [n_pairs, 2], got shape {pair_indices.shape}"
-            )
-        
-        if pair_cluster_ids.ndim != 1:
-            raise ValueError(
-                f"pair_cluster_ids must be 1D, got shape {pair_cluster_ids.shape}"
-            )
-        
-        # Check length consistency
+        # Validate length consistency
         n_pairs = pair_indices.shape[0]
-        if pair_cluster_ids.shape[0] != n_pairs:
-            raise ValueError(
-                f"pair_cluster_ids length ({pair_cluster_ids.shape[0]}) "
-                f"must match pair_indices ({n_pairs})"
-            )
+        validate_length_consistency(
+            (pair_cluster_ids, "pair_cluster_ids", n_pairs)
+        )
         
-        # Check positive length
-        if n_pairs == 0:
-            raise ValueError("pair_indices cannot be empty")
-        
-        # Check ratios
-        if not (0 < train_ratio < 1):
-            raise ValueError(f"train_ratio must be in (0, 1), got {train_ratio}")
-        
-        if not (0 < val_ratio < 1):
-            raise ValueError(f"val_ratio must be in (0, 1), got {val_ratio}")
-        
-        if not (0 < test_ratio < 1):
-            raise ValueError(f"test_ratio must be in (0, 1), got {test_ratio}")
-        
-        # Check ratio sum
-        ratio_sum = train_ratio + val_ratio + test_ratio
-        if not np.isclose(ratio_sum, 1.0, atol=1e-6):
-            raise ValueError(
-                f"Ratios must sum to 1.0, got {ratio_sum:.6f} "
-                f"(train={train_ratio}, val={val_ratio}, test={test_ratio})"
-            )
+        # Validate split ratios
+        validate_split_ratios(train_ratio, val_ratio, test_ratio)
         
         LOGGER.debug("Input validation passed")
     

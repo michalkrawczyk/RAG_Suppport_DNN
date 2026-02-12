@@ -72,15 +72,32 @@ And produces a single self-contained dataset directory ready for training.
 - [x] Outputs: `train_idx.pt`, `val_idx.pt`, `test_idx.pt`
 - [x] Tests: `tests/test_split.py` with comprehensive coverage
 
-### Task 8: Config Writer & Validation
+### Task 8: Config Writer & Validation ✅ DONE
 - [x] `finalize.py` - Cross-validate all outputs
 - [x] Check referential integrity and dimensions
 - [x] Output: Final `config.json`
+- [x] Tests: `tests/test_finalize.py` with comprehensive coverage
 
-### Task 9: Build Orchestrator
+### Task 9: Build Orchestrator ✅ DONE
 - [x] `build.py` - Main entry point
 - [x] Run Tasks 1-8 in sequence
 - [x] Per-task timing and logging
+- [x] Tests: `tests/test_dataset_build.py` with comprehensive coverage
+
+### Supporting Utilities ✅ DONE
+- [x] `validation_utils.py` - Shared validation functions
+  - Tensor type and shape validation (2D, 1D)
+  - Embedding dimension consistency checking
+  - Index bounds validation for pairs and clusters
+  - Length consistency validation across tensors/lists
+  - Split ratio validation
+  - Keyword ID list structure validation
+  - **Purpose**: Eliminates ~200+ lines of duplicated validation code across builder classes
+- [x] `tensor_utils.py` - Tensor I/O utilities
+  - Standardized tensor loading with shape validation
+  - Batch tensor loading for multiple files
+  - Tensor saving with NaN/Inf checks
+  - **Purpose**: Consolidates ~40 redundant torch.load operations with consistent error handling
 
 ## Expected Input Format
 
@@ -387,6 +404,26 @@ All success criteria from problem statement apply:
 3. **Graceful degradation**: Handle missing optional data
 4. **Deterministic**: Same inputs + seed → identical outputs
 5. **Memory efficient**: Process in batches where possible
+6. **DRY (Don't Repeat Yourself)**: Shared utilities for validation and I/O eliminate code duplication
+
+### Code Architecture
+
+**Shared Utilities** (used by all builder classes):
+- `validation_utils.py` - Common validation functions to ensure consistency and reduce duplication
+  - Validates tensor types, shapes, and dimensions
+  - Checks index bounds and length consistency
+  - Verifies split ratios and keyword ID structures
+  - Provides clear, standardized error messages
+- `tensor_utils.py` - Tensor loading/saving with automatic validation
+  - Loads tensors with optional shape validation
+  - Batch loading for multiple tensors
+  - Checks for NaN/Inf values before saving
+  - Consistent error handling across all I/O operations
+
+**Builder Classes** (leverage shared utilities):
+- `SteeringBuilder`, `NegativeMiner`, `DatasetSplitter` - Use validation_utils for input checking
+- `JASPERSteeringDataset`, `DatasetFinalizer` - Use tensor_utils for I/O operations
+- Benefits: Single source of truth for validation logic, easier maintenance, consistent behavior
 
 ### Testing Strategy
 Create `tests/test_dataset_build.py` with:
@@ -397,10 +434,25 @@ Create `tests/test_dataset_build.py` with:
 
 ## Related Files
 
+### Core Components
 - **Runtime**: `RAG_supporters/dataset/jasper_steering_dataset.py` ✅ Implemented
 - **Loader**: `RAG_supporters/dataset/loader.py` ✅ Implemented
-- **Tests**: `tests/test_jasper_steering_dataset.py`, `tests/test_loader.py` ✅ Implemented
-- **Docs**: `docs/dataset/JASPER_STEERING_DATASET.md` ✅ Implemented
+- **Builder**: `RAG_supporters/dataset/build.py` ✅ Implemented
+- **Finalizer**: `RAG_supporters/dataset/finalize.py` ✅ Implemented
+
+### Shared Utilities (New)
+- **Validation**: `RAG_supporters/dataset/validation_utils.py` ✅ Implemented
+- **Tensor I/O**: `RAG_supporters/dataset/tensor_utils.py` ✅ Implemented
+
+### Tests
+- **Dataset Tests**: `tests/test_jasper_steering_dataset.py` ✅ Implemented
+- **Loader Tests**: `tests/test_loader.py` ✅ Implemented
+- **Builder Tests**: `tests/test_dataset_build.py`, `tests/test_build_steering.py`, `tests/test_mine_negatives.py`, `tests/test_split.py`, `tests/test_finalize.py` ✅ Implemented
+
+### Documentation
+- **Usage Guide**: `docs/dataset/JASPER_STEERING_DATASET.md` ✅ Implemented
+- **Training Example**: `docs/dataset/JASPER_TRAINING_EXAMPLE.md` ✅ Implemented
+- **Project Structure**: `agents_notes/PROJECT_STRUCTURE.md` ✅ Updated with utilities
 
 ## References
 

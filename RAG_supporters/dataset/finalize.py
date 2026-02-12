@@ -13,6 +13,8 @@ from typing import Dict, List, Optional, Tuple, Union
 import torch
 
 from .builder_config import BuildConfig
+from .tensor_utils import load_tensor_artifact, load_multiple_tensors
+from .validation_utils import validate_tensor_2d, validate_keyword_ids_list
 
 LOGGER = logging.getLogger(__name__)
 
@@ -73,53 +75,55 @@ class DatasetFinalizer:
         Dict[str, object]
             Loaded tensors and pair keyword IDs list.
         """
-        artifacts: Dict[str, object] = {
-            "question_embs": torch.load(
-                self.output_dir / "question_embs.pt", weights_only=True
-            ),
-            "source_embs": torch.load(
-                self.output_dir / "source_embs.pt", weights_only=True
-            ),
-            "keyword_embs": torch.load(
-                self.output_dir / "keyword_embs.pt", weights_only=True
-            ),
-            "centroid_embs": torch.load(
-                self.output_dir / "centroid_embs.pt", weights_only=True
-            ),
-            "pair_index": torch.load(
-                self.output_dir / "pair_index.pt", weights_only=True
-            ),
-            "pair_cluster_id": torch.load(
-                self.output_dir / "pair_cluster_id.pt", weights_only=True
-            ),
-            "pair_relevance": torch.load(
-                self.output_dir / "pair_relevance.pt", weights_only=True
-            ),
-            "pair_keyword_ids": torch.load(
-                self.output_dir / "pair_keyword_ids.pt", weights_only=False
-            ),
-            "steering_centroid": torch.load(
-                self.output_dir / "steering_centroid.pt", weights_only=True
-            ),
-            "steering_keyword_weighted": torch.load(
-                self.output_dir / "steering_keyword_weighted.pt", weights_only=True
-            ),
-            "steering_residual": torch.load(
-                self.output_dir / "steering_residual.pt", weights_only=True
-            ),
-            "centroid_distances": torch.load(
-                self.output_dir / "centroid_distances.pt", weights_only=True
-            ),
-            "hard_negatives": torch.load(
-                self.output_dir / "hard_negatives.pt", weights_only=True
-            ),
-            "negative_tiers": torch.load(
-                self.output_dir / "negative_tiers.pt", weights_only=True
-            ),
-            "train_idx": torch.load(self.output_dir / "train_idx.pt", weights_only=True),
-            "val_idx": torch.load(self.output_dir / "val_idx.pt", weights_only=True),
-            "test_idx": torch.load(self.output_dir / "test_idx.pt", weights_only=True),
-        }
+        # Load embedding tensors
+        embedding_specs = [
+            ("question_embs", "question_embs.pt", True, (None, None)),
+            ("source_embs", "source_embs.pt", True, (None, None)),
+            ("keyword_embs", "keyword_embs.pt", True, (None, None)),
+            ("centroid_embs", "centroid_embs.pt", True, (None, None)),
+        ]
+        
+        # Load pair-level tensors
+        pair_specs = [
+            ("pair_index", "pair_index.pt", True, (None, 2)),
+            ("pair_cluster_id", "pair_cluster_id.pt", True, (None,)),
+            ("pair_relevance", "pair_relevance.pt", True, (None,)),
+        ]
+        
+        # Load steering tensors
+        steering_specs = [
+            ("steering_centroid", "steering_centroid.pt", True, (None, None)),
+            ("steering_keyword_weighted", "steering_keyword_weighted.pt", True, (None, None)),
+            ("steering_residual", "steering_residual.pt", True, (None, None)),
+            ("centroid_distances", "centroid_distances.pt", True, (None,)),
+        ]
+        
+        # Load negative tensors
+        negative_specs = [
+            ("hard_negatives", "hard_negatives.pt", True, (None, None)),
+            ("negative_tiers", "negative_tiers.pt", True, (None, None)),
+        ]
+        
+        # Load split indices
+        split_specs = [
+            ("train_idx", "train_idx.pt", True, (None,)),
+            ("val_idx", "val_idx.pt", True, (None,)),
+            ("test_idx", "test_idx.pt", True, (None,)),
+        ]
+        
+        # Combine all specs
+        all_specs = (
+            embedding_specs + pair_specs + steering_specs + negative_specs + split_specs
+        )
+        
+        # Load all tensors
+        artifacts = load_multiple_tensors(self.output_dir, all_specs)
+        
+        # Load pair_keyword_ids separately (list not tensor)
+        artifacts["pair_keyword_ids"] = load_tensor_artifact(
+            self.output_dir, "pair_keyword_ids.pt",
+            weights_only=False
+        )
 
         return artifacts
 
@@ -130,20 +134,10 @@ class DatasetFinalizer:
         expected_dim: Optional[int] = None,
     ) -> int:
         """Validate embedding tensor shape and return embedding dim."""
-        if not isinstance(tensor, torch.Tensor):
-            raise TypeError(f"{name} must be torch.Tensor, got {type(tensor)}")
-        if tensor.ndim != 2:
-            raise ValueError(f"{name} must be 2D, got shape {tuple(tensor.shape)}")
-        if tensor.shape[0] <= 0:
-            raise ValueError(f"{name} must contain at least one row")
-
+        validate_tensor_2d(tensor, name, expected_cols=expected_dim, min_rows=1)
+        
         embedding_dim = int(tensor.shape[1])
-        if expected_dim is not None and embedding_dim != expected_dim:
-            raise ValueError(
-                f"Embedding dimension mismatch for {name}: "
-                f"expected {expected_dim}, got {embedding_dim}"
-            )
-
+        
         if torch.isnan(tensor).any() or torch.isinf(tensor).any():
             raise ValueError(f"{name} contains NaN or Inf values")
 
@@ -156,31 +150,12 @@ class DatasetFinalizer:
         n_keywords: int,
     ) -> None:
         """Validate pair keyword IDs list structure and bounds."""
-        if not isinstance(pair_keyword_ids, list):
-            raise TypeError(
-                f"pair_keyword_ids must be list, got {type(pair_keyword_ids)}"
-            )
-        if len(pair_keyword_ids) != n_pairs:
-            raise ValueError(
-                f"pair_keyword_ids length ({len(pair_keyword_ids)}) must equal "
-                f"n_pairs ({n_pairs})"
-            )
-
-        for pair_idx, keyword_ids in enumerate(pair_keyword_ids):
-            if not isinstance(keyword_ids, list):
-                raise TypeError(
-                    f"pair_keyword_ids[{pair_idx}] must be list, got {type(keyword_ids)}"
-                )
-            for keyword_id in keyword_ids:
-                if not isinstance(keyword_id, int):
-                    raise TypeError(
-                        f"pair_keyword_ids[{pair_idx}] contains non-int id: {keyword_id}"
-                    )
-                if keyword_id < 0 or keyword_id >= n_keywords:
-                    raise ValueError(
-                        f"pair_keyword_ids[{pair_idx}] contains out-of-range "
-                        f"keyword id {keyword_id}, valid range is [0, {n_keywords - 1}]"
-                    )
+        validate_keyword_ids_list(
+            pair_keyword_ids,
+            n_pairs=n_pairs,
+            n_keywords=n_keywords,
+            name="pair_keyword_ids"
+        )
 
     def _validate_splits(
         self,
