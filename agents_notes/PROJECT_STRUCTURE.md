@@ -69,6 +69,7 @@ Dataset creation, manipulation, splitting, and storage.
 - **link_sources.py** - SourceClusterLinker: Links question-source pairs to clusters via keyword intersection with majority voting
 - **embed.py** - EmbeddingGenerator: Batch embedding generation with validation (NaN/Inf checks, centroid similarity)
 - **build_steering.py** - SteeringBuilder: Generates steering signals (centroid, keyword-weighted, residual) and centroid distances for curriculum learning
+- **mine_negatives.py** - NegativeMiner: 4-tier hard negative sampling (in-cluster, adjacent, high-similarity, random) for contrastive learning
 - **rag_dataset.py** - RAGDataset: Core dataset class for RAG question-answer-source triples
 - **sqlite_storage.py** - SQLite-based storage backend for dataset persistence
 - **steering_embedding_generator.py** - Generates steering embeddings for model control
@@ -138,6 +139,7 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_link_sources.py** - Tests for SourceClusterLinker (pair-to-cluster linking, fallback strategies, validation)
 - **test_embed.py** - Tests for EmbeddingGenerator (batch generation, validation, sanity checks)
 - **test_build_steering.py** - Tests for SteeringBuilder (centroid, keyword-weighted, residual steering variants, distances, validations)
+- **test_mine_negatives.py** - Tests for NegativeMiner (4-tier negative sampling, validation, edge cases with small clusters)
 - **test_question_augmentation_agent.py** - Tests for QuestionAugmentationAgent
 - **test_source_evaluation_agent.py** - Tests for SourceEvaluationAgent
 - **test_text_augmentation_agent.py** - Tests for TextAugmentationAgent

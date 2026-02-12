@@ -35,6 +35,8 @@ JASPER Dataset Builder (Dataset construction pipeline):
 - generate_embeddings: Convenience function for embedding generation
 - SteeringBuilder: Generate steering signals for curriculum learning
 - build_steering: Convenience function for steering generation
+- NegativeMiner: Mine hard negatives for contrastive learning
+- mine_negatives: Convenience function for negative mining
 
 Note: JEPA has been renamed to JASPER. Legacy code using JEPASteeringDataset
 will receive an ImportError with migration instructions.
@@ -68,6 +70,7 @@ from .parse_clusters import ClusterParser, parse_clusters
 from .link_sources import SourceClusterLinker, link_sources
 from .embed import EmbeddingGenerator, generate_embeddings
 from .build_steering import SteeringBuilder, build_steering
+from .mine_negatives import NegativeMiner, mine_negatives
 
 # (Removed legacy backward-compatibility imports)
 
@@ -104,4 +107,6 @@ __all__ = [
     "generate_embeddings",
     "SteeringBuilder",
     "build_steering",
+    "NegativeMiner",
+    "mine_negatives",
 ]

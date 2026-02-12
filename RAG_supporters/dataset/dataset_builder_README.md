@@ -60,10 +60,11 @@ And produces a single self-contained dataset directory ready for training.
 - [x] Outputs: `steering_*.pt`, `centroid_distances.pt`
 - [x] Tests: `tests/test_build_steering.py` with comprehensive coverage
 
-### Task 6: Hard Negative Miner
-- [ ] `mine_negatives.py` - 4-tier negative sampling
-- [ ] Tiers: in-cluster, adjacent, high-similarity, random
-- [ ] Outputs: `hard_negatives.pt`, `negative_tiers.pt`
+### Task 6: Hard Negative Miner ✅ DONE
+- [x] `mine_negatives.py` - 4-tier negative sampling
+- [x] Tiers: in-cluster, adjacent, high-similarity, random
+- [x] Outputs: `hard_negatives.pt`, `negative_tiers.pt`
+- [x] Tests: `tests/test_mine_negatives.py` with comprehensive coverage
 
 ### Task 7: Splitter
 - [ ] `split.py` - Question-level stratified splitting
