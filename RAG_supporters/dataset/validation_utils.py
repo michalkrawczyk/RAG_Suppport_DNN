@@ -393,3 +393,89 @@ def validate_keyword_ids_list(
                     f"{name}[{pair_idx}] contains out-of-range keyword ID {kw_id}, "
                     f"valid range is [0, {n_keywords - 1}]"
                 )
+
+
+def validate_no_nan_inf(
+    tensor: torch.Tensor,
+    name: str
+) -> None:
+    """Validate tensor contains no NaN or Inf values.
+    
+    Parameters
+    ----------
+    tensor : torch.Tensor
+        Tensor to validate
+    name : str
+        Name for error messages
+    
+    Raises
+    ------
+    ValueError
+        If tensor contains NaN or Inf values
+    
+    Examples
+    --------
+    >>> tensor = torch.randn(10, 5)
+    >>> validate_no_nan_inf(tensor, "embeddings")  # Passes
+    >>> 
+    >>> bad_tensor = torch.tensor([1.0, float('nan'), 3.0])
+    >>> validate_no_nan_inf(bad_tensor, "scores")  # Raises ValueError
+    """
+    if torch.isnan(tensor).any():
+        raise ValueError(f"{name} contains NaN values")
+    if torch.isinf(tensor).any():
+        raise ValueError(f"{name} contains Inf values")
+
+
+def validate_values_in_range(
+    tensor: torch.Tensor,
+    name: str,
+    min_value: float,
+    max_value: float,
+    inclusive: bool = True
+) -> None:
+    """Validate all tensor values are within specified range.
+    
+    Parameters
+    ----------
+    tensor : torch.Tensor
+        Tensor to validate
+    name : str
+        Name for error messages
+    min_value : float
+        Minimum allowed value
+    max_value : float
+        Maximum allowed value
+    inclusive : bool, optional
+        Whether range is inclusive (default: True)
+        If True: [min_value, max_value]
+        If False: (min_value, max_value)
+    
+    Raises
+    ------
+    ValueError
+        If any values are outside the specified range
+    
+    Examples
+    --------
+    >>> tensor = torch.tensor([0.0, 0.5, 1.0])
+    >>> validate_values_in_range(tensor, "scores", 0.0, 1.0)  # Passes
+    >>> 
+    >>> tensor = torch.tensor([0, 1, 2, 5, 10])
+    >>> validate_values_in_range(tensor, "indices", 0, 4)  # Raises ValueError
+    """
+    actual_min = tensor.min().item()
+    actual_max = tensor.max().item()
+    
+    if inclusive:
+        if actual_min < min_value or actual_max > max_value:
+            raise ValueError(
+                f"{name} values must be in range [{min_value}, {max_value}], "
+                f"got [{actual_min}, {actual_max}]"
+            )
+    else:
+        if actual_min <= min_value or actual_max >= max_value:
+            raise ValueError(
+                f"{name} values must be in range ({min_value}, {max_value}), "
+                f"got [{actual_min}, {actual_max}]"
+            )
