@@ -39,6 +39,7 @@ JASPER Dataset Builder (Dataset construction pipeline):
 - mine_negatives: Convenience function for negative mining
 - DatasetSplitter: Question-level stratified splitting
 - split_dataset: Convenience function for dataset splitting
+- build_dataset: Task 9 orchestrator that runs Tasks 1-8 end-to-end
 
 Note: JEPA has been renamed to JASPER. Legacy code using JEPASteeringDataset
 will receive an ImportError with migration instructions.
@@ -74,6 +75,8 @@ from .embed import EmbeddingGenerator, generate_embeddings
 from .build_steering import SteeringBuilder, build_steering
 from .mine_negatives import NegativeMiner, mine_negatives
 from .split import DatasetSplitter as JASPERDatasetSplitter, split_dataset
+from .finalize import DatasetFinalizer, finalize_dataset
+from .build import build_dataset
 
 # (Removed legacy backward-compatibility imports)
 
@@ -114,4 +117,7 @@ __all__ = [
     "mine_negatives",
     "JASPERDatasetSplitter",
     "split_dataset",
+    "DatasetFinalizer",
+    "finalize_dataset",
+    "build_dataset",
 ]

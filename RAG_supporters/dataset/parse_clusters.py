@@ -123,6 +123,11 @@ class ClusterParser:
             Normalized keyword (lowercase, stripped)
         """
         return keyword.lower().strip()
+
+    @property
+    def n_clusters(self) -> int:
+        """Return number of clusters from loaded clustering metadata."""
+        return self.clustering_data.n_clusters
     
     def _build_keyword_mapping(self) -> Dict[str, int]:
         """Build normalized keyword-to-cluster mapping.

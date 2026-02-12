@@ -1,6 +1,6 @@
 # Dataset Builder Pipeline
 
-> **Status:** 🚧 Not yet implemented. Specifications below.
+> **Status:** ✅ PT pipeline implemented (Tasks 0-9). HDF5 output remains optional/future.
 
 This directory will contain the complete pipeline for building JASPER Steering Datasets from CSV files and cluster JSON.
 
@@ -73,14 +73,14 @@ And produces a single self-contained dataset directory ready for training.
 - [x] Tests: `tests/test_split.py` with comprehensive coverage
 
 ### Task 8: Config Writer & Validation
-- [ ] `finalize.py` - Cross-validate all outputs
-- [ ] Check referential integrity and dimensions
-- [ ] Output: Final `config.json`
+- [x] `finalize.py` - Cross-validate all outputs
+- [x] Check referential integrity and dimensions
+- [x] Output: Final `config.json`
 
 ### Task 9: Build Orchestrator
-- [ ] `build.py` - Main entry point
-- [ ] Run Tasks 1-8 in sequence
-- [ ] Per-task timing and logging
+- [x] `build.py` - Main entry point
+- [x] Run Tasks 1-8 in sequence
+- [x] Per-task timing and logging
 
 ## Expected Input Format
 
@@ -328,21 +328,26 @@ with h5py.File(self.dataset_dir / "dataset.h5", "r") as f:
 ## Usage (Planned)
 
 ```python
-from RAG_supporters.dataset.dataset_builder import build_dataset
+from RAG_supporters.dataset import build_dataset
 
 # Build dataset
 build_dataset(
-    csv_paths=["data1.csv", "data2.csv"],
-    cluster_json_path="clusters.json",  # From KeywordClusterer.save_results()
-    embedding_model=model,
-    output_dir="./my_dataset",
-    storage_format="pt",  # "pt" or "hdf5"
-    include_inspection_file=True,  # Create inspection.json
-    config=
-        "n_neg": 12,
-        "split_ratios": [0.8, 0.1, 0.1],
-        "steering_probs": {"zero": 0.25, "centroid": 0.25, "keyword": 0.25, "residual": 0.25},
-    }
+  csv_paths=["data1.csv", "data2.csv"],
+  cluster_json_path="clusters.json",  # From KeywordClusterer.save_results()
+  embedding_model=model,
+  output_dir="./my_dataset",
+  storage_format="pt",
+  include_inspection_file=True,
+  config={
+    "n_neg": 12,
+    "split_ratios": [0.8, 0.1, 0.1],
+    "steering_probabilities": {
+      "zero": 0.25,
+      "centroid": 0.25,
+      "keyword": 0.25,
+      "residual": 0.25,
+    },
+  },
 )
 
 # Use dataset

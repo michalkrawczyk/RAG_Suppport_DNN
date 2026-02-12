@@ -69,8 +69,10 @@ Dataset creation, manipulation, splitting, and storage.
 - **link_sources.py** - SourceClusterLinker: Links question-source pairs to clusters via keyword intersection with majority voting
 - **embed.py** - EmbeddingGenerator: Batch embedding generation with validation (NaN/Inf checks, centroid similarity)
 - **build_steering.py** - SteeringBuilder: Generates steering signals (centroid, keyword-weighted, residual) and centroid distances for curriculum learning
+- **build.py** - build_dataset Task 9 orchestrator: runs Tasks 1-8 sequentially with per-task timing/logging and final config validation
 - **mine_negatives.py** - NegativeMiner: 4-tier hard negative sampling (in-cluster, adjacent, high-similarity, random) for contrastive learning
 - **split.py** - DatasetSplitter: Question-level stratified train/val/test splitting with no leakage, saves to PyTorch tensors
+- **finalize.py** - DatasetFinalizer: Cross-validates all builder outputs, checks referential integrity/dimensions, and writes final config.json
 - **rag_dataset.py** - RAGDataset: Core dataset class for RAG question-answer-source triples
 - **sqlite_storage.py** - SQLite-based storage backend for dataset persistence
 - **steering_embedding_generator.py** - Generates steering embeddings for model control
@@ -140,8 +142,10 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_link_sources.py** - Tests for SourceClusterLinker (pair-to-cluster linking, fallback strategies, validation)
 - **test_embed.py** - Tests for EmbeddingGenerator (batch generation, validation, sanity checks)
 - **test_build_steering.py** - Tests for SteeringBuilder (centroid, keyword-weighted, residual steering variants, distances, validations)
+- **test_dataset_build.py** - Tests for Task 9 build orchestrator (end-to-end pipeline execution, artifact generation, storage format validation)
 - **test_mine_negatives.py** - Tests for NegativeMiner (4-tier negative sampling, validation, edge cases with small clusters)
 - **test_split.py** - Tests for DatasetSplitter (question-level splitting, stratification, no leakage validation, determinism)
+- **test_finalize.py** - Tests for DatasetFinalizer (cross-validation, referential integrity checks, config writing)
 - **test_question_augmentation_agent.py** - Tests for QuestionAugmentationAgent
 - **test_source_evaluation_agent.py** - Tests for SourceEvaluationAgent
 - **test_text_augmentation_agent.py** - Tests for TextAugmentationAgent
@@ -185,8 +189,8 @@ Detailed usage guides for each agent with examples.
 
 ## File Count Summary
 
-- **Python Source Files**: 51 files in RAG_supporters/ (added split.py for Task 7)
-- **Test Files**: 16 files in tests/ (added test_split.py)
+- **Python Source Files**: 53 files in RAG_supporters/ (added build.py for Task 9)
+- **Test Files**: 18 files in tests/ (added test_dataset_build.py)
 - **Documentation Files**: 16 markdown files in docs/
 - **Configuration**: 2 files (pyproject.toml, .gitignore)
 - **Root Documentation**: 2 files (AGENTS.md, README.md)
