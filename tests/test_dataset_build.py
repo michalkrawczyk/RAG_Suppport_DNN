@@ -197,7 +197,9 @@ class TestDatasetBuildOrchestrator:
         assert final_config.n_questions == 9, "Final config should report 9 unique questions"
         assert final_config.n_sources == 9, "Final config should report 9 unique sources"
         assert final_config.n_clusters == 3, "Final config should report 3 clusters"
-        assert final_config.embedding_dim == 8, "Final config embedding_dim should match model output"
+        assert (
+            final_config.embedding_dim == 8
+        ), "Final config embedding_dim should match model output"
         assert final_config.n_neg == 2, "Final config n_neg should match requested value"
 
         required_files = [
@@ -265,7 +267,9 @@ class TestDatasetBuildOrchestrator:
             embedding_batch_size=3,
         )
 
-        assert final_config.embedding_dim == 8, "Final config should be updated to actual embedding dimension"
+        assert (
+            final_config.embedding_dim == 8
+        ), "Final config should be updated to actual embedding dimension"
         assert final_config.n_neg == 2, "Final config should preserve configured n_neg"
         assert final_config.n_pairs == 9, "Smoke run should produce expected pair count"
         assert (output_dir / "config.json").exists(), "Smoke run should persist config.json"

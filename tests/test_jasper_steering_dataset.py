@@ -190,17 +190,17 @@ def test_set_epoch_changes_probs(mock_dataset_dir):
     final_probs = dataset.steering_probs.copy()
 
     # Zero probability should decrease over epochs
-    assert initial_probs["zero"] > mid_probs["zero"], (
-        "Zero probability should decrease from epoch 0 to 50"
-    )
-    assert mid_probs["zero"] > final_probs["zero"], (
-        "Zero probability should decrease from epoch 50 to 100"
-    )
+    assert (
+        initial_probs["zero"] > mid_probs["zero"]
+    ), "Zero probability should decrease from epoch 0 to 50"
+    assert (
+        mid_probs["zero"] > final_probs["zero"]
+    ), "Zero probability should decrease from epoch 50 to 100"
 
     # Other probabilities should increase
-    assert initial_probs["centroid"] < mid_probs["centroid"], (
-        "Centroid probability should increase from epoch 0 to 50"
-    )
+    assert (
+        initial_probs["centroid"] < mid_probs["centroid"]
+    ), "Centroid probability should increase from epoch 0 to 50"
 
 
 def test_force_steering_zero(mock_dataset_dir):
@@ -310,7 +310,9 @@ def test_centroid_distance_in_range(mock_dataset_dir):
         sample = dataset[i]
         distance = sample["centroid_distance"].item()
 
-        assert 0 <= distance <= 2, f"Centroid distance {distance} out of range [0, 2] for sample {i}"
+        assert (
+            0 <= distance <= 2
+        ), f"Centroid distance {distance} out of range [0, 2] for sample {i}"
 
 
 def test_cluster_id_valid(mock_dataset_dir):
@@ -323,9 +325,9 @@ def test_cluster_id_valid(mock_dataset_dir):
         sample = dataset[i]
         cluster_id = sample["cluster_id"].item()
 
-        assert 0 <= cluster_id < n_clusters, (
-            f"Cluster ID {cluster_id} out of valid range [0, {n_clusters}) for sample {i}"
-        )
+        assert (
+            0 <= cluster_id < n_clusters
+        ), f"Cluster ID {cluster_id} out of valid range [0, {n_clusters}) for sample {i}"
 
 
 def test_steering_variant_valid(mock_dataset_dir):
@@ -336,7 +338,9 @@ def test_steering_variant_valid(mock_dataset_dir):
         sample = dataset[i]
         variant = sample["steering_variant"].item()
 
-        assert 0 <= variant <= 3, f"Steering variant {variant} out of valid range [0, 3] for sample {i}"
+        assert (
+            0 <= variant <= 3
+        ), f"Steering variant {variant} out of valid range [0, 3] for sample {i}"
 
 
 def test_determinism_with_same_epoch(mock_dataset_dir):
@@ -382,6 +386,7 @@ def test_missing_dataset_dir_raises():
     with pytest.raises(ValueError, match="Dataset directory not found"):
         JASPERSteeringDataset("/nonexistent/path", split="train")
 
+
 def test_index_out_of_bounds_raises(mock_dataset_dir):
     """Test that out-of-bounds index raises IndexError."""
     dataset = JASPERSteeringDataset(mock_dataset_dir, split="train")
@@ -402,9 +407,9 @@ def test_context_manager_support(mock_dataset_dir):
         assert "question_emb" in sample, "Should be able to access samples"
 
     # After exiting, tensors should be deleted (basic check)
-    assert not hasattr(dataset, "question_embs") or dataset.question_embs is None, (
-        "Tensors should be cleaned up after context exit"
-    )
+    assert (
+        not hasattr(dataset, "question_embs") or dataset.question_embs is None
+    ), "Tensors should be cleaned up after context exit"
 
 
 def test_device_placement_cpu(mock_dataset_dir):
@@ -412,9 +417,9 @@ def test_device_placement_cpu(mock_dataset_dir):
     dataset = JASPERSteeringDataset(mock_dataset_dir, split="train")
 
     assert dataset.device == torch.device("cpu"), "Default device should be CPU"
-    assert dataset.question_embs.device == torch.device("cpu"), (
-        "Question embeddings should be on CPU"
-    )
+    assert dataset.question_embs.device == torch.device(
+        "cpu"
+    ), "Question embeddings should be on CPU"
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
@@ -487,14 +492,15 @@ def test_referential_integrity_split_indices(mock_dataset_dir):
 def test_memory_usage_logging(mock_dataset_dir, caplog):
     """Test that memory usage is logged during initialization."""
     import logging
+
     caplog.set_level(logging.INFO)
 
     dataset = JASPERSteeringDataset(mock_dataset_dir, split="train")
 
     # Check that memory was logged
-    assert any("memory=" in record.message.lower() for record in caplog.records), (
-        "Memory usage should be logged during initialization"
-    )
+    assert any(
+        "memory=" in record.message.lower() for record in caplog.records
+    ), "Memory usage should be logged during initialization"
 
 
 def test_close_method(mock_dataset_dir):

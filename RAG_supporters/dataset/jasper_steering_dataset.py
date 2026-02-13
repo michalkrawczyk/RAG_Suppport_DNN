@@ -83,12 +83,13 @@ class JASPERSteeringDataset(Dataset):
         # Validate split file exists
         split_file = self.dataset_dir / f"{split}_idx.pt"
         if not split_file.exists():
-            raise ValueError(f"Split file not found: {split_file}. Valid splits are: train, val, test")
+            raise ValueError(
+                f"Split file not found: {split_file}. Valid splits are: train, val, test"
+            )
 
         # Load split indices
         self.split_indices = load_tensor_artifact(
-            self.dataset_dir, f"{split}_idx.pt",
-            expected_shape=(None,)
+            self.dataset_dir, f"{split}_idx.pt", expected_shape=(None,)
         )
 
         LOGGER.info(f"Split size: {len(self.split_indices)}")
@@ -132,20 +133,16 @@ class JASPERSteeringDataset(Dataset):
         LOGGER.info("Loading embeddings...")
 
         self.question_embs = load_tensor_artifact(
-            self.dataset_dir, "question_embs.pt",
-            expected_shape=(None, self.embedding_dim)
+            self.dataset_dir, "question_embs.pt", expected_shape=(None, self.embedding_dim)
         )
         self.source_embs = load_tensor_artifact(
-            self.dataset_dir, "source_embs.pt",
-            expected_shape=(None, self.embedding_dim)
+            self.dataset_dir, "source_embs.pt", expected_shape=(None, self.embedding_dim)
         )
         self.keyword_embs = load_tensor_artifact(
-            self.dataset_dir, "keyword_embs.pt",
-            expected_shape=(None, self.embedding_dim)
+            self.dataset_dir, "keyword_embs.pt", expected_shape=(None, self.embedding_dim)
         )
         self.centroid_embs = load_tensor_artifact(
-            self.dataset_dir, "centroid_embs.pt",
-            expected_shape=(None, self.embedding_dim)
+            self.dataset_dir, "centroid_embs.pt", expected_shape=(None, self.embedding_dim)
         )
 
         LOGGER.info(
@@ -159,22 +156,18 @@ class JASPERSteeringDataset(Dataset):
         LOGGER.info("Loading pair data...")
 
         self.pair_index = load_tensor_artifact(
-            self.dataset_dir, "pair_index.pt",
-            expected_shape=(None, 2)
+            self.dataset_dir, "pair_index.pt", expected_shape=(None, 2)
         )
         self.pair_cluster_id = load_tensor_artifact(
-            self.dataset_dir, "pair_cluster_id.pt",
-            expected_shape=(None,)
+            self.dataset_dir, "pair_cluster_id.pt", expected_shape=(None,)
         )
         self.pair_relevance = load_tensor_artifact(
-            self.dataset_dir, "pair_relevance.pt",
-            expected_shape=(None,)
+            self.dataset_dir, "pair_relevance.pt", expected_shape=(None,)
         )
 
         # Load pair_keyword_ids (stored as PT file with list-of-lists)
         self.pair_keyword_ids = load_tensor_artifact(
-            self.dataset_dir, "pair_keyword_ids.pt",
-            weights_only=False
+            self.dataset_dir, "pair_keyword_ids.pt", weights_only=False
         )
 
         # Validate split indices reference valid pairs
@@ -192,12 +185,10 @@ class JASPERSteeringDataset(Dataset):
         LOGGER.info("Loading hard negatives...")
 
         self.hard_negatives = load_tensor_artifact(
-            self.dataset_dir, "hard_negatives.pt",
-            expected_shape=(None, self.n_neg)
+            self.dataset_dir, "hard_negatives.pt", expected_shape=(None, self.n_neg)
         )
         self.negative_tiers = load_tensor_artifact(
-            self.dataset_dir, "negative_tiers.pt",
-            expected_shape=(None, self.n_neg)
+            self.dataset_dir, "negative_tiers.pt", expected_shape=(None, self.n_neg)
         )
 
         LOGGER.info(f"Loaded {self.n_neg} hard negatives per pair")
@@ -207,20 +198,18 @@ class JASPERSteeringDataset(Dataset):
         LOGGER.info("Loading steering tensors...")
 
         self.steering_centroid = load_tensor_artifact(
-            self.dataset_dir, "steering_centroid.pt",
-            expected_shape=(None, self.embedding_dim)
+            self.dataset_dir, "steering_centroid.pt", expected_shape=(None, self.embedding_dim)
         )
         self.steering_keyword_weighted = load_tensor_artifact(
-            self.dataset_dir, "steering_keyword_weighted.pt",
-            expected_shape=(None, self.embedding_dim)
+            self.dataset_dir,
+            "steering_keyword_weighted.pt",
+            expected_shape=(None, self.embedding_dim),
         )
         self.steering_residual = load_tensor_artifact(
-            self.dataset_dir, "steering_residual.pt",
-            expected_shape=(None, self.embedding_dim)
+            self.dataset_dir, "steering_residual.pt", expected_shape=(None, self.embedding_dim)
         )
         self.centroid_distances = load_tensor_artifact(
-            self.dataset_dir, "centroid_distances.pt",
-            expected_shape=(None,)
+            self.dataset_dir, "centroid_distances.pt", expected_shape=(None,)
         )
 
         LOGGER.info("Steering tensors loaded")
@@ -300,11 +289,20 @@ class JASPERSteeringDataset(Dataset):
     def _compute_memory_usage(self) -> float:
         """Compute total memory usage in MB."""
         tensors = [
-            self.question_embs, self.source_embs, self.keyword_embs, self.centroid_embs,
-            self.pair_index, self.pair_cluster_id, self.pair_relevance,
-            self.hard_negatives, self.negative_tiers,
-            self.steering_centroid, self.steering_keyword_weighted, self.steering_residual,
-            self.centroid_distances, self.split_indices
+            self.question_embs,
+            self.source_embs,
+            self.keyword_embs,
+            self.centroid_embs,
+            self.pair_index,
+            self.pair_cluster_id,
+            self.pair_relevance,
+            self.hard_negatives,
+            self.negative_tiers,
+            self.steering_centroid,
+            self.steering_keyword_weighted,
+            self.steering_residual,
+            self.centroid_distances,
+            self.split_indices,
         ]
         total_bytes = sum(t.element_size() * t.nelement() for t in tensors)
         return total_bytes / 1024 / 1024
@@ -390,9 +388,7 @@ class JASPERSteeringDataset(Dataset):
         """
         # Validate index bounds
         if not 0 <= idx < len(self.split_indices):
-            raise IndexError(
-                f"Index {idx} out of range [0, {len(self.split_indices)})"
-            )
+            raise IndexError(f"Index {idx} out of range [0, {len(self.split_indices)})")
 
         # Resolve pair index
         pair_idx = self.split_indices[idx].item()
@@ -478,12 +474,10 @@ class JASPERSteeringDataset(Dataset):
         LOGGER.info("Reloading hard negatives from disk...")
 
         self.hard_negatives = load_tensor_artifact(
-            self.dataset_dir, "hard_negatives.pt",
-            expected_shape=(None, self.n_neg)
+            self.dataset_dir, "hard_negatives.pt", expected_shape=(None, self.n_neg)
         )
         self.negative_tiers = load_tensor_artifact(
-            self.dataset_dir, "negative_tiers.pt",
-            expected_shape=(None, self.n_neg)
+            self.dataset_dir, "negative_tiers.pt", expected_shape=(None, self.n_neg)
         )
 
         LOGGER.info("Hard negatives reloaded successfully")

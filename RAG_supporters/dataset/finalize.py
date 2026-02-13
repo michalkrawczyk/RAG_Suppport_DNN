@@ -73,9 +73,7 @@ class DatasetFinalizer:
         ]
 
         if missing_files:
-            raise FileNotFoundError(
-                f"Missing required dataset files: {missing_files}"
-            )
+            raise FileNotFoundError(f"Missing required dataset files: {missing_files}")
 
     def _load_pt_artifacts(self) -> Dict[str, object]:
         """Load all PT artifacts.
@@ -92,14 +90,14 @@ class DatasetFinalizer:
             ("keyword_embs", "keyword_embs.pt", True, (None, None)),
             ("centroid_embs", "centroid_embs.pt", True, (None, None)),
         ]
-        
+
         # Load pair-level tensors
         pair_specs = [
             ("pair_index", "pair_index.pt", True, (None, 2)),
             ("pair_cluster_id", "pair_cluster_id.pt", True, (None,)),
             ("pair_relevance", "pair_relevance.pt", True, (None,)),
         ]
-        
+
         # Load steering tensors
         steering_specs = [
             ("steering_centroid", "steering_centroid.pt", True, (None, None)),
@@ -107,32 +105,29 @@ class DatasetFinalizer:
             ("steering_residual", "steering_residual.pt", True, (None, None)),
             ("centroid_distances", "centroid_distances.pt", True, (None,)),
         ]
-        
+
         # Load negative tensors
         negative_specs = [
             ("hard_negatives", "hard_negatives.pt", True, (None, None)),
             ("negative_tiers", "negative_tiers.pt", True, (None, None)),
         ]
-        
+
         # Load split indices
         split_specs = [
             ("train_idx", "train_idx.pt", True, (None,)),
             ("val_idx", "val_idx.pt", True, (None,)),
             ("test_idx", "test_idx.pt", True, (None,)),
         ]
-        
+
         # Combine all specs
-        all_specs = (
-            embedding_specs + pair_specs + steering_specs + negative_specs + split_specs
-        )
-        
+        all_specs = embedding_specs + pair_specs + steering_specs + negative_specs + split_specs
+
         # Load all tensors
         artifacts = load_multiple_tensors(self.output_dir, all_specs)
-        
+
         # Load pair_keyword_ids separately (list not tensor)
         artifacts["pair_keyword_ids"] = load_tensor_artifact(
-            self.output_dir, "pair_keyword_ids.pt",
-            weights_only=False
+            self.output_dir, "pair_keyword_ids.pt", weights_only=False
         )
 
         return artifacts
@@ -156,10 +151,7 @@ class DatasetFinalizer:
     ) -> None:
         """Validate pair keyword IDs list structure and bounds."""
         validate_keyword_ids_list(
-            pair_keyword_ids,
-            n_pairs=n_pairs,
-            n_keywords=n_keywords,
-            name="pair_keyword_ids"
+            pair_keyword_ids, n_pairs=n_pairs, n_keywords=n_keywords, name="pair_keyword_ids"
         )
 
     def _validate_splits(
@@ -178,8 +170,7 @@ class DatasetFinalizer:
         ):
             validate_tensor_1d(split_tensor, split_name, min_length=1)
             validate_values_in_range(
-                split_tensor, split_name,
-                min_value=0, max_value=n_pairs - 1, inclusive=True
+                split_tensor, split_name, min_value=0, max_value=n_pairs - 1, inclusive=True
             )
 
         # Check for overlaps
@@ -218,7 +209,7 @@ class DatasetFinalizer:
             (keyword_embs, "keyword_embs"),
             (centroid_embs, "centroid_embs"),
         )
-        
+
         # Validate no NaN/Inf in embeddings
         for emb_name, emb_tensor in [
             ("question_embs", question_embs),
@@ -240,26 +231,18 @@ class DatasetFinalizer:
 
         validate_tensor_2d(pair_index, "pair_index", expected_cols=2, min_rows=1)
         n_pairs = int(pair_index.shape[0])
-        
+
         validate_pair_indices_bounds(
-            pair_index,
-            n_questions=n_questions,
-            n_sources=n_sources,
-            name="pair_index"
+            pair_index, n_questions=n_questions, n_sources=n_sources, name="pair_index"
         )
 
         validate_tensor_1d(pair_cluster_id, "pair_cluster_id", expected_length=n_pairs)
-        validate_cluster_ids_bounds(
-            pair_cluster_id,
-            n_clusters=n_clusters,
-            name="pair_cluster_id"
-        )
+        validate_cluster_ids_bounds(pair_cluster_id, n_clusters=n_clusters, name="pair_cluster_id")
 
         validate_tensor_1d(pair_relevance, "pair_relevance", expected_length=n_pairs)
         validate_no_nan_inf(pair_relevance, "pair_relevance")
         validate_values_in_range(
-            pair_relevance, "pair_relevance",
-            min_value=0.0, max_value=1.0, inclusive=True
+            pair_relevance, "pair_relevance", min_value=0.0, max_value=1.0, inclusive=True
         )
 
         # Validate pair_keyword_ids
@@ -273,12 +256,9 @@ class DatasetFinalizer:
         ):
             steering_tensor = artifacts[steering_name]
             validate_tensor_2d(
-                steering_tensor, steering_name,
-                expected_cols=embedding_dim, min_rows=n_pairs
+                steering_tensor, steering_name, expected_cols=embedding_dim, min_rows=n_pairs
             )
-            validate_length_consistency(
-                (steering_tensor, steering_name, n_pairs)
-            )
+            validate_length_consistency((steering_tensor, steering_name, n_pairs))
             validate_no_nan_inf(steering_tensor, steering_name)
 
         centroid_distances = artifacts["centroid_distances"]
@@ -287,59 +267,39 @@ class DatasetFinalizer:
 
         hard_negatives = artifacts["hard_negatives"]
         negative_tiers = artifacts["negative_tiers"]
-        
+
         validate_tensor_2d(hard_negatives, "hard_negatives", min_rows=1)
         validate_tensor_2d(negative_tiers, "negative_tiers", min_rows=1)
-        
+
         if negative_tiers.shape != hard_negatives.shape:
-            raise ValueError(
-                "negative_tiers shape must match hard_negatives shape"
-            )
-        
-        validate_length_consistency(
-            (hard_negatives, "hard_negatives", n_pairs)
-        )
+            raise ValueError("negative_tiers shape must match hard_negatives shape")
+
+        validate_length_consistency((hard_negatives, "hard_negatives", n_pairs))
 
         n_neg = int(hard_negatives.shape[1])
         if n_neg <= 0:
             raise ValueError("hard_negatives must contain at least one negative per pair")
-        
+
         # Validate negative_tiers matches structure
-        validate_tensor_2d(
-            negative_tiers,
-            "negative_tiers",
-            expected_cols=n_neg,
-            min_rows=n_pairs
-        )
+        validate_tensor_2d(negative_tiers, "negative_tiers", expected_cols=n_neg, min_rows=n_pairs)
         if negative_tiers.shape[0] != n_pairs:
             raise ValueError(
-                f"negative_tiers must have {n_pairs} rows, "
-                f"got {negative_tiers.shape[0]}"
+                f"negative_tiers must have {n_pairs} rows, " f"got {negative_tiers.shape[0]}"
             )
-        
+
         # Validate value ranges
         validate_values_in_range(
-            hard_negatives,
-            "hard_negatives",
-            min_value=0,
-            max_value=n_sources - 1,
-            inclusive=True
+            hard_negatives, "hard_negatives", min_value=0, max_value=n_sources - 1, inclusive=True
         )
         validate_values_in_range(
-            negative_tiers,
-            "negative_tiers",
-            min_value=1,
-            max_value=4,
-            inclusive=True
+            negative_tiers, "negative_tiers", min_value=1, max_value=4, inclusive=True
         )
 
         validate_values_in_range(
-            hard_negatives, "hard_negatives",
-            min_value=0, max_value=n_sources - 1, inclusive=True
+            hard_negatives, "hard_negatives", min_value=0, max_value=n_sources - 1, inclusive=True
         )
         validate_values_in_range(
-            negative_tiers, "negative_tiers",
-            min_value=1, max_value=4, inclusive=True
+            negative_tiers, "negative_tiers", min_value=1, max_value=4, inclusive=True
         )
 
         true_sources = pair_index[:, 1].view(-1, 1)
@@ -431,16 +391,22 @@ class DatasetFinalizer:
         # Allow placeholder values (embedding_dim=1, n_neg=1) to be auto-updated
         is_embedding_dim_placeholder = resolved_config.embedding_dim == 1
         is_n_neg_placeholder = resolved_config.n_neg == 1
-        
-        if not is_placeholder and not is_embedding_dim_placeholder and (
-            resolved_config.embedding_dim != stats["embedding_dim"]
+
+        if (
+            not is_placeholder
+            and not is_embedding_dim_placeholder
+            and (resolved_config.embedding_dim != stats["embedding_dim"])
         ):
             raise ValueError(
                 f"Config embedding_dim ({resolved_config.embedding_dim}) does not match "
                 f"artifacts ({stats['embedding_dim']})"
             )
 
-        if not is_placeholder and not is_n_neg_placeholder and resolved_config.n_neg != stats["n_neg"]:
+        if (
+            not is_placeholder
+            and not is_n_neg_placeholder
+            and resolved_config.n_neg != stats["n_neg"]
+        ):
             raise ValueError(
                 f"Config n_neg ({resolved_config.n_neg}) does not match "
                 f"artifacts ({stats['n_neg']})"

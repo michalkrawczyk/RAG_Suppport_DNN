@@ -189,9 +189,9 @@ def validate_first_batch(loader: DataLoader) -> bool:
 
     # Check all keys present
     actual_keys = set(batch.keys())
-    assert actual_keys == expected_keys, (
-        f"Batch keys mismatch. Expected: {expected_keys}, Got: {actual_keys}"
-    )
+    assert (
+        actual_keys == expected_keys
+    ), f"Batch keys mismatch. Expected: {expected_keys}, Got: {actual_keys}"
 
     B = batch["question_emb"].size(0)
     D = batch["question_emb"].size(1)
@@ -200,33 +200,39 @@ def validate_first_batch(loader: DataLoader) -> bool:
     LOGGER.info(f"Batch size: {B}, Embedding dim: {D}, Num negatives: {N_neg}")
 
     # Validate shapes
-    assert batch["question_emb"].shape == (B, D), (
-        f"question_emb shape mismatch: {batch['question_emb'].shape} != ({B}, {D})"
-    )
-    assert batch["target_source_emb"].shape == (B, D), (
-        f"target_source_emb shape mismatch: {batch['target_source_emb'].shape} != ({B}, {D})"
-    )
-    assert batch["steering"].shape == (B, D), (
-        f"steering shape mismatch: {batch['steering'].shape} != ({B}, {D})"
-    )
-    assert batch["negative_embs"].shape == (B, N_neg, D), (
-        f"negative_embs shape mismatch: {batch['negative_embs'].shape} != ({B}, {N_neg}, {D})"
-    )
-    assert batch["cluster_id"].shape == (B,), (
-        f"cluster_id shape mismatch: {batch['cluster_id'].shape} != ({B},)"
-    )
-    assert batch["relevance"].shape == (B,), (
-        f"relevance shape mismatch: {batch['relevance'].shape} != ({B},)"
-    )
-    assert batch["centroid_distance"].shape == (B,), (
-        f"centroid_distance shape mismatch: {batch['centroid_distance'].shape} != ({B},)"
-    )
-    assert batch["steering_variant"].shape == (B,), (
-        f"steering_variant shape mismatch: {batch['steering_variant'].shape} != ({B},)"
-    )
-    assert batch["negative_tiers"].shape == (B, N_neg), (
-        f"negative_tiers shape mismatch: {batch['negative_tiers'].shape} != ({B}, {N_neg})"
-    )
+    assert batch["question_emb"].shape == (
+        B,
+        D,
+    ), f"question_emb shape mismatch: {batch['question_emb'].shape} != ({B}, {D})"
+    assert batch["target_source_emb"].shape == (
+        B,
+        D,
+    ), f"target_source_emb shape mismatch: {batch['target_source_emb'].shape} != ({B}, {D})"
+    assert batch["steering"].shape == (
+        B,
+        D,
+    ), f"steering shape mismatch: {batch['steering'].shape} != ({B}, {D})"
+    assert batch["negative_embs"].shape == (
+        B,
+        N_neg,
+        D,
+    ), f"negative_embs shape mismatch: {batch['negative_embs'].shape} != ({B}, {N_neg}, {D})"
+    assert batch["cluster_id"].shape == (
+        B,
+    ), f"cluster_id shape mismatch: {batch['cluster_id'].shape} != ({B},)"
+    assert batch["relevance"].shape == (
+        B,
+    ), f"relevance shape mismatch: {batch['relevance'].shape} != ({B},)"
+    assert batch["centroid_distance"].shape == (
+        B,
+    ), f"centroid_distance shape mismatch: {batch['centroid_distance'].shape} != ({B},)"
+    assert batch["steering_variant"].shape == (
+        B,
+    ), f"steering_variant shape mismatch: {batch['steering_variant'].shape} != ({B},)"
+    assert batch["negative_tiers"].shape == (
+        B,
+        N_neg,
+    ), f"negative_tiers shape mismatch: {batch['negative_tiers'].shape} != ({B}, {N_neg})"
 
     # Check for NaN/Inf in embeddings
     for key in ["question_emb", "target_source_emb", "steering", "negative_embs"]:
@@ -239,9 +245,9 @@ def validate_first_batch(loader: DataLoader) -> bool:
     if isinstance(dataset, JASPERSteeringDataset):
         n_clusters = len(dataset.centroid_embs)
         assert (batch["cluster_id"] >= 0).all(), "cluster_id must be non-negative"
-        assert (batch["cluster_id"] < n_clusters).all(), (
-            f"cluster_id must be < {n_clusters}, got max {batch['cluster_id'].max()}"
-        )
+        assert (
+            batch["cluster_id"] < n_clusters
+        ).all(), f"cluster_id must be < {n_clusters}, got max {batch['cluster_id'].max()}"
 
     # Check relevance range [0, 1]
     assert (batch["relevance"] >= 0).all(), "relevance must be >= 0"

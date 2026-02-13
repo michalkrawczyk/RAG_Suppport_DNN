@@ -6,7 +6,7 @@ utilities. These are highly reusable across any PyTorch project.
 Key Features:
 - Tensor shape and type validation
 - NaN/Inf detection
-- Index bounds validation  
+- Index bounds validation
 - Dimension consistency checks
 - Tensor I/O with shape validation
 - Label normalization (softmax, L1)

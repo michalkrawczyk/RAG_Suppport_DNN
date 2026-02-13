@@ -227,9 +227,7 @@ class TestValidatePairIndicesBounds:
         """Test custom name appears in error messages."""
         pairs = torch.tensor([[60, 5]])
         with pytest.raises(ValueError, match="custom_pairs contains question"):
-            validate_pair_indices_bounds(
-                pairs, n_questions=50, n_sources=20, name="custom_pairs"
-            )
+            validate_pair_indices_bounds(pairs, n_questions=50, n_sources=20, name="custom_pairs")
 
 
 class TestValidateClusterIdsBounds:
@@ -276,10 +274,7 @@ class TestValidateLengthConsistency:
         """Test tensors with consistent lengths pass."""
         t1 = torch.randn(100, 2)
         t2 = torch.randn(100)
-        validate_length_consistency(
-            (t1, "pairs", 100),
-            (t2, "clusters", 100)
-        )  # Should not raise
+        validate_length_consistency((t1, "pairs", 100), (t2, "clusters", 100))  # Should not raise
 
     def test_consistent_list_length(self):
         """Test list with correct length passes."""
@@ -290,10 +285,7 @@ class TestValidateLengthConsistency:
         """Test mix of tensors and lists with consistent lengths."""
         t1 = torch.randn(100, 2)
         lst = [[1, 2], [3]] * 50  # 100 items
-        validate_length_consistency(
-            (t1, "pairs", 100),
-            (lst, "keywords", 100)
-        )  # Should not raise
+        validate_length_consistency((t1, "pairs", 100), (lst, "keywords", 100))  # Should not raise
 
     def test_tensor_length_mismatch(self):
         """Test tensor length mismatch raises ValueError."""
@@ -318,11 +310,7 @@ class TestValidateLengthConsistency:
         t2 = torch.randn(95)  # First mismatch
         t3 = torch.randn(90)  # Second mismatch
         with pytest.raises(ValueError, match="t2.*95.*100"):
-            validate_length_consistency(
-                (t1, "t1", 100),
-                (t2, "t2", 100),
-                (t3, "t3", 100)
-            )
+            validate_length_consistency((t1, "t1", 100), (t2, "t2", 100), (t3, "t3", 100))
 
 
 class TestValidateSplitRatios:
@@ -370,7 +358,7 @@ class TestValidateSplitRatios:
         """Test ratios that sum to 1.0 within tolerance pass."""
         # 0.7 + 0.15 + 0.15 = 1.0 (exactly)
         validate_split_ratios(0.7, 0.15, 0.15)  # Should not raise
-        
+
         # Test slightly off due to floating point (within default 1e-6 tolerance)
         validate_split_ratios(0.333333, 0.333333, 0.333334)  # Should not raise
 
@@ -391,9 +379,7 @@ class TestValidateKeywordIdsList:
     def test_not_a_list(self):
         """Test non-list raises TypeError."""
         with pytest.raises(TypeError, match="must be list"):
-            validate_keyword_ids_list(
-                {"key": [1, 2]}, n_pairs=1, n_keywords=10
-            )
+            validate_keyword_ids_list({"key": [1, 2]}, n_pairs=1, n_keywords=10)
 
     def test_wrong_length(self):
         """Test wrong number of pairs raises ValueError."""
@@ -450,42 +436,42 @@ class TestValidateNoNanInf:
     def test_tensor_with_nan(self):
         """Test tensor with NaN raises ValueError."""
         tensor = torch.randn(10, 5)
-        tensor[0, 0] = float('nan')
+        tensor[0, 0] = float("nan")
         with pytest.raises(ValueError, match="contains NaN values"):
             validate_no_nan_inf(tensor, "test_tensor")
 
     def test_tensor_with_inf(self):
         """Test tensor with Inf raises ValueError."""
         tensor = torch.randn(10, 5)
-        tensor[0, 0] = float('inf')
+        tensor[0, 0] = float("inf")
         with pytest.raises(ValueError, match="contains Inf values"):
             validate_no_nan_inf(tensor, "test_tensor")
 
     def test_tensor_with_negative_inf(self):
         """Test tensor with -Inf raises ValueError."""
         tensor = torch.randn(10, 5)
-        tensor[0, 0] = float('-inf')
+        tensor[0, 0] = float("-inf")
         with pytest.raises(ValueError, match="contains Inf values"):
             validate_no_nan_inf(tensor, "test_tensor")
 
     def test_tensor_with_both_nan_and_inf(self):
         """Test tensor with both NaN and Inf raises ValueError for NaN first."""
         tensor = torch.randn(10, 5)
-        tensor[0, 0] = float('nan')
-        tensor[1, 1] = float('inf')
+        tensor[0, 0] = float("nan")
+        tensor[1, 1] = float("inf")
         # NaN check happens first
         with pytest.raises(ValueError, match="contains NaN values"):
             validate_no_nan_inf(tensor, "test_tensor")
 
     def test_custom_name_in_error_nan(self):
         """Test custom name appears in NaN error message."""
-        tensor = torch.tensor([1.0, float('nan'), 3.0])
+        tensor = torch.tensor([1.0, float("nan"), 3.0])
         with pytest.raises(ValueError, match="embeddings contains NaN"):
             validate_no_nan_inf(tensor, "embeddings")
 
     def test_custom_name_in_error_inf(self):
         """Test custom name appears in Inf error message."""
-        tensor = torch.tensor([1.0, float('inf'), 3.0])
+        tensor = torch.tensor([1.0, float("inf"), 3.0])
         with pytest.raises(ValueError, match="scores contains Inf"):
             validate_no_nan_inf(tensor, "scores")
 
@@ -507,60 +493,47 @@ class TestValidateValuesInRange:
         """Test valid values within inclusive range pass."""
         tensor = torch.tensor([0.0, 0.5, 1.0])
         validate_values_in_range(
-            tensor, "scores",
-            min_value=0.0, max_value=1.0, inclusive=True
+            tensor, "scores", min_value=0.0, max_value=1.0, inclusive=True
         )  # Should not raise
 
     def test_valid_values_exclusive(self):
         """Test valid values within exclusive range pass."""
         tensor = torch.tensor([0.1, 0.5, 0.9])
         validate_values_in_range(
-            tensor, "scores",
-            min_value=0.0, max_value=1.0, inclusive=False
+            tensor, "scores", min_value=0.0, max_value=1.0, inclusive=False
         )  # Should not raise
 
     def test_edge_values_inclusive(self):
         """Test edge values are accepted in inclusive range."""
         tensor = torch.tensor([0, 10])
         validate_values_in_range(
-            tensor, "indices",
-            min_value=0, max_value=10, inclusive=True
+            tensor, "indices", min_value=0, max_value=10, inclusive=True
         )  # Should not raise
 
     def test_edge_values_exclusive_fails(self):
         """Test edge values are rejected in exclusive range."""
         tensor = torch.tensor([0, 10])
         with pytest.raises(ValueError, match="values must be in range.*0.*10"):
-            validate_values_in_range(
-                tensor, "indices",
-                min_value=0, max_value=10, inclusive=False
-            )
+            validate_values_in_range(tensor, "indices", min_value=0, max_value=10, inclusive=False)
 
     def test_value_below_min_inclusive(self):
         """Test value below minimum raises ValueError in inclusive range."""
         tensor = torch.tensor([0.0, 0.5, -0.1])
         with pytest.raises(ValueError, match="must be in range .0.0, 1.0.*.-0.1"):
-            validate_values_in_range(
-                tensor, "scores",
-                min_value=0.0, max_value=1.0, inclusive=True
-            )
+            validate_values_in_range(tensor, "scores", min_value=0.0, max_value=1.0, inclusive=True)
 
     def test_value_above_max_inclusive(self):
         """Test value above maximum raises ValueError in inclusive range."""
         tensor = torch.tensor([0.0, 0.5, 1.1])
         with pytest.raises(ValueError, match="must be in range .0.0, 1.0.*1.1"):
-            validate_values_in_range(
-                tensor, "scores",
-                min_value=0.0, max_value=1.0, inclusive=True
-            )
+            validate_values_in_range(tensor, "scores", min_value=0.0, max_value=1.0, inclusive=True)
 
     def test_value_at_min_exclusive_fails(self):
         """Test value at minimum fails in exclusive range."""
         tensor = torch.tensor([0.0, 0.5, 1.0])
         with pytest.raises(ValueError, match="must be in range .0.0, 1.0."):
             validate_values_in_range(
-                tensor, "scores",
-                min_value=0.0, max_value=1.0, inclusive=False
+                tensor, "scores", min_value=0.0, max_value=1.0, inclusive=False
             )
 
     def test_value_at_max_exclusive_fails(self):
@@ -568,33 +541,27 @@ class TestValidateValuesInRange:
         tensor = torch.tensor([0.1, 0.5, 1.0])
         with pytest.raises(ValueError, match="must be in range .0.0, 1.0."):
             validate_values_in_range(
-                tensor, "scores",
-                min_value=0.0, max_value=1.0, inclusive=False
+                tensor, "scores", min_value=0.0, max_value=1.0, inclusive=False
             )
 
     def test_integer_range(self):
         """Test integer range validation."""
         tensor = torch.tensor([0, 5, 10, 15, 19])
         validate_values_in_range(
-            tensor, "indices",
-            min_value=0, max_value=19, inclusive=True
+            tensor, "indices", min_value=0, max_value=19, inclusive=True
         )  # Should not raise
 
     def test_integer_out_of_range(self):
         """Test integer out of range raises ValueError."""
         tensor = torch.tensor([0, 5, 10, 20])
         with pytest.raises(ValueError, match="must be in range .0, 19."):
-            validate_values_in_range(
-                tensor, "indices",
-                min_value=0, max_value=19, inclusive=True
-            )
+            validate_values_in_range(tensor, "indices", min_value=0, max_value=19, inclusive=True)
 
     def test_negative_range(self):
         """Test negative value ranges."""
         tensor = torch.tensor([-10.0, -5.0, 0.0])
         validate_values_in_range(
-            tensor, "values",
-            min_value=-10.0, max_value=0.0, inclusive=True
+            tensor, "values", min_value=-10.0, max_value=0.0, inclusive=True
         )  # Should not raise
 
     def test_custom_name_in_error(self):
@@ -602,23 +569,19 @@ class TestValidateValuesInRange:
         tensor = torch.tensor([0, 1, 2, 10])
         with pytest.raises(ValueError, match="cluster_ids values must be in range"):
             validate_values_in_range(
-                tensor, "cluster_ids",
-                min_value=0, max_value=5, inclusive=True
+                tensor, "cluster_ids", min_value=0, max_value=5, inclusive=True
             )
 
     def test_single_value_tensor(self):
         """Test validation works with single value tensor."""
         tensor = torch.tensor([0.5])
         validate_values_in_range(
-            tensor, "value",
-            min_value=0.0, max_value=1.0, inclusive=True
+            tensor, "value", min_value=0.0, max_value=1.0, inclusive=True
         )  # Should not raise
 
     def test_multidimensional_tensor(self):
         """Test validation works with multidimensional tensors."""
         tensor = torch.rand(5, 10)  # Random values in [0, 1)
         validate_values_in_range(
-            tensor, "matrix",
-            min_value=0.0, max_value=1.0, inclusive=True
+            tensor, "matrix", min_value=0.0, max_value=1.0, inclusive=True
         )  # Should not raise
-

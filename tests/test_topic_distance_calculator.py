@@ -954,9 +954,10 @@ def test_keyboard_interrupt_handling_with_save():
                 if self.call_count > 1:
                     raise KeyboardInterrupt("Simulated interrupt")
                 return np.array([np.random.rand(384) for _ in texts])
-            
+
             def create_embeddings(self, texts):
                 from RAG_supporters.utils.text_utils import normalize_string
+
                 # This method is what's actually called by the calculator
                 # Raise interrupt early to ensure partial results
                 if len(texts) > 5:
@@ -1045,7 +1046,7 @@ def test_keyboard_interrupt_handling_no_save():
                 if self.call_count > 1:
                     raise KeyboardInterrupt("Simulated interrupt")
                 return np.array([np.random.rand(384) for _ in texts])
-            
+
             def create_embeddings(self, texts):
                 # Raise interrupt without processing any
                 raise KeyboardInterrupt("Simulated interrupt")

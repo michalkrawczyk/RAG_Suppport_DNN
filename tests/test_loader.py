@@ -140,7 +140,11 @@ def test_loader_batch_shapes(mock_dataset_dir):
     assert batch["question_emb"].shape == (16, 64), "Question embeddings should be [B, D]"
     assert batch["target_source_emb"].shape == (16, 64), "Target source embeddings should be [B, D]"
     assert batch["steering"].shape == (16, 64), "Steering should be [B, D]"
-    assert batch["negative_embs"].shape == (16, 4, 64), "Negative embeddings should be [B, N_neg, D]"
+    assert batch["negative_embs"].shape == (
+        16,
+        4,
+        64,
+    ), "Negative embeddings should be [B, N_neg, D]"
     assert batch["cluster_id"].shape == (16,), "Cluster IDs should be [B]"
     assert batch["relevance"].shape == (16,), "Relevance should be [B]"
     assert batch["centroid_distance"].shape == (16,), "Centroid distance should be [B]"
@@ -275,7 +279,7 @@ def test_loader_shuffle_train(mock_dataset_dir):
 def test_loader_no_shuffle_val(mock_dataset_dir):
     """Test that val loader does not shuffle."""
     from torch.utils.data.sampler import SequentialSampler
-    
+
     loader = create_loader(
         dataset_dir=mock_dataset_dir,
         split="val",
@@ -291,7 +295,7 @@ def test_distributed_sampler_not_used_by_default(mock_dataset_dir):
     """Test that DistributedSampler is not used by default."""
     from torch.utils.data.distributed import DistributedSampler
     from torch.utils.data.sampler import RandomSampler
-    
+
     loader = create_loader(
         dataset_dir=mock_dataset_dir,
         split="train",
@@ -299,8 +303,12 @@ def test_distributed_sampler_not_used_by_default(mock_dataset_dir):
         distributed=False,
     )
 
-    assert not isinstance(loader.sampler, DistributedSampler), "Should not use DistributedSampler when distributed=False"
-    assert isinstance(loader.sampler, RandomSampler), "Train loader should use RandomSampler when distributed=False"
+    assert not isinstance(
+        loader.sampler, DistributedSampler
+    ), "Should not use DistributedSampler when distributed=False"
+    assert isinstance(
+        loader.sampler, RandomSampler
+    ), "Train loader should use RandomSampler when distributed=False"
 
 
 def test_loader_one_epoch_iteration_count(mock_dataset_dir):
@@ -380,9 +388,7 @@ def test_loader_different_batch_sizes(mock_dataset_dir):
 
         batch = next(iter(loader))
 
-        assert batch["question_emb"].shape[0] == batch_size, (
-            f"Batch size should be {batch_size}"
-        )
+        assert batch["question_emb"].shape[0] == batch_size, f"Batch size should be {batch_size}"
 
 
 def test_loader_test_split(mock_dataset_dir):
@@ -416,7 +422,9 @@ def test_loader_force_steering_in_validation(mock_dataset_dir):
     batch = next(iter(loader))
 
     # All variants should be zero
-    assert (batch["steering_variant"] == 0).all(), "All steering variants should be zero when forced"
+    assert (
+        batch["steering_variant"] == 0
+    ).all(), "All steering variants should be zero when forced"
 
     # All steering tensors should be zeros
     assert torch.allclose(

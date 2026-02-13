@@ -106,13 +106,7 @@ def _to_keyword_id_lists(
         else:
             keyword_values = []
 
-        keyword_ids = sorted(
-            {
-                keyword_to_id[kw]
-                for kw in keyword_values
-                if kw in keyword_to_id
-            }
-        )
+        keyword_ids = sorted({keyword_to_id[kw] for kw in keyword_values if kw in keyword_to_id})
         pair_keyword_ids.append(keyword_ids)
 
     return pair_keyword_ids

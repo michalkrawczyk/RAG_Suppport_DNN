@@ -169,7 +169,9 @@ class TestDatasetFinalizerValidation:
             saved_data = json.load(file)
 
         assert saved_data["n_pairs"] == stats["n_pairs"], "Saved config should include n_pairs"
-        assert saved_data["embedding_dim"] == stats["embedding_dim"], "Saved config should include embedding_dim"
+        assert (
+            saved_data["embedding_dim"] == stats["embedding_dim"]
+        ), "Saved config should include embedding_dim"
 
     def test_finalize_via_convenience_function(self, valid_output_dir):
         """Test convenience function finalization API."""
