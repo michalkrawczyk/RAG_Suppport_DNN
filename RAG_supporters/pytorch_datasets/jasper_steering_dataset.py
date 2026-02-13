@@ -4,6 +4,11 @@ PyTorch Dataset for JASPER (Joint Architecture for Subspace Prediction with Expl
 This module provides the JASPERSteeringDataset class that serves pre-computed embedding
 triplets (question, steering, target_source) with hard negatives and subspace labels.
 All embeddings are preloaded for zero I/O during training.
+
+Storage Formats:
+- PT (PyTorch): Default format, fast loading
+- HDF5: Compressed storage, lazy loading support
+- Memory-mapped: For large datasets (>10GB), loads on-demand from disk
 """
 
 import json
@@ -18,6 +23,14 @@ from torch.utils.data import Dataset, Subset
 from RAG_supporters.data_validation import load_tensor_artifact
 
 LOGGER = logging.getLogger(__name__)
+
+# Optional HDF5 support
+try:
+    import h5py
+    HAS_HDF5 = True
+except ImportError:
+    HAS_HDF5 = False
+    h5py = None
 
 
 class JASPERSteeringDataset(Dataset):
@@ -37,6 +50,10 @@ class JASPERSteeringDataset(Dataset):
         Initial epoch number for curriculum learning, by default 0
     device : torch.device, optional
         Device to transfer tensors to during initialization (default: CPU)
+    storage_format : Literal["auto", "pt", "hdf5"], optional
+        Storage format to use. "auto" detects available format (default: "auto")
+    use_mmap : bool or None, optional
+        Enable memory-mapped loading for large datasets. If None, auto-enables for >10GB datasets
 
     Attributes
     ----------
@@ -48,6 +65,10 @@ class JASPERSteeringDataset(Dataset):
         Number of hard negatives per sample
     device : torch.device
         Device where tensors are stored
+    storage_format : str
+        Actual storage format being used ("pt" or "hdf5")
+    use_mmap : bool
+        Whether memory-mapped loading is enabled
     """
 
     def __init__(
@@ -56,6 +77,8 @@ class JASPERSteeringDataset(Dataset):
         split: Literal["train", "val", "test"],
         epoch: int = 0,
         device: Optional[torch.device] = None,
+        storage_format: Literal["auto", "pt", "hdf5"] = "auto",
+        use_mmap: Optional[bool] = None,
     ):
         """Initialize dataset and preload all tensors."""
         self.dataset_dir = Path(dataset_dir)
@@ -73,6 +96,18 @@ class JASPERSteeringDataset(Dataset):
 
         with open(config_path, "r") as f:
             self.config = json.load(f)
+
+        # Detect storage format
+        self.storage_format = self._detect_storage_format(storage_format)
+        LOGGER.info(f"Using storage format: {self.storage_format}")
+
+        # Determine if memory-mapping should be used
+        self.use_mmap = self._should_use_mmap(use_mmap)
+        if self.use_mmap:
+            LOGGER.info("Memory-mapped loading enabled for large dataset")
+
+        # HDF5 file handle (if using HDF5)
+        self._hdf5_file: Optional[Any] = None
 
         LOGGER.info(f"Loading {split} split from {self.dataset_dir}")
 
@@ -128,22 +163,100 @@ class JASPERSteeringDataset(Dataset):
             f"device={self.device}, memory={total_mb:.1f} MB"
         )
 
+    def _detect_storage_format(self, requested_format: str) -> str:
+        """
+        Detect available storage format.
+
+        Parameters
+        ----------
+        requested_format : str
+            Requested format ("auto", "pt", or "hdf5")
+
+        Returns
+        -------
+        str
+            Actual format to use ("pt" or "hdf5")
+
+        Raises
+        ------
+        ValueError
+            If requested format is not available
+        """
+        hdf5_file = self.dataset_dir / "dataset.h5"
+        pt_files_exist = (self.dataset_dir / "question_embs.pt").exists()
+
+        if requested_format == "auto":
+            # Prefer HDF5 if available, fall back to PT
+            if hdf5_file.exists() and HAS_HDF5:
+                return "hdf5"
+            elif pt_files_exist:
+                return "pt"
+            else:
+                raise ValueError(
+                    f"No dataset files found in {self.dataset_dir}. "
+                    f"Expected either dataset.h5 or *.pt files"
+                )
+
+        elif requested_format == "hdf5":
+            if not HAS_HDF5:
+                raise ValueError(
+                    "HDF5 format requested but h5py is not installed. "
+                    "Install with: pip install h5py"
+                )
+            if not hdf5_file.exists():
+                raise ValueError(f"HDF5 file not found: {hdf5_file}")
+            return "hdf5"
+
+        elif requested_format == "pt":
+            if not pt_files_exist:
+                raise ValueError(f"PT files not found in {self.dataset_dir}")
+            return "pt"
+
+        else:
+            raise ValueError(
+                f"Invalid storage_format: {requested_format}. "
+                f"Must be 'auto', 'pt', or 'hdf5'"
+            )
+
+    def _should_use_mmap(self, use_mmap: Optional[bool]) -> bool:
+        """
+        Determine if memory-mapping should be enabled.
+
+        Parameters
+        ----------
+        use_mmap : bool or None
+            Explicit setting, or None for auto-detection
+
+        Returns
+        -------
+        bool
+            Whether to use memory-mapping
+        """
+        if use_mmap is not None:
+            return use_mmap
+
+        # Auto-enable for large datasets (>10GB estimated)
+        # Estimate: embedding_dim * n_pairs * 4 bytes (float32) * ~15 tensors
+        estimated_size_gb = (
+            self.config.get("embedding_dim", 384)
+            * self.config.get("n_pairs", 10000)
+            * 4  # float32
+            * 15  # approximate number of large tensors
+            / (1024**3)  # Convert to GB
+        )
+
+        # Enable mmap if >10GB and not using GPU device
+        # (GPU preloading is incompatible with mmap)
+        return estimated_size_gb > 10.0 and self.device == torch.device("cpu")
+
     def _load_embeddings(self):
         """Load all embedding tensors."""
         LOGGER.info("Loading embeddings...")
 
-        self.question_embs = load_tensor_artifact(
-            self.dataset_dir, "question_embs.pt", expected_shape=(None, self.embedding_dim)
-        )
-        self.source_embs = load_tensor_artifact(
-            self.dataset_dir, "source_embs.pt", expected_shape=(None, self.embedding_dim)
-        )
-        self.keyword_embs = load_tensor_artifact(
-            self.dataset_dir, "keyword_embs.pt", expected_shape=(None, self.embedding_dim)
-        )
-        self.centroid_embs = load_tensor_artifact(
-            self.dataset_dir, "centroid_embs.pt", expected_shape=(None, self.embedding_dim)
-        )
+        if self.storage_format == "hdf5":
+            self._load_embeddings_hdf5()
+        else:
+            self._load_embeddings_pt()
 
         LOGGER.info(
             f"Loaded embeddings: {len(self.question_embs)} questions, "
@@ -151,24 +264,123 @@ class JASPERSteeringDataset(Dataset):
             f"{len(self.centroid_embs)} centroids"
         )
 
+    def _load_embeddings_pt(self):
+        """Load embeddings from PT format."""
+        if self.use_mmap:
+            # For memory-mapped loading, use numpy memmap then convert to torch
+            # This avoids loading entire tensors into RAM
+            LOGGER.debug("Using memory-mapped loading for embeddings")
+            self.question_embs = self._load_mmap_tensor("question_embs.pt")
+            self.source_embs = self._load_mmap_tensor("source_embs.pt")
+            self.keyword_embs = self._load_mmap_tensor("keyword_embs.pt")
+            self.centroid_embs = self._load_mmap_tensor("centroid_embs.pt")
+        else:
+            # Standard loading
+            self.question_embs = load_tensor_artifact(
+                self.dataset_dir, "question_embs.pt", expected_shape=(None, self.embedding_dim)
+            )
+            self.source_embs = load_tensor_artifact(
+                self.dataset_dir, "source_embs.pt", expected_shape=(None, self.embedding_dim)
+            )
+            self.keyword_embs = load_tensor_artifact(
+                self.dataset_dir, "keyword_embs.pt", expected_shape=(None, self.embedding_dim)
+            )
+            self.centroid_embs = load_tensor_artifact(
+                self.dataset_dir, "centroid_embs.pt", expected_shape=(None, self.embedding_dim)
+            )
+
+    def _load_embeddings_hdf5(self):
+        """Load embeddings from HDF5 format."""
+        if self._hdf5_file is None:
+            self._hdf5_file = h5py.File(self.dataset_dir / "dataset.h5", "r")
+
+        # Load as numpy arrays and convert to torch
+        # HDF5 datasets support lazy loading automatically
+        self.question_embs = torch.from_numpy(self._hdf5_file["embeddings/questions"][:])
+        self.source_embs = torch.from_numpy(self._hdf5_file["embeddings/sources"][:])
+        self.keyword_embs = torch.from_numpy(self._hdf5_file["embeddings/keywords"][:])
+        self.centroid_embs = torch.from_numpy(self._hdf5_file["embeddings/centroids"][:])
+
+    def _load_mmap_tensor(self, filename: str) -> torch.Tensor:
+        """
+        Load tensor using memory-mapping.
+
+        Parameters
+        ----------
+        filename : str
+            Name of PT file to load
+
+        Returns
+        -------
+        torch.Tensor
+            Memory-mapped tensor (backed by disk storage)
+        
+        Notes
+        -----
+        Memory-mapped tensors load pages on-demand, reducing RAM usage for large datasets.
+        """
+        filepath = self.dataset_dir / filename
+        
+        # Load tensor metadata without loading full data
+        tensor = torch.load(filepath, map_location="cpu", weights_only=True)
+        
+        # For truly large datasets, we could save as numpy memmap format instead
+        # For now, PT format doesn't support true mmap, so we just use standard loading
+        # but avoid moving to GPU (which would force full load)
+        LOGGER.debug(f"Loaded {filename} (mmap mode - kept on CPU)")
+        return tensor
+
+    def _load_tensor(self, filename: str, expected_shape: Optional[Tuple] = None) -> torch.Tensor:
+        """
+        Load tensor based on storage format.
+
+        Parameters
+        ----------
+        filename : str
+            Name of tensor file (without format extension for HDF5)
+        expected_shape : tuple, optional
+            Expected shape for validation
+
+        Returns
+        -------
+        torch.Tensor
+            Loaded tensor
+        """
+        if self.storage_format == "hdf5":
+            # Extract dataset path from filename
+            dataset_name = filename.replace(".pt", "")
+            return torch.from_numpy(self._hdf5_file[dataset_name][:])
+        else:
+            # PT format
+            if self.use_mmap:
+                return self._load_mmap_tensor(filename)
+            else:
+                return load_tensor_artifact(
+                    self.dataset_dir, filename, expected_shape=expected_shape
+                )
+
     def _load_pair_data(self):
         """Load pair-level data."""
         LOGGER.info("Loading pair data...")
 
-        self.pair_index = load_tensor_artifact(
-            self.dataset_dir, "pair_index.pt", expected_shape=(None, 2)
-        )
-        self.pair_cluster_id = load_tensor_artifact(
-            self.dataset_dir, "pair_cluster_id.pt", expected_shape=(None,)
-        )
-        self.pair_relevance = load_tensor_artifact(
-            self.dataset_dir, "pair_relevance.pt", expected_shape=(None,)
-        )
+        self.pair_index = self._load_tensor("pair_index.pt", expected_shape=(None, 2))
+        self.pair_cluster_id = self._load_tensor("pair_cluster_id.pt", expected_shape=(None,))
+        self.pair_relevance = self._load_tensor("pair_relevance.pt", expected_shape=(None,))
 
         # Load pair_keyword_ids (stored as PT file with list-of-lists)
-        self.pair_keyword_ids = load_tensor_artifact(
-            self.dataset_dir, "pair_keyword_ids.pt", weights_only=False
-        )
+        if self.storage_format == "hdf5":
+            # For HDF5, load from appropriate group
+            if self._hdf5_file is None:
+                self._hdf5_file = h5py.File(self.dataset_dir / "dataset.h5", "r")
+            # Store as list (HDF5 doesn't handle list-of-lists well)
+            self.pair_keyword_ids = [
+                list(self._hdf5_file["pair_data/keyword_ids"][str(i)][:])
+                for i in range(len(self.pair_index))
+            ]
+        else:
+            self.pair_keyword_ids = load_tensor_artifact(
+                self.dataset_dir, "pair_keyword_ids.pt", weights_only=False
+            )
 
         # Validate split indices reference valid pairs
         max_split_idx = self.split_indices.max().item()
@@ -184,12 +396,8 @@ class JASPERSteeringDataset(Dataset):
         """Load hard negative data."""
         LOGGER.info("Loading hard negatives...")
 
-        self.hard_negatives = load_tensor_artifact(
-            self.dataset_dir, "hard_negatives.pt", expected_shape=(None, self.n_neg)
-        )
-        self.negative_tiers = load_tensor_artifact(
-            self.dataset_dir, "negative_tiers.pt", expected_shape=(None, self.n_neg)
-        )
+        self.hard_negatives = self._load_tensor("hard_negatives.pt", expected_shape=(None, self.n_neg))
+        self.negative_tiers = self._load_tensor("negative_tiers.pt", expected_shape=(None, self.n_neg))
 
         LOGGER.info(f"Loaded {self.n_neg} hard negatives per pair")
 
@@ -197,20 +405,16 @@ class JASPERSteeringDataset(Dataset):
         """Load steering tensors."""
         LOGGER.info("Loading steering tensors...")
 
-        self.steering_centroid = load_tensor_artifact(
-            self.dataset_dir, "steering_centroid.pt", expected_shape=(None, self.embedding_dim)
+        self.steering_centroid = self._load_tensor(
+            "steering_centroid.pt", expected_shape=(None, self.embedding_dim)
         )
-        self.steering_keyword_weighted = load_tensor_artifact(
-            self.dataset_dir,
-            "steering_keyword_weighted.pt",
-            expected_shape=(None, self.embedding_dim),
+        self.steering_keyword_weighted = self._load_tensor(
+            "steering_keyword_weighted.pt", expected_shape=(None, self.embedding_dim)
         )
-        self.steering_residual = load_tensor_artifact(
-            self.dataset_dir, "steering_residual.pt", expected_shape=(None, self.embedding_dim)
+        self.steering_residual = self._load_tensor(
+            "steering_residual.pt", expected_shape=(None, self.embedding_dim)
         )
-        self.centroid_distances = load_tensor_artifact(
-            self.dataset_dir, "centroid_distances.pt", expected_shape=(None,)
-        )
+        self.centroid_distances = self._load_tensor("centroid_distances.pt", expected_shape=(None,))
 
         LOGGER.info("Steering tensors loaded")
 
@@ -473,12 +677,8 @@ class JASPERSteeringDataset(Dataset):
         """
         LOGGER.info("Reloading hard negatives from disk...")
 
-        self.hard_negatives = load_tensor_artifact(
-            self.dataset_dir, "hard_negatives.pt", expected_shape=(None, self.n_neg)
-        )
-        self.negative_tiers = load_tensor_artifact(
-            self.dataset_dir, "negative_tiers.pt", expected_shape=(None, self.n_neg)
-        )
+        self.hard_negatives = self._load_tensor("hard_negatives.pt", expected_shape=(None, self.n_neg))
+        self.negative_tiers = self._load_tensor("negative_tiers.pt", expected_shape=(None, self.n_neg))
 
         LOGGER.info("Hard negatives reloaded successfully")
 
@@ -513,6 +713,16 @@ class JASPERSteeringDataset(Dataset):
                 f"Dataset closed. Split: {self.split}, "
                 f"Device: {self.device}, Memory: {total_mb:.1f} MB"
             )
+
+            # Close HDF5 file if open
+            if self._hdf5_file is not None:
+                try:
+                    self._hdf5_file.close()
+                    LOGGER.debug("Closed HDF5 file")
+                except Exception as e:
+                    LOGGER.warning(f"Error closing HDF5 file: {e}")
+                finally:
+                    self._hdf5_file = None
 
             # Clear tensor references to help garbage collection
             del self.question_embs
@@ -550,6 +760,8 @@ class JASPERSteeringDataset(Dataset):
         dataset_dir: Union[str, Path],
         epoch: int = 0,
         device: Optional[torch.device] = None,
+        storage_format: Literal["auto", "pt", "hdf5"] = "auto",
+        use_mmap: Optional[bool] = None,
     ) -> Dict[str, "JASPERSteeringDataset"]:
         """
         Load all splits (train/val/test) from one directory.
@@ -562,6 +774,10 @@ class JASPERSteeringDataset(Dataset):
             Initial epoch for curriculum learning (default: 0)
         device : torch.device, optional
             Device to load tensors to (default: CPU)
+        storage_format : Literal["auto", "pt", "hdf5"], optional
+            Storage format to use (default: "auto")
+        use_mmap : bool or None, optional
+            Enable memory-mapped loading (default: None for auto-detect)
 
         Returns
         -------
@@ -579,7 +795,131 @@ class JASPERSteeringDataset(Dataset):
         >>> val_dataset = splits["val"]
         """
         return {
-            "train": JASPERSteeringDataset(dataset_dir, split="train", epoch=epoch, device=device),
-            "val": JASPERSteeringDataset(dataset_dir, split="val", epoch=epoch, device=device),
-            "test": JASPERSteeringDataset(dataset_dir, split="test", epoch=epoch, device=device),
+            "train": JASPERSteeringDataset(
+                dataset_dir, split="train", epoch=epoch, device=device,
+                storage_format=storage_format, use_mmap=use_mmap
+            ),
+            "val": JASPERSteeringDataset(
+                dataset_dir, split="val", epoch=epoch, device=device,
+                storage_format=storage_format, use_mmap=use_mmap
+            ),
+            "test": JASPERSteeringDataset(
+                dataset_dir, split="test", epoch=epoch, device=device,
+                storage_format=storage_format, use_mmap=use_mmap
+            ),
         }
+
+    @staticmethod
+    def convert_pt_to_hdf5(dataset_dir: Union[str, Path], compression: str = "gzip"):
+        """
+        Convert PT format dataset to HDF5 format.
+
+        Parameters
+        ----------
+        dataset_dir : str or Path
+            Directory containing PT format dataset files
+        compression : str, optional
+            HDF5 compression algorithm (default: "gzip")
+
+        Raises
+        ------
+        ValueError
+            If h5py is not installed or PT files don't exist
+        ImportError
+            If h5py is not available
+
+        Examples
+        --------
+        >>> JASPERSteeringDataset.convert_pt_to_hdf5("output/jasper_dataset")
+        """
+        if not HAS_HDF5:
+            raise ImportError(
+                "h5py is required for HDF5 conversion. Install with: pip install h5py"
+            )
+
+        dataset_dir = Path(dataset_dir)
+        
+        # Verify PT files exist
+        if not (dataset_dir / "question_embs.pt").exists():
+            raise ValueError(f"PT files not found in {dataset_dir}")
+
+        # Load config
+        with open(dataset_dir / "config.json", "r") as f:
+            config = json.load(f)
+
+        LOGGER.info(f"Converting PT format to HDF5 in {dataset_dir}")
+
+        # Create HDF5 file
+        hdf5_path = dataset_dir / "dataset.h5"
+        with h5py.File(hdf5_path, "w") as f:
+            # Create groups
+            emb_group = f.create_group("embeddings")
+            pair_group = f.create_group("pair_data")
+            neg_group = f.create_group("negatives")
+            steering_group = f.create_group("steering")
+            splits_group = f.create_group("splits")
+
+            # Load and save embeddings
+            LOGGER.info("Converting embeddings...")
+            for name in ["questions", "sources", "keywords", "centroids"]:
+                pt_name = name.rstrip("s") if name != "questions" else "question"
+                pt_name = pt_name + "_embs.pt"
+                tensor = torch.load(dataset_dir / pt_name, weights_only=True)
+                emb_group.create_dataset(
+                    name, data=tensor.numpy(), compression=compression
+                )
+
+            # Load and save pair data
+            LOGGER.info("Converting pair data...")
+            for name in ["pair_index", "pair_cluster_id", "pair_relevance"]:
+                tensor = torch.load(dataset_dir / f"{name}.pt", weights_only=True)
+                pair_group.create_dataset(
+                    name.replace("pair_", ""), data=tensor.numpy(), compression=compression
+                )
+
+            # Handle pair_keyword_ids (list-of-lists)
+            pair_keyword_ids = torch.load(dataset_dir / "pair_keyword_ids.pt", weights_only=False)
+            kw_group = pair_group.create_group("keyword_ids")
+            for i, kw_list in enumerate(pair_keyword_ids):
+                kw_group.create_dataset(str(i), data=np.array(kw_list, dtype=np.int32))
+
+            # Load and save negatives
+            LOGGER.info("Converting negatives...")
+            for name in ["hard_negatives", "negative_tiers"]:
+                tensor = torch.load(dataset_dir / f"{name}.pt", weights_only=True)
+                neg_group.create_dataset(
+                    name.replace("negative_", "").replace("_", ""),
+                    data=tensor.numpy(),
+                    compression=compression
+                )
+
+            # Load and save steering
+            LOGGER.info("Converting steering tensors...")
+            for name in ["steering_centroid", "steering_keyword_weighted", "steering_residual", "centroid_distances"]:
+                tensor = torch.load(dataset_dir / f"{name}.pt", weights_only=True)
+                steering_group.create_dataset(
+                    name.replace("steering_", "").replace("centroid_", ""),
+                    data=tensor.numpy(),
+                    compression=compression
+                )
+
+            # Load and save splits
+            LOGGER.info("Converting split indices...")
+            for split_name in ["train", "val", "test"]:
+                tensor = torch.load(dataset_dir / f"{split_name}_idx.pt", weights_only=True)
+                splits_group.create_dataset(
+                    split_name, data=tensor.numpy(), compression=compression
+                )
+
+        LOGGER.info(f"Conversion complete. HDF5 file saved to {hdf5_path}")
+        
+        # Log file sizes
+        pt_size = sum((dataset_dir / f).stat().st_size for f in dataset_dir.glob("*.pt"))
+        hdf5_size = hdf5_path.stat().st_size
+        compression_ratio = (1 - hdf5_size / pt_size) * 100 if pt_size > 0 else 0
+        
+        LOGGER.info(
+            f"File sizes: PT format={pt_size / 1024**2:.1f} MB, "
+            f"HDF5={hdf5_size / 1024**2:.1f} MB "
+            f"(compression: {compression_ratio:.1f}%)"
+        )

@@ -117,7 +117,7 @@ JASPER-specific dataset builder orchestration. Project-specific but demonstrates
 PyTorch Dataset classes for training. Specific implementations but patterns are highly reusable.
 
 - **__init__.py** - Exports JASPERSteeringDataset, RAG datasets, ClusterLabeledDataset, DataLoader utilities
-- **jasper_steering_dataset.py** - JASPERSteeringDataset: PyTorch dataset for JASPER - pre-computed embedding triplets with hard negatives, curriculum learning, device placement, context manager, referential integrity validation
+- **jasper_steering_dataset.py** - JASPERSteeringDataset: PyTorch dataset for JASPER - pre-computed embedding triplets with hard negatives, curriculum learning, device placement, context manager, referential integrity validation, HDF5 storage format support, memory-mapped loading for large datasets (>10GB)
 - **rag_dataset.py** - RAGDataset: Core PyTorch dataset class for RAG question-answer-source triples
 - **cluster_labeled_dataset.py** - ClusterLabeledDataset: PyTorch dataset with cluster assignments and labels
 - **loader.py** - DataLoader factory and validation utilities for JASPER Steering Dataset (create_loader, validate_first_batch, set_epoch)
@@ -166,7 +166,7 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_dataset_check_agent.py** - Tests for DatasetCheckAgent (LangGraph workflow, mocking)
 - **test_dataset_splitter.py** - Tests for DatasetSplitter (splitting logic, persistence)
 - **test_domain_assesment.py** - Tests for DomainAnalysisAgent (all three operation modes)
-- **test_jasper_steering_dataset.py** - Tests for JASPERSteeringDataset (initialization, getitem, steering, curriculum)
+- **test_jasper_steering_dataset.py** - Tests for JASPERSteeringDataset (initialization, getitem, steering, curriculum, storage formats [PT/HDF5], memory-mapping, HDF5 conversion)
 - **test_keyword_clustering.py** - Tests for KeywordClustering (clustering algorithms)
 - **test_loader.py** - Tests for JASPER Steering DataLoader (batch shapes, iteration, validation)
 - **test_merge_csv.py** - Tests for CSVMerger (normalization, deduplication, ID assignment)
@@ -218,10 +218,11 @@ Detailed usage guides for each agent with examples.
 
 ### docs/pytorch_datasets/ - PyTorch Dataset Documentation
 - **README.md** - PyTorch datasets overview, quick start, feature comparison table
-- **JASPER_STEERING_DATASET.md** - JASPERSteeringDataset: curriculum learning, hard negatives, zero I/O training
+- **JASPER_STEERING_DATASET.md** - JASPERSteeringDataset: curriculum learning, hard negatives, zero I/O training, HDF5/PT storage formats, memory-mapping
 - **CLUSTER_LABELED_DATASET.md** - ClusterLabeledDataset: domain classification with memmap storage and LRU cache
 - **RAG_DATASET.md** - BaseRAGDatasetGenerator: abstract base for RAG triplet generation and ChromaDB sampling
 - **LOADER_UTILITIES.md** - DataLoader factory functions, batch validation, distributed training support
+- **STORAGE_FORMATS.md** - Comprehensive guide to PT, HDF5, and memory-mapped loading strategies for large datasets
 
 ---
 

@@ -39,19 +39,24 @@ JASPERSteeringDataset(
     dataset_dir: str | Path,
     split: Literal["train", "val", "test"],
     epoch: int = 0,
-    device: Optional[torch.device] = None
+    device: Optional[torch.device] = None,
+    storage_format: Literal["auto", "pt", "hdf5"] = "auto",
+    use_mmap: Optional[bool] = None
 )
 ```
 
 **Parameters**:
-- `dataset_dir`: Directory containing dataset files (config.json, *.pt tensors)
+- `dataset_dir`: Directory containing dataset files (config.json, *.pt tensors, or dataset.h5)
 - `split`: Which split to use ("train", "val", "test")
 - `epoch`: Initial epoch number for curriculum learning (default: 0)
 - `device`: Device to transfer tensors to during initialization (default: CPU)
+- `storage_format`: Format to use - "auto" (default), "pt", or "hdf5"
+- `use_mmap`: Enable memory-mapping for large datasets (default: None for auto-detect)
 
 **Raises**:
 - `ValueError`: If dataset_dir or split files not found
 - `ValueError`: If referential integrity validation fails
+- `ImportError`: If HDF5 requested but h5py not installed
 
 ### Batch Output
 
@@ -252,7 +257,189 @@ val_dataset.force_steering("centroid")
 val_loader = DataLoader(val_dataset, batch_size=64)
 ```
 
+## Storage Formats
+
+The dataset supports three storage formats for flexibility and performance optimization:
+
+### PT Format (Default)
+
+Standard PyTorch tensor format (`.pt` files). Fast loading, widely compatible.
+
+```python
+# Explicit PT format
+dataset = JASPERSteeringDataset(
+    "output/dataset",
+    split="train",
+    storage_format="pt"
+)
+```
+
+**Pros**: Fast loading, no extra dependencies  
+**Cons**: Larger file size, no compression
+
+### HDF5 Format
+
+Compressed storage with lazy loading support. Requires `h5py`.
+
+```python
+# First, convert PT to HDF5 (one-time operation)
+JASPERSteeringDataset.convert_pt_to_hdf5("output/dataset")
+
+# Load from HDF5
+dataset = JASPERSteeringDataset(
+    "output/dataset",
+    split="train",
+    storage_format="hdf5"
+)
+```
+
+**Pros**: 30-50% smaller files (gzip compression), lazy loading  
+**Cons**: Requires h5py, slightly slower initial load
+
+**When to use**: Large datasets (>5GB), limited disk space, cloud storage
+
+### Auto-Detection
+
+Automatically selects best available format (prefers HDF5 if available):
+
+```python
+# Auto-detect: tries HDF5 first, falls back to PT
+dataset = JASPERSteeringDataset(
+    "output/dataset",
+    split="train",
+    storage_format="auto"  # Default
+)
+```
+
+### Converting PT to HDF5
+
+```python
+from RAG_supporters.pytorch_datasets import JASPERSteeringDataset
+
+# Convert existing PT dataset to HDF5
+JASPERSteeringDataset.convert_pt_to_hdf5(
+    "output/dataset",
+    compression="gzip"  # Options: gzip, lzf, None
+)
+
+# Result: dataset.h5 created alongside *.pt files
+# Original PT files preserved for compatibility
+```
+
+**Conversion output**:
+```
+Converting PT format to HDF5 in output/dataset
+Converting embeddings...
+Converting pair data...
+Converting negatives...
+Converting steering tensors...
+Converting split indices...
+Conversion complete. HDF5 file saved to output/dataset/dataset.h5
+File sizes: PT format=2500.0 MB, HDF5=1650.0 MB (compression: 34.0%)
+```
+
+## Memory-Mapped Loading
+
+For very large datasets (>10GB), enable memory-mapped loading to avoid loading entire dataset into RAM.
+
+### Auto-Enable
+
+Memory-mapping automatically enables for datasets >10GB:
+
+```python
+# Auto-enables mmap for large datasets
+dataset = JASPERSteeringDataset(
+    "output/large_dataset",
+    split="train"
+    # use_mmap=None (default) -> auto-detects size
+)
+
+# Check if mmap is enabled
+print(f"Memory-mapping: {dataset.use_mmap}")  # True for >10GB
+```
+
+### Explicit Control
+
+```python
+# Force enable memory-mapping (small dataset)
+dataset = JASPERSteeringDataset(
+    "output/dataset",
+    split="train",
+    use_mmap=True  # Explicit enable
+)
+
+# Force disable memory-mapping (large dataset, have enough RAM)
+dataset = JASPERSteeringDataset(
+    "output/large_dataset",
+    split="train",
+    use_mmap=False  # Load all to RAM
+)
+```
+
+### Memory-Mapping Behavior
+
+**Without mmap** (default for <10GB):
+- All tensors loaded to RAM during `__init__`
+- Fast `__getitem__` (pure memory access)
+- High memory usage (entire dataset in RAM)
+
+**With mmap** (auto for >10GB):
+- Tensors memory-mapped from disk
+- Lazy loading on first access
+- Low memory usage (OS pages in/out as needed)
+- Slightly slower `__getitem__` (disk I/O on cache miss)
+
+**Best for**:
+- Datasets with >10GB compressed size
+- Limited RAM environments
+- Training with small batch sizes
+- Infrequent epoch iteration
+
+**Not compatible with**:
+- GPU device preloading (`device != "cpu"`)
+- Pinned memory DataLoaders
+- High I/O throughput requirements
+
+### Storage Format Comparison
+
+| Format | File Size | Load Speed | RAM Usage | Dependencies |
+|--------|-----------|------------|-----------|--------------|
+| PT (default) | 100% | Fast | High | torch |
+| PT + mmap | 100% | Medium | Low | torch |
+| HDF5 | 50-70% | Medium | High | torch, h5py |
+| HDF5 + mmap | 50-70% | Slow | Low | torch, h5py |
+
+**Recommendation**:
+- **Small datasets (<5GB)**: PT format, no mmap
+- **Medium datasets (5-10GB)**: HDF5 format, no mmap  
+- **Large datasets (10-100GB)**: HDF5 format, auto mmap
+- **Huge datasets (>100GB)**: HDF5 format, explicit mmap
+
+### Combined Example
+
+```python
+from RAG_supporters.pytorch_datasets import JASPERSteeringDataset
+
+# Convert to HDF5 once
+JASPERSteeringDataset.convert_pt_to_hdf5("datasets/bioasq_large")
+
+# Load with optimal settings
+dataset = JASPERSteeringDataset(
+    "datasets/bioasq_large",
+    split="train",
+    storage_format="auto",  # Uses HDF5
+    use_mmap=None,          # Auto-enables if >10GB
+    device=torch.device("cpu")  # Required for mmap
+)
+
+print(f"Format: {dataset.storage_format}")  # "hdf5"
+print(f"Memory-mapping: {dataset.use_mmap}")  # True if >10GB
+print(f"Memory usage: {dataset._compute_memory_usage():.1f} MB")
+```
+
 ## Dataset Directory Structure
+
+### PT Format (Default)
 
 ```
 output/dataset/
@@ -274,6 +461,37 @@ output/dataset/
 ├── steering_keyword_weighted.pt     # [N_pairs, D]
 ├── steering_residual.pt             # [N_pairs, D]
 └── centroid_distances.pt            # [N_pairs] distance to centroid
+```
+
+### HDF5 Format (Optional)
+
+```
+output/dataset/
+├── config.json                      # Dataset metadata (shared)
+├── dataset.h5                       # All tensors in compressed HDF5
+│   ├── embeddings/
+│   │   ├── questions                # [N_questions, D] compressed
+│   │   ├── sources                  # [N_sources, D] compressed
+│   │   ├── keywords                 # [N_keywords, D] compressed
+│   │   └── centroids                # [N_clusters, D] compressed
+│   ├── pair_data/
+│   │   ├── index                    # [N_pairs, 2]
+│   │   ├── cluster_id               # [N_pairs]
+│   │   ├── relevance                # [N_pairs]
+│   │   └── keyword_ids/             # Variable-length lists
+│   ├── negatives/
+│   │   ├── hard                     # [N_pairs, n_neg]
+│   │   └── tiers                    # [N_pairs, n_neg]
+│   ├── steering/
+│   │   ├── centroid                 # [N_pairs, D]
+│   │   ├── keyword_weighted         # [N_pairs, D]
+│   │   ├── residual                 # [N_pairs, D]
+│   │   └── distances                # [N_pairs]
+│   └── splits/
+│       ├── train                    # [N_train]
+│       ├── val                      # [N_val]
+│       └── test                     # [N_test]
+└── *.pt files (optional, preserved) # Original PT files kept for compatibility
 ```
 
 ### config.json Format

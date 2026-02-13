@@ -16,6 +16,7 @@ This directory documents PyTorch Dataset implementations for training neural net
 ### Utilities
 
 - **[Loader Utilities](LOADER_UTILITIES.md)** - DataLoader factory and batch validation
+- **[Storage Formats](STORAGE_FORMATS.md)** - PT, HDF5, and memory-mapped loading for large datasets
 
 ## Quick Start
 

@@ -516,3 +516,218 @@ def test_close_method(mock_dataset_dir):
     # Verify tensors are deleted
     with pytest.raises(AttributeError):
         _ = dataset.question_embs
+
+
+def test_storage_format_detection_pt(mock_dataset_dir):
+    """Test storage format detection defaults to PT."""
+    dataset = JASPERSteeringDataset(mock_dataset_dir, split="train", storage_format="auto")
+    
+    assert dataset.storage_format == "pt", "Should detect PT format when no HDF5 file exists"
+
+
+def test_storage_format_explicit_pt(mock_dataset_dir):
+    """Test explicit PT format specification."""
+    dataset = JASPERSteeringDataset(mock_dataset_dir, split="train", storage_format="pt")
+    
+    assert dataset.storage_format == "pt", "Should use PT format when explicitly requested"
+    assert len(dataset) == 70, "Should load data correctly with PT format"
+
+
+def test_memory_mapping_disabled_by_default(mock_dataset_dir):
+    """Test that memory mapping is disabled for small datasets."""
+    dataset = JASPERSteeringDataset(mock_dataset_dir, split="train")
+    
+    assert dataset.use_mmap is False, "Memory mapping should be disabled for small datasets"
+
+
+def test_memory_mapping_explicit_enable(mock_dataset_dir):
+    """Test explicit memory mapping enable."""
+    dataset = JASPERSteeringDataset(mock_dataset_dir, split="train", use_mmap=True)
+    
+    assert dataset.use_mmap is True, "Memory mapping should be enabled when explicitly requested"
+    assert len(dataset) == 70, "Should load data correctly with memory mapping"
+
+
+def test_create_combined_splits_with_storage_format(mock_dataset_dir):
+    """Test create_combined_splits with storage format parameter."""
+    splits = JASPERSteeringDataset.create_combined_splits(
+        mock_dataset_dir, storage_format="pt"
+    )
+    
+    assert "train" in splits, "Should have train split"
+    assert "val" in splits, "Should have val split"
+    assert "test" in splits, "Should have test split"
+    assert all(s.storage_format == "pt" for s in splits.values()), \
+        "All splits should use PT format"
+
+
+@pytest.mark.skipif(
+    not hasattr(JASPERSteeringDataset, "convert_pt_to_hdf5"),
+    reason="HDF5 conversion not available"
+)
+def test_hdf5_conversion_requires_h5py(mock_dataset_dir):
+    """Test that HDF5 conversion checks for h5py."""
+    try:
+        import h5py
+        pytest.skip("h5py is installed, cannot test error case")
+    except ImportError:
+        with pytest.raises(ImportError, match="h5py is required"):
+            JASPERSteeringDataset.convert_pt_to_hdf5(mock_dataset_dir)
+
+
+@pytest.mark.skipif(
+    not hasattr(JASPERSteeringDataset, "convert_pt_to_hdf5"),
+    reason="HDF5 conversion not available"
+)
+def test_hdf5_storage_format_error_without_h5py(mock_dataset_dir):
+    """Test that requesting HDF5 format without h5py raises proper error."""
+    try:
+        import h5py
+        pytest.skip("h5py is installed, cannot test error case")
+    except ImportError:
+        with pytest.raises(ValueError, match="h5py is not installed"):
+            JASPERSteeringDataset(mock_dataset_dir, split="train", storage_format="hdf5")
+
+
+def test_storage_format_auto_no_files():
+    """Test storage format detection with no valid files."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        
+        # Create only config (no data files)
+        config = {"embedding_dim": 64, "n_neg": 4}
+        with open(tmpdir / "config.json", "w") as f:
+            json.dump(config, f)
+        
+        with pytest.raises(ValueError, match="No dataset files found"):
+            JASPERSteeringDataset(tmpdir, split="train", storage_format="auto")
+
+
+def test_invalid_storage_format():
+    """Test invalid storage format raises error."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        
+        config = {"embedding_dim": 64, "n_neg": 4}
+        with open(tmpdir / "config.json", "w") as f:
+            json.dump(config, f)
+        
+        # Create minimal PT file
+        torch.save(torch.randn(1, 64), tmpdir / "question_embs.pt")
+        torch.save(torch.arange(1), tmpdir / "train_idx.pt")
+        
+        with pytest.raises(ValueError, match="Invalid storage_format"):
+            JASPERSteeringDataset(tmpdir, split="train", storage_format="invalid")
+
+
+# Integration tests with HDF5 (only run if h5py installed)
+@pytest.mark.skipif(
+    not hasattr(JASPERSteeringDataset, "convert_pt_to_hdf5"),
+    reason="HDF5 conversion not available"
+)
+def test_hdf5_integration(mock_dataset_dir):
+    """Test full HDF5 workflow: convert and load."""
+    try:
+        import h5py
+    except ImportError:
+        pytest.skip("h5py not installed")
+    
+    # Convert PT to HDF5
+    JASPERSteeringDataset.convert_pt_to_hdf5(mock_dataset_dir)
+    
+    # Verify HDF5 file exists
+    hdf5_path = Path(mock_dataset_dir) / "dataset.h5"
+    assert hdf5_path.exists(), "HDF5 file should be created"
+    
+    # Load from HDF5
+    dataset = JASPERSteeringDataset(
+        mock_dataset_dir, split="train", storage_format="hdf5"
+    )
+    
+    assert dataset.storage_format == "hdf5", "Should use HDF5 format"
+    assert len(dataset) == 70, "Should load correct number of samples"
+    
+    # Verify data can be accessed
+    sample = dataset[0]
+    assert "question_emb" in sample, "Sample should contain question embedding"
+    assert sample["question_emb"].shape == (64,), "Question embedding shape should be correct"
+    
+    # Close dataset properly
+    dataset.close()
+
+
+@pytest.mark.skipif(
+    not hasattr(JASPERSteeringDataset, "convert_pt_to_hdf5"),
+    reason="HDF5 conversion not available"
+)
+def test_hdf5_auto_detection(mock_dataset_dir):
+    """Test that storage format auto-detection prefers HDF5 when available."""
+    try:
+        import h5py
+    except ImportError:
+        pytest.skip("h5py not installed")
+    
+    # Convert to HDF5
+    JASPERSteeringDataset.convert_pt_to_hdf5(mock_dataset_dir)
+    
+    # Auto-detect should prefer HDF5
+    dataset = JASPERSteeringDataset(
+        mock_dataset_dir, split="train", storage_format="auto"
+    )
+    
+    assert dataset.storage_format == "hdf5", \
+        "Auto-detection should prefer HDF5 when available"
+    dataset.close()
+
+
+def test_memory_mapping_auto_enable_large_dataset():
+    """Test that memory mapping auto-enables for large datasets."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        
+        # Simulate large dataset metadata (>10GB)
+        config = {
+            "embedding_dim": 768,
+            "n_neg": 20,
+            "n_pairs": 1000000,  # 1 million pairs -> >10GB
+            "n_questions": 500000,
+            "n_sources": 800000,
+            "n_keywords": 50000,
+            "n_clusters": 100,
+            "steering_probabilities": {
+                "zero": 0.25,
+                "centroid": 0.25,
+                "keyword": 0.25,
+                "residual": 0.25,
+            },
+        }
+        
+        with open(tmpdir / "config.json", "w") as f:
+            json.dump(config, f)
+        
+        # Create minimal PT files
+        torch.save(torch.randn(10, 768), tmpdir / "question_embs.pt")
+        torch.save(torch.randn(10, 768), tmpdir / "source_embs.pt")
+        torch.save(torch.randn(5, 768), tmpdir / "keyword_embs.pt")
+        torch.save(torch.randn(2, 768), tmpdir / "centroid_embs.pt")
+        torch.save(torch.stack([torch.zeros(5, dtype=torch.long), torch.zeros(5, dtype=torch.long)], dim=1), tmpdir / "pair_index.pt")
+        torch.save(torch.zeros(5, dtype=torch.long), tmpdir / "pair_cluster_id.pt")
+        torch.save(torch.zeros(5), tmpdir / "pair_relevance.pt")
+        torch.save([[0, 1]] * 5, tmpdir / "pair_keyword_ids.pt")
+        torch.save(torch.zeros((5, 20), dtype=torch.long), tmpdir / "hard_negatives.pt")
+        torch.save(torch.ones((5, 20), dtype=torch.long), tmpdir / "negative_tiers.pt")
+        torch.save(torch.randn(5, 768), tmpdir / "steering_centroid.pt")
+        torch.save(torch.randn(5, 768), tmpdir / "steering_keyword_weighted.pt")
+        torch.save(torch.randn(5, 768), tmpdir / "steering_residual.pt")
+        torch.save(torch.rand(5), tmpdir / "centroid_distances.pt")
+        torch.save(torch.arange(3), tmpdir / "train_idx.pt")
+        torch.save(torch.arange(3, 4), tmpdir / "val_idx.pt")
+        torch.save(torch.arange(4, 5), tmpdir / "test_idx.pt")
+        
+        # Auto-detect should enable mmap for large config
+        dataset = JASPERSteeringDataset(tmpdir, split="train", device=torch.device("cpu"))
+        
+        assert dataset.use_mmap is True, \
+            "Memory mapping should auto-enable for large datasets (>10GB estimated)"
+        dataset.close()
+
