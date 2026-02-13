@@ -60,7 +60,7 @@ Dataset creation, manipulation, splitting, and storage.
 - **dataset_splitter.py** - DatasetSplitter: Train/val/test splitting with persistence to JSON
 - **domain_assessment_dataset_builder.py** - DomainAssessmentDatasetBuilder: Builds datasets for domain assessment tasks
 - **domain_assessment_parser.py** - Parsers for domain assessment data formats
-- **jasper_steering_dataset.py** - JASPERSteeringDataset: PyTorch dataset for JASPER (Joint Architecture for Subspace Prediction with Explainable Routing) - pre-computed embedding triplets with hard negatives
+- **jasper_steering_dataset.py** - JASPERSteeringDataset: PyTorch dataset for JASPER (Joint Architecture for Subspace Prediction with Explainable Routing) - pre-computed embedding triplets with hard negatives, curriculum learning, device placement support, context manager, and referential integrity validation
 - **jepa_steering_dataset.py** - REMOVED: JEPA renamed to JASPER, file raises ImportError with migration instructions
 - **label_calculator.py** - Label calculation utilities for dataset annotations
 - **loader.py** - DataLoader factory and utilities for JASPER Steering Dataset (create_loader, validate_first_batch)

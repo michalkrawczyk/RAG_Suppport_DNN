@@ -381,3 +381,132 @@ def test_missing_dataset_dir_raises():
     """Test that missing dataset directory raises error."""
     with pytest.raises(ValueError, match="Dataset directory not found"):
         JASPERSteeringDataset("/nonexistent/path", split="train")
+
+def test_index_out_of_bounds_raises(mock_dataset_dir):
+    """Test that out-of-bounds index raises IndexError."""
+    dataset = JASPERSteeringDataset(mock_dataset_dir, split="train")
+
+    # Valid indices: 0 to len(dataset) - 1
+    with pytest.raises(IndexError, match="Index .* out of range"):
+        _ = dataset[len(dataset)]
+
+    with pytest.raises(IndexError, match="Index .* out of range"):
+        _ = dataset[-1]
+
+
+def test_context_manager_support(mock_dataset_dir):
+    """Test that dataset works as context manager."""
+    with JASPERSteeringDataset(mock_dataset_dir, split="train") as dataset:
+        assert len(dataset) == 70, "Dataset should be accessible within context"
+        sample = dataset[0]
+        assert "question_emb" in sample, "Should be able to access samples"
+
+    # After exiting, tensors should be deleted (basic check)
+    assert not hasattr(dataset, "question_embs") or dataset.question_embs is None, (
+        "Tensors should be cleaned up after context exit"
+    )
+
+
+def test_device_placement_cpu(mock_dataset_dir):
+    """Test dataset loads to CPU by default."""
+    dataset = JASPERSteeringDataset(mock_dataset_dir, split="train")
+
+    assert dataset.device == torch.device("cpu"), "Default device should be CPU"
+    assert dataset.question_embs.device == torch.device("cpu"), (
+        "Question embeddings should be on CPU"
+    )
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+def test_device_placement_cuda(mock_dataset_dir):
+    """Test dataset loads to CUDA when requested."""
+    device = torch.device("cuda")
+    dataset = JASPERSteeringDataset(mock_dataset_dir, split="train", device=device)
+
+    assert dataset.device == device, "Device should be CUDA"
+    assert dataset.question_embs.device == device, "Question embeddings should be on CUDA"
+    assert dataset.source_embs.device == device, "Source embeddings should be on CUDA"
+
+
+def test_create_combined_splits(mock_dataset_dir):
+    """Test loading all splits at once."""
+    splits = JASPERSteeringDataset.create_combined_splits(mock_dataset_dir, epoch=0)
+
+    assert "train" in splits, "Should have train split"
+    assert "val" in splits, "Should have val split"
+    assert "test" in splits, "Should have test split"
+
+    assert len(splits["train"]) == 70, "Train split should have 70 samples"
+    assert len(splits["val"]) == 15, "Val split should have 15 samples"
+    assert len(splits["test"]) == 15, "Test split should have 15 samples"
+
+
+def test_referential_integrity_invalid_question_idx(mock_dataset_dir):
+    """Test that invalid question index in pair_index raises error."""
+    # Corrupt pair_index with out-of-bounds question index
+    pair_index = torch.load(mock_dataset_dir / "pair_index.pt")
+    pair_index[0, 0] = 999  # Invalid question index
+    torch.save(pair_index, mock_dataset_dir / "pair_index.pt")
+
+    with pytest.raises(ValueError, match="pair_index references question"):
+        JASPERSteeringDataset(mock_dataset_dir, split="train")
+
+
+def test_referential_integrity_invalid_source_idx(mock_dataset_dir):
+    """Test that invalid source index in pair_index raises error."""
+    # Corrupt pair_index with out-of-bounds source index
+    pair_index = torch.load(mock_dataset_dir / "pair_index.pt")
+    pair_index[0, 1] = 999  # Invalid source index
+    torch.save(pair_index, mock_dataset_dir / "pair_index.pt")
+
+    with pytest.raises(ValueError, match="pair_index references source"):
+        JASPERSteeringDataset(mock_dataset_dir, split="train")
+
+
+def test_referential_integrity_invalid_negative_idx(mock_dataset_dir):
+    """Test that invalid index in hard_negatives raises error."""
+    # Corrupt hard_negatives with out-of-bounds source index
+    hard_negatives = torch.load(mock_dataset_dir / "hard_negatives.pt")
+    hard_negatives[0, 0] = 999  # Invalid source index
+    torch.save(hard_negatives, mock_dataset_dir / "hard_negatives.pt")
+
+    with pytest.raises(ValueError, match="hard_negatives references source"):
+        JASPERSteeringDataset(mock_dataset_dir, split="train")
+
+
+def test_referential_integrity_split_indices(mock_dataset_dir):
+    """Test that split indices reference valid pairs."""
+    # Corrupt train split indices
+    train_idx = torch.tensor([0, 1, 999])  # Invalid pair index
+    torch.save(train_idx, mock_dataset_dir / "train_idx.pt")
+
+    with pytest.raises(ValueError, match="Split indices reference pair"):
+        JASPERSteeringDataset(mock_dataset_dir, split="train")
+
+
+def test_memory_usage_logging(mock_dataset_dir, caplog):
+    """Test that memory usage is logged during initialization."""
+    import logging
+    caplog.set_level(logging.INFO)
+
+    dataset = JASPERSteeringDataset(mock_dataset_dir, split="train")
+
+    # Check that memory was logged
+    assert any("memory=" in record.message.lower() for record in caplog.records), (
+        "Memory usage should be logged during initialization"
+    )
+
+
+def test_close_method(mock_dataset_dir):
+    """Test explicit close method."""
+    dataset = JASPERSteeringDataset(mock_dataset_dir, split="train")
+
+    # Verify dataset is usable
+    _ = dataset[0]
+
+    # Close explicitly
+    dataset.close()
+
+    # Verify tensors are deleted
+    with pytest.raises(AttributeError):
+        _ = dataset.question_embs
