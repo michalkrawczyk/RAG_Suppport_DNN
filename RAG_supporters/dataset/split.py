@@ -287,10 +287,17 @@ class DatasetSplitter:
             n_val = max(1, int(n_q * self.val_ratio))
             n_test = n_q - n_train - n_val
             
-            # Handle edge case: ensure test set has at least 1 question
+            # Handle edge case: ensure test set has at least 1 question if possible
             if n_test == 0 and n_q >= 3:
                 n_test = 1
-                n_val = max(1, n_val - 1)
+                # Reduce from val if possible, otherwise from train
+                if n_val > 1:
+                    n_val -= 1
+                elif n_train > 1:
+                    n_train -= 1
+                else:
+                    # Can't allocate to test without violating other constraints
+                    n_test = 0
             
             # Split
             train_end = n_train

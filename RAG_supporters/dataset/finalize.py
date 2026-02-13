@@ -428,7 +428,11 @@ class DatasetFinalizer:
         artifacts = self._load_pt_artifacts()
         stats = self._validate_pt_artifacts(artifacts)
 
-        if not is_placeholder and (
+        # Allow placeholder values (embedding_dim=1, n_neg=1) to be auto-updated
+        is_embedding_dim_placeholder = resolved_config.embedding_dim == 1
+        is_n_neg_placeholder = resolved_config.n_neg == 1
+        
+        if not is_placeholder and not is_embedding_dim_placeholder and (
             resolved_config.embedding_dim != stats["embedding_dim"]
         ):
             raise ValueError(
@@ -436,7 +440,7 @@ class DatasetFinalizer:
                 f"artifacts ({stats['embedding_dim']})"
             )
 
-        if not is_placeholder and resolved_config.n_neg != stats["n_neg"]:
+        if not is_placeholder and not is_n_neg_placeholder and resolved_config.n_neg != stats["n_neg"]:
             raise ValueError(
                 f"Config n_neg ({resolved_config.n_neg}) does not match "
                 f"artifacts ({stats['n_neg']})"

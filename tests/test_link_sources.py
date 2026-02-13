@@ -377,18 +377,33 @@ class TestSourceClusterLinkerValidation:
         assert len(validation["warnings"]) > 0, "Should have warnings"
         assert "have no assignments" in validation["warnings"][0], "Should warn about missing clusters"
     
-    def test_validate_imbalanced_distribution(self, cluster_parser):
+    def test_validate_imbalanced_distribution(self):
         """Test validation warns about highly imbalanced distribution."""
-        linker = SourceClusterLinker(cluster_parser)
+        # Create a parser with 5 clusters to allow CV > 2.0
+        clustering_data = {
+            "metadata": {"n_clusters": 5, "embedding_dim": 384},
+            "cluster_assignments": {f"kw{i}": i % 5 for i in range(20)},
+            "clusters": {str(i): [f"kw{j}" for j in range(i, 20, 5)] for i in range(5)}
+        }
         
-        # Highly imbalanced: 100 in cluster 0, 1 in cluster 1, 1 in cluster 2
-        # This should trigger CV > 2.0 (std/mean > 2.0)
-        cluster_assignments = [0] * 100 + [1, 2]
-        validation = linker.validate_assignments(cluster_assignments)
+        json_path = tempfile.mktemp(suffix=".json")
+        with open(json_path, "w") as f:
+            json.dump(clustering_data, f)
         
-        assert validation["valid"] is True, "Should be valid (warnings don't fail)"
-        assert len(validation["warnings"]) > 0, "Should have warnings"
-        assert "imbalanced" in validation["warnings"][0].lower(), "Should warn about imbalance"
+        try:
+            parser = ClusterParser(json_path)
+            linker = SourceClusterLinker(parser)
+            
+            # Highly imbalanced: 10000 in cluster 0, 1 each in clusters 1-4
+            # With 5 clusters: mean=2000.8, std≈4000, CV≈2.0
+            cluster_assignments = [0] * 10000 + [1, 2, 3, 4]
+            validation = linker.validate_assignments(cluster_assignments)
+            
+            assert validation["valid"] is True, "Should be valid (warnings don't fail)"
+            assert len(validation["warnings"]) > 0, "Should have warnings about imbalance"
+            assert "imbalanced" in validation["warnings"][0].lower(), "Should warn about imbalance"
+        finally:
+            Path(json_path).unlink(missing_ok=True)
     
     def test_validate_torch_tensor(self, cluster_parser):
         """Test validation works with PyTorch tensors."""
