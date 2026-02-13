@@ -27,6 +27,7 @@ LOGGER = logging.getLogger(__name__)
 # Optional HDF5 support
 try:
     import h5py
+
     HAS_HDF5 = True
 except ImportError:
     HAS_HDF5 = False
@@ -214,8 +215,7 @@ class JASPERSteeringDataset(Dataset):
 
         else:
             raise ValueError(
-                f"Invalid storage_format: {requested_format}. "
-                f"Must be 'auto', 'pt', or 'hdf5'"
+                f"Invalid storage_format: {requested_format}. " f"Must be 'auto', 'pt', or 'hdf5'"
             )
 
     def _should_use_mmap(self, use_mmap: Optional[bool]) -> bool:
@@ -314,16 +314,16 @@ class JASPERSteeringDataset(Dataset):
         -------
         torch.Tensor
             Memory-mapped tensor (backed by disk storage)
-        
+
         Notes
         -----
         Memory-mapped tensors load pages on-demand, reducing RAM usage for large datasets.
         """
         filepath = self.dataset_dir / filename
-        
+
         # Load tensor metadata without loading full data
         tensor = torch.load(filepath, map_location="cpu", weights_only=True)
-        
+
         # For truly large datasets, we could save as numpy memmap format instead
         # For now, PT format doesn't support true mmap, so we just use standard loading
         # but avoid moving to GPU (which would force full load)
@@ -396,8 +396,12 @@ class JASPERSteeringDataset(Dataset):
         """Load hard negative data."""
         LOGGER.info("Loading hard negatives...")
 
-        self.hard_negatives = self._load_tensor("hard_negatives.pt", expected_shape=(None, self.n_neg))
-        self.negative_tiers = self._load_tensor("negative_tiers.pt", expected_shape=(None, self.n_neg))
+        self.hard_negatives = self._load_tensor(
+            "hard_negatives.pt", expected_shape=(None, self.n_neg)
+        )
+        self.negative_tiers = self._load_tensor(
+            "negative_tiers.pt", expected_shape=(None, self.n_neg)
+        )
 
         LOGGER.info(f"Loaded {self.n_neg} hard negatives per pair")
 
@@ -677,8 +681,12 @@ class JASPERSteeringDataset(Dataset):
         """
         LOGGER.info("Reloading hard negatives from disk...")
 
-        self.hard_negatives = self._load_tensor("hard_negatives.pt", expected_shape=(None, self.n_neg))
-        self.negative_tiers = self._load_tensor("negative_tiers.pt", expected_shape=(None, self.n_neg))
+        self.hard_negatives = self._load_tensor(
+            "hard_negatives.pt", expected_shape=(None, self.n_neg)
+        )
+        self.negative_tiers = self._load_tensor(
+            "negative_tiers.pt", expected_shape=(None, self.n_neg)
+        )
 
         LOGGER.info("Hard negatives reloaded successfully")
 
@@ -796,16 +804,28 @@ class JASPERSteeringDataset(Dataset):
         """
         return {
             "train": JASPERSteeringDataset(
-                dataset_dir, split="train", epoch=epoch, device=device,
-                storage_format=storage_format, use_mmap=use_mmap
+                dataset_dir,
+                split="train",
+                epoch=epoch,
+                device=device,
+                storage_format=storage_format,
+                use_mmap=use_mmap,
             ),
             "val": JASPERSteeringDataset(
-                dataset_dir, split="val", epoch=epoch, device=device,
-                storage_format=storage_format, use_mmap=use_mmap
+                dataset_dir,
+                split="val",
+                epoch=epoch,
+                device=device,
+                storage_format=storage_format,
+                use_mmap=use_mmap,
             ),
             "test": JASPERSteeringDataset(
-                dataset_dir, split="test", epoch=epoch, device=device,
-                storage_format=storage_format, use_mmap=use_mmap
+                dataset_dir,
+                split="test",
+                epoch=epoch,
+                device=device,
+                storage_format=storage_format,
+                use_mmap=use_mmap,
             ),
         }
 
@@ -838,7 +858,7 @@ class JASPERSteeringDataset(Dataset):
             )
 
         dataset_dir = Path(dataset_dir)
-        
+
         # Verify PT files exist
         if not (dataset_dir / "question_embs.pt").exists():
             raise ValueError(f"PT files not found in {dataset_dir}")
@@ -865,9 +885,7 @@ class JASPERSteeringDataset(Dataset):
                 pt_name = name.rstrip("s") if name != "questions" else "question"
                 pt_name = pt_name + "_embs.pt"
                 tensor = torch.load(dataset_dir / pt_name, weights_only=True)
-                emb_group.create_dataset(
-                    name, data=tensor.numpy(), compression=compression
-                )
+                emb_group.create_dataset(name, data=tensor.numpy(), compression=compression)
 
             # Load and save pair data
             LOGGER.info("Converting pair data...")
@@ -890,17 +908,22 @@ class JASPERSteeringDataset(Dataset):
                 neg_group.create_dataset(
                     name.replace("negative_", "").replace("_", ""),
                     data=tensor.numpy(),
-                    compression=compression
+                    compression=compression,
                 )
 
             # Load and save steering
             LOGGER.info("Converting steering tensors...")
-            for name in ["steering_centroid", "steering_keyword_weighted", "steering_residual", "centroid_distances"]:
+            for name in [
+                "steering_centroid",
+                "steering_keyword_weighted",
+                "steering_residual",
+                "centroid_distances",
+            ]:
                 tensor = torch.load(dataset_dir / f"{name}.pt", weights_only=True)
                 steering_group.create_dataset(
                     name.replace("steering_", "").replace("centroid_", ""),
                     data=tensor.numpy(),
-                    compression=compression
+                    compression=compression,
                 )
 
             # Load and save splits
@@ -912,12 +935,12 @@ class JASPERSteeringDataset(Dataset):
                 )
 
         LOGGER.info(f"Conversion complete. HDF5 file saved to {hdf5_path}")
-        
+
         # Log file sizes
         pt_size = sum((dataset_dir / f).stat().st_size for f in dataset_dir.glob("*.pt"))
         hdf5_size = hdf5_path.stat().st_size
         compression_ratio = (1 - hdf5_size / pt_size) * 100 if pt_size > 0 else 0
-        
+
         LOGGER.info(
             f"File sizes: PT format={pt_size / 1024**2:.1f} MB, "
             f"HDF5={hdf5_size / 1024**2:.1f} MB "
