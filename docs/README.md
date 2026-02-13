@@ -2,6 +2,10 @@
 
 This directory contains comprehensive documentation for all RAG Supporters components.
 
+## Developer Guidelines
+
+- **[AGENTS.md](../AGENTS.md)** - Technical guidelines, architecture, commands, code style, and development patterns for the entire project
+
 ## Agent Documentation
 
 The RAG Supporters library provides specialized LLM-powered agents for RAG dataset creation and curation.

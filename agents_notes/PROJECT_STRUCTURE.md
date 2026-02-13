@@ -195,7 +195,6 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 
 ### Root Documentation
 - **README.md** - Documentation index with links to all guides
-- **AGENTS.md** - Duplicate of root AGENTS.md (technical reference)
 
 ### docs/agents/ - Agent Documentation
 Detailed usage guides for each agent with examples.
