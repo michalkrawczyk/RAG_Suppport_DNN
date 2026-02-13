@@ -15,14 +15,14 @@ import torch
 from .builder_config import BuildConfig
 from .tensor_utils import load_tensor_artifact, load_multiple_tensors
 from .validation_utils import (
-    validate_cluster_ids_bounds,
-    validate_embedding_dimensions,
-    validate_keyword_ids_list,
-    validate_length_consistency,
-    validate_no_nan_inf,
-    validate_pair_indices_bounds,
     validate_tensor_1d,
     validate_tensor_2d,
+    validate_pair_indices_bounds,
+    validate_cluster_ids_bounds,
+    validate_length_consistency,
+    validate_keyword_ids_list,
+    validate_no_nan_inf,
+    validate_embedding_dimensions,
     validate_values_in_range,
 )
 
@@ -178,11 +178,8 @@ class DatasetFinalizer:
         ):
             validate_tensor_1d(split_tensor, split_name, min_length=1)
             validate_values_in_range(
-                split_tensor,
-                split_name,
-                min_value=0,
-                max_value=n_pairs - 1,
-                inclusive=True
+                split_tensor, split_name,
+                min_value=0, max_value=n_pairs - 1, inclusive=True
             )
 
         # Check for overlaps
@@ -241,9 +238,9 @@ class DatasetFinalizer:
         pair_relevance = artifacts["pair_relevance"]
         pair_keyword_ids = artifacts["pair_keyword_ids"]
 
-        # Validate pair_index structure and bounds
         validate_tensor_2d(pair_index, "pair_index", expected_cols=2, min_rows=1)
         n_pairs = int(pair_index.shape[0])
+        
         validate_pair_indices_bounds(
             pair_index,
             n_questions=n_questions,
@@ -251,7 +248,6 @@ class DatasetFinalizer:
             name="pair_index"
         )
 
-        # Validate pair_cluster_id
         validate_tensor_1d(pair_cluster_id, "pair_cluster_id", expected_length=n_pairs)
         validate_cluster_ids_bounds(
             pair_cluster_id,
@@ -259,15 +255,11 @@ class DatasetFinalizer:
             name="pair_cluster_id"
         )
 
-        # Validate pair_relevance
         validate_tensor_1d(pair_relevance, "pair_relevance", expected_length=n_pairs)
         validate_no_nan_inf(pair_relevance, "pair_relevance")
         validate_values_in_range(
-            pair_relevance,
-            "pair_relevance",
-            min_value=0.0,
-            max_value=1.0,
-            inclusive=True
+            pair_relevance, "pair_relevance",
+            min_value=0.0, max_value=1.0, inclusive=True
         )
 
         # Validate pair_keyword_ids
@@ -281,38 +273,33 @@ class DatasetFinalizer:
         ):
             steering_tensor = artifacts[steering_name]
             validate_tensor_2d(
-                steering_tensor,
-                steering_name,
-                expected_cols=embedding_dim,
-                min_rows=n_pairs
+                steering_tensor, steering_name,
+                expected_cols=embedding_dim, min_rows=n_pairs
             )
-            if steering_tensor.shape[0] != n_pairs:
-                raise ValueError(
-                    f"{steering_name} must have {n_pairs} rows, "
-                    f"got {steering_tensor.shape[0]}"
-                )
+            validate_length_consistency(
+                (steering_tensor, steering_name, n_pairs)
+            )
             validate_no_nan_inf(steering_tensor, steering_name)
 
-        # Validate centroid_distances
         centroid_distances = artifacts["centroid_distances"]
-        validate_tensor_1d(
-            centroid_distances,
-            "centroid_distances",
-            expected_length=n_pairs
-        )
+        validate_tensor_1d(centroid_distances, "centroid_distances", expected_length=n_pairs)
         validate_no_nan_inf(centroid_distances, "centroid_distances")
 
         hard_negatives = artifacts["hard_negatives"]
         negative_tiers = artifacts["negative_tiers"]
         
-        # Validate hard_negatives structure
-        validate_tensor_2d(hard_negatives, "hard_negatives", min_rows=n_pairs)
-        if hard_negatives.shape[0] != n_pairs:
+        validate_tensor_2d(hard_negatives, "hard_negatives", min_rows=1)
+        validate_tensor_2d(negative_tiers, "negative_tiers", min_rows=1)
+        
+        if negative_tiers.shape != hard_negatives.shape:
             raise ValueError(
-                f"hard_negatives must have {n_pairs} rows, "
-                f"got {hard_negatives.shape[0]}"
+                "negative_tiers shape must match hard_negatives shape"
             )
         
+        validate_length_consistency(
+            (hard_negatives, "hard_negatives", n_pairs)
+        )
+
         n_neg = int(hard_negatives.shape[1])
         if n_neg <= 0:
             raise ValueError("hard_negatives must contain at least one negative per pair")
@@ -346,7 +333,15 @@ class DatasetFinalizer:
             inclusive=True
         )
 
-        # Verify hard negatives don't contain true sources
+        validate_values_in_range(
+            hard_negatives, "hard_negatives",
+            min_value=0, max_value=n_sources - 1, inclusive=True
+        )
+        validate_values_in_range(
+            negative_tiers, "negative_tiers",
+            min_value=1, max_value=4, inclusive=True
+        )
+
         true_sources = pair_index[:, 1].view(-1, 1)
         if torch.any(hard_negatives == true_sources):
             raise ValueError("hard_negatives contains true source for at least one pair")

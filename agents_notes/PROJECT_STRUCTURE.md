@@ -152,6 +152,8 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_source_evaluation_agent.py** - Tests for SourceEvaluationAgent
 - **test_text_augmentation_agent.py** - Tests for TextAugmentationAgent
 - **test_topic_distance_calculator.py** - Tests for TopicDistanceCalculator
+- **test_validation_utils.py** - Tests for validation_utils shared utilities (tensor validation, bounds checking, etc.)
+- **test_tensor_utils.py** - Tests for tensor_utils I/O functions (loading, saving, batch operations)
 
 ---
 
