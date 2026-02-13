@@ -14,7 +14,16 @@ import torch
 
 from .builder_config import BuildConfig
 from .tensor_utils import load_tensor_artifact, load_multiple_tensors
-from .validation_utils import validate_tensor_2d, validate_keyword_ids_list
+from .validation_utils import (
+    validate_tensor_1d,
+    validate_tensor_2d,
+    validate_pair_indices_bounds,
+    validate_cluster_ids_bounds,
+    validate_length_consistency,
+    validate_keyword_ids_list,
+    validate_no_nan_inf,
+    validate_values_in_range,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -135,12 +144,9 @@ class DatasetFinalizer:
     ) -> int:
         """Validate embedding tensor shape and return embedding dim."""
         validate_tensor_2d(tensor, name, expected_cols=expected_dim, min_rows=1)
+        validate_no_nan_inf(tensor, name)
         
         embedding_dim = int(tensor.shape[1])
-        
-        if torch.isnan(tensor).any() or torch.isinf(tensor).any():
-            raise ValueError(f"{name} contains NaN or Inf values")
-
         return embedding_dim
 
     def _validate_pair_keyword_ids(
@@ -170,20 +176,11 @@ class DatasetFinalizer:
             ("val_idx", val_idx),
             ("test_idx", test_idx),
         ):
-            if not isinstance(split_tensor, torch.Tensor):
-                raise TypeError(
-                    f"{split_name} must be torch.Tensor, got {type(split_tensor)}"
-                )
-            if split_tensor.ndim != 1:
-                raise ValueError(
-                    f"{split_name} must be 1D, got shape {tuple(split_tensor.shape)}"
-                )
-            if len(split_tensor) == 0:
-                raise ValueError(f"{split_name} cannot be empty")
-            if split_tensor.min().item() < 0 or split_tensor.max().item() >= n_pairs:
-                raise ValueError(
-                    f"{split_name} has indices outside valid range [0, {n_pairs - 1}]"
-                )
+            validate_tensor_1d(split_tensor, split_name, min_length=1)
+            validate_values_in_range(
+                split_tensor, split_name,
+                min_value=0, max_value=n_pairs - 1, inclusive=True
+            )
 
         train_set = set(train_idx.tolist())
         val_set = set(val_idx.tolist())
@@ -227,41 +224,29 @@ class DatasetFinalizer:
         pair_relevance = artifacts["pair_relevance"]
         pair_keyword_ids = artifacts["pair_keyword_ids"]
 
-        if not isinstance(pair_index, torch.Tensor):
-            raise TypeError(f"pair_index must be torch.Tensor, got {type(pair_index)}")
-        if pair_index.ndim != 2 or pair_index.shape[1] != 2:
-            raise ValueError(
-                f"pair_index must have shape [n_pairs, 2], got {tuple(pair_index.shape)}"
-            )
-
+        validate_tensor_2d(pair_index, "pair_index", expected_cols=2, min_rows=1)
         n_pairs = int(pair_index.shape[0])
-        if n_pairs <= 0:
-            raise ValueError("pair_index must contain at least one pair")
+        
+        validate_pair_indices_bounds(
+            pair_index,
+            n_questions=n_questions,
+            n_sources=n_sources,
+            name="pair_index"
+        )
 
-        if pair_index[:, 0].min().item() < 0 or pair_index[:, 0].max().item() >= n_questions:
-            raise ValueError("pair_index question indices are out of range")
-        if pair_index[:, 1].min().item() < 0 or pair_index[:, 1].max().item() >= n_sources:
-            raise ValueError("pair_index source indices are out of range")
+        validate_tensor_1d(pair_cluster_id, "pair_cluster_id", expected_length=n_pairs)
+        validate_cluster_ids_bounds(
+            pair_cluster_id,
+            n_clusters=n_clusters,
+            name="pair_cluster_id"
+        )
 
-        if not isinstance(pair_cluster_id, torch.Tensor):
-            raise TypeError(
-                f"pair_cluster_id must be torch.Tensor, got {type(pair_cluster_id)}"
-            )
-        if pair_cluster_id.ndim != 1 or pair_cluster_id.shape[0] != n_pairs:
-            raise ValueError(
-                "pair_cluster_id must be 1D and match pair count from pair_index"
-            )
-        if pair_cluster_id.min().item() < 0 or pair_cluster_id.max().item() >= n_clusters:
-            raise ValueError("pair_cluster_id contains out-of-range cluster IDs")
-
-        if not isinstance(pair_relevance, torch.Tensor):
-            raise TypeError(f"pair_relevance must be torch.Tensor, got {type(pair_relevance)}")
-        if pair_relevance.ndim != 1 or pair_relevance.shape[0] != n_pairs:
-            raise ValueError("pair_relevance must be 1D and match n_pairs")
-        if torch.isnan(pair_relevance).any() or torch.isinf(pair_relevance).any():
-            raise ValueError("pair_relevance contains NaN or Inf")
-        if pair_relevance.min().item() < 0.0 or pair_relevance.max().item() > 1.0:
-            raise ValueError("pair_relevance values must be in range [0, 1]")
+        validate_tensor_1d(pair_relevance, "pair_relevance", expected_length=n_pairs)
+        validate_no_nan_inf(pair_relevance, "pair_relevance")
+        validate_values_in_range(
+            pair_relevance, "pair_relevance",
+            min_value=0.0, max_value=1.0, inclusive=True
+        )
 
         self._validate_pair_keyword_ids(pair_keyword_ids, n_pairs=n_pairs, n_keywords=n_keywords)
 
@@ -271,57 +256,46 @@ class DatasetFinalizer:
             "steering_residual",
         ):
             steering_tensor = artifacts[steering_name]
-            if not isinstance(steering_tensor, torch.Tensor):
-                raise TypeError(
-                    f"{steering_name} must be torch.Tensor, got {type(steering_tensor)}"
-                )
-            if steering_tensor.shape != (n_pairs, embedding_dim):
-                raise ValueError(
-                    f"{steering_name} must have shape {(n_pairs, embedding_dim)}, "
-                    f"got {tuple(steering_tensor.shape)}"
-                )
-            if torch.isnan(steering_tensor).any() or torch.isinf(steering_tensor).any():
-                raise ValueError(f"{steering_name} contains NaN or Inf")
+            validate_tensor_2d(
+                steering_tensor, steering_name,
+                expected_cols=embedding_dim, min_rows=n_pairs
+            )
+            validate_length_consistency(
+                (steering_tensor, steering_name, n_pairs)
+            )
+            validate_no_nan_inf(steering_tensor, steering_name)
 
         centroid_distances = artifacts["centroid_distances"]
-        if not isinstance(centroid_distances, torch.Tensor):
-            raise TypeError(
-                f"centroid_distances must be torch.Tensor, got {type(centroid_distances)}"
-            )
-        if centroid_distances.ndim != 1 or centroid_distances.shape[0] != n_pairs:
-            raise ValueError("centroid_distances must be 1D and match n_pairs")
-        if torch.isnan(centroid_distances).any() or torch.isinf(centroid_distances).any():
-            raise ValueError("centroid_distances contains NaN or Inf")
+        validate_tensor_1d(centroid_distances, "centroid_distances", expected_length=n_pairs)
+        validate_no_nan_inf(centroid_distances, "centroid_distances")
 
         hard_negatives = artifacts["hard_negatives"]
         negative_tiers = artifacts["negative_tiers"]
-        if not isinstance(hard_negatives, torch.Tensor):
-            raise TypeError(
-                f"hard_negatives must be torch.Tensor, got {type(hard_negatives)}"
-            )
-        if not isinstance(negative_tiers, torch.Tensor):
-            raise TypeError(
-                f"negative_tiers must be torch.Tensor, got {type(negative_tiers)}"
-            )
-        if hard_negatives.ndim != 2:
-            raise ValueError(
-                f"hard_negatives must be 2D, got shape {tuple(hard_negatives.shape)}"
-            )
+        
+        validate_tensor_2d(hard_negatives, "hard_negatives", min_rows=1)
+        validate_tensor_2d(negative_tiers, "negative_tiers", min_rows=1)
+        
         if negative_tiers.shape != hard_negatives.shape:
             raise ValueError(
                 "negative_tiers shape must match hard_negatives shape"
             )
-        if hard_negatives.shape[0] != n_pairs:
-            raise ValueError("hard_negatives first dimension must match n_pairs")
+        
+        validate_length_consistency(
+            (hard_negatives, "hard_negatives", n_pairs)
+        )
 
         n_neg = int(hard_negatives.shape[1])
         if n_neg <= 0:
             raise ValueError("hard_negatives must contain at least one negative per pair")
 
-        if hard_negatives.min().item() < 0 or hard_negatives.max().item() >= n_sources:
-            raise ValueError("hard_negatives contains out-of-range source IDs")
-        if negative_tiers.min().item() < 1 or negative_tiers.max().item() > 4:
-            raise ValueError("negative_tiers values must be in range [1, 4]")
+        validate_values_in_range(
+            hard_negatives, "hard_negatives",
+            min_value=0, max_value=n_sources - 1, inclusive=True
+        )
+        validate_values_in_range(
+            negative_tiers, "negative_tiers",
+            min_value=1, max_value=4, inclusive=True
+        )
 
         true_sources = pair_index[:, 1].view(-1, 1)
         if torch.any(hard_negatives == true_sources):
