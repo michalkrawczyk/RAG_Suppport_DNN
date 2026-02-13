@@ -341,10 +341,18 @@ class SQLiteStorageManager:
             "sample_type": row["sample_type"],
             "text": row["text"],
             "chroma_id": row["chroma_id"],
-            "suggestions": (json.loads(row["suggestions"]) if row["suggestions"] else None),
-            "source_label": np.array(json.loads(row["source_label"]), dtype=np.float32),
-            "steering_label": np.array(json.loads(row["steering_label"]), dtype=np.float32),
-            "combined_label": np.array(json.loads(row["combined_label"]), dtype=np.float32),
+            "suggestions": (
+                json.loads(row["suggestions"]) if row["suggestions"] else None
+            ),
+            "source_label": np.array(
+                json.loads(row["source_label"]), dtype=np.float32
+            ),
+            "steering_label": np.array(
+                json.loads(row["steering_label"]), dtype=np.float32
+            ),
+            "combined_label": np.array(
+                json.loads(row["combined_label"]), dtype=np.float32
+            ),
             "embedding_idx": row["embedding_idx"],
             "steering_mode": row["steering_mode"],
             "created_at": row["created_at"],
