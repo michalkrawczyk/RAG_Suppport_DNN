@@ -75,7 +75,7 @@ class TestBuildConfigInit:
     
     def test_invalid_split_ratios_range(self):
         """Test BuildConfig raises error when split ratios are out of range."""
-        with pytest.raises(ValueError, match="split_ratios must be in range"):
+        with pytest.raises(ValueError, match="split_ratios must sum to 1.0"):
             BuildConfig(
                 embedding_dim=384,
                 n_neg=12,

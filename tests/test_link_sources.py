@@ -381,8 +381,9 @@ class TestSourceClusterLinkerValidation:
         """Test validation warns about highly imbalanced distribution."""
         linker = SourceClusterLinker(cluster_parser)
         
-        # Highly imbalanced: 10 in cluster 0, 1 in cluster 1, 1 in cluster 2
-        cluster_assignments = [0] * 10 + [1, 2]
+        # Highly imbalanced: 100 in cluster 0, 1 in cluster 1, 1 in cluster 2
+        # This should trigger CV > 2.0 (std/mean > 2.0)
+        cluster_assignments = [0] * 100 + [1, 2]
         validation = linker.validate_assignments(cluster_assignments)
         
         assert validation["valid"] is True, "Should be valid (warnings don't fail)"

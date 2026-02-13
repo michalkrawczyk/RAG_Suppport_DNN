@@ -160,7 +160,7 @@ class TestSteeringBuilderInit:
         # Create cluster IDs with wrong length
         wrong_cluster_ids = torch.randint(0, 3, (10,))  # Only 10 instead of 20
         
-        with pytest.raises(ValueError, match="must match pair_indices"):
+        with pytest.raises(ValueError, match="pair_cluster_ids length.*must equal"):
             SteeringBuilder(
                 question_embeddings=sample_embeddings["question_embeddings"],
                 keyword_embeddings=sample_embeddings["keyword_embeddings"],

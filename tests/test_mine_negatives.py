@@ -150,7 +150,7 @@ class TestNegativeMinerInit:
         """Test initialization with dimension mismatch."""
         wrong_dim_embs = torch.randn(20, 32)  # Wrong dimension
         
-        with pytest.raises(ValueError, match="Embedding dimension mismatch"):
+        with pytest.raises(ValueError, match="Embedding dimensions must match"):
             NegativeMiner(
                 source_embeddings=sample_data["source_embeddings"],
                 question_embeddings=wrong_dim_embs,

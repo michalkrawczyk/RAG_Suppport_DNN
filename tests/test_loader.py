@@ -274,6 +274,8 @@ def test_loader_shuffle_train(mock_dataset_dir):
 
 def test_loader_no_shuffle_val(mock_dataset_dir):
     """Test that val loader does not shuffle."""
+    from torch.utils.data.sampler import SequentialSampler
+    
     loader = create_loader(
         dataset_dir=mock_dataset_dir,
         split="val",
@@ -281,12 +283,15 @@ def test_loader_no_shuffle_val(mock_dataset_dir):
         num_workers=0,
     )
 
-    # Val should not shuffle (sampler is None, shuffle is False)
-    assert loader.sampler is None, "Val loader should have no sampler"
+    # Val should not shuffle (uses SequentialSampler)
+    assert isinstance(loader.sampler, SequentialSampler), "Val loader should use SequentialSampler"
 
 
 def test_distributed_sampler_not_used_by_default(mock_dataset_dir):
     """Test that DistributedSampler is not used by default."""
+    from torch.utils.data.distributed import DistributedSampler
+    from torch.utils.data.sampler import RandomSampler
+    
     loader = create_loader(
         dataset_dir=mock_dataset_dir,
         split="train",
@@ -294,7 +299,8 @@ def test_distributed_sampler_not_used_by_default(mock_dataset_dir):
         distributed=False,
     )
 
-    assert loader.sampler is None, "Sampler should be None when distributed=False"
+    assert not isinstance(loader.sampler, DistributedSampler), "Should not use DistributedSampler when distributed=False"
+    assert isinstance(loader.sampler, RandomSampler), "Train loader should use RandomSampler when distributed=False"
 
 
 def test_loader_one_epoch_iteration_count(mock_dataset_dir):

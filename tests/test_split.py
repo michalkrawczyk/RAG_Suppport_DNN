@@ -162,7 +162,7 @@ class TestDatasetSplitterInit:
     
     def test_init_length_mismatch(self, sample_data):
         """Test initialization with mismatched tensor lengths."""
-        with pytest.raises(ValueError, match="must match"):
+        with pytest.raises(ValueError, match="pair_cluster_ids length.*must equal"):
             DatasetSplitter(
                 pair_indices=sample_data["pair_indices"],
                 pair_cluster_ids=torch.randint(0, 5, (100,))  # Wrong length
@@ -170,7 +170,7 @@ class TestDatasetSplitterInit:
     
     def test_init_empty_tensors(self):
         """Test initialization with empty tensors."""
-        with pytest.raises(ValueError, match="cannot be empty"):
+        with pytest.raises(ValueError, match="must have at least 1 rows"):
             DatasetSplitter(
                 pair_indices=torch.empty((0, 2), dtype=torch.long),
                 pair_cluster_ids=torch.empty((0,), dtype=torch.long)

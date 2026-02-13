@@ -530,7 +530,7 @@ class TestValidateValuesInRange:
     def test_edge_values_exclusive_fails(self):
         """Test edge values are rejected in exclusive range."""
         tensor = torch.tensor([0, 10])
-        with pytest.raises(ValueError, match="must be in range .0.0, 10.0."):
+        with pytest.raises(ValueError, match="values must be in range.*0.*10"):
             validate_values_in_range(
                 tensor, "indices",
                 min_value=0, max_value=10, inclusive=False
