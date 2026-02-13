@@ -19,8 +19,10 @@ import pytest
 pytest.importorskip("numpy")
 pytest.importorskip("sklearn")
 
-from RAG_supporters.data_prep import (
-    LegacyDatasetSplitter as DatasetSplitter,
+# Note: This test file tests the legacy DatasetSplitter from dataset_splitter.py
+# For new stratified splitting tests, see test_split.py
+from RAG_supporters.data_prep.dataset_splitter import (
+    DatasetSplitter,
     create_train_val_split,
 )
 

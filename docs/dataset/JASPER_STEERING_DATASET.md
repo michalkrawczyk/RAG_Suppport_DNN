@@ -559,6 +559,6 @@ pytest tests/test_loader.py -v
 - `dataset_builder/` - Dataset build pipeline documentation
 - `tests/test_jasper_steering_dataset.py` - Test examples
 - `docs/dataset/DATASET_SPLITTING.md` - Split strategy details
-- `JEPA_STEERING_DATASET.md` - Legacy documentation (deprecated, use this document)
+
 
 ````

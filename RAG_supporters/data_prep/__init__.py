@@ -6,7 +6,6 @@ functionality that works with any tabular data format.
 Key Features:
 - CSV merging with column aliasing
 - Deduplication with configurable merge rules
-- Train/val/test splitting with persistence
 - Stratified splitting with no-leakage guarantees
 - Works with any CSV format via column mapping
 
@@ -34,20 +33,11 @@ Examples
 from .merge_csv import CSVMerger, merge_csv_files
 from .split import DatasetSplitter, split_dataset
 
-# Legacy import for backwards compatibility
-from .dataset_splitter import (
-    DatasetSplitter as LegacyDatasetSplitter,
-    create_train_val_split,
-)
-
 __all__ = [
     # CSV merging
     "CSVMerger",
     "merge_csv_files",
-    # Modern splitting (stratified, no-leakage)
+    # Stratified splitting (no-leakage)
     "DatasetSplitter",
     "split_dataset",
-    # Legacy splitting (simple random)
-    "LegacyDatasetSplitter",
-    "create_train_val_split",
 ]

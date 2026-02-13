@@ -67,9 +67,9 @@ Hard negative mining and steering signals for contrastive learning. Highly reusa
 ### data_prep/ - Data Preprocessing
 Generic data preprocessing utilities for CSV merging, deduplication, and dataset splitting. Works with any tabular data format.
 
-- **__init__.py** - Exports CSVMerger, DatasetSplitter (new), LegacyDatasetSplitter (old), and utility functions
+- **__init__.py** - Exports CSVMerger and DatasetSplitter with utility functions
 - **merge_csv.py** - CSVMerger: Merges multiple CSV files with column normalization, deduplication, and ID assignment
-- **dataset_splitter.py** - LegacyDatasetSplitter: Simple train/val/test splitting with persistence to JSON (backwards compatibility)
+- **dataset_splitter.py** - Simple train/val/test splitting with persistence to JSON (for specific test compatibility)
 - **split.py** - DatasetSplitter: Question-level stratified train/val/test splitting with no leakage, saves to PyTorch tensors
 
 ### data_validation/ - Data Validation & Tensor Utilities
@@ -83,13 +83,10 @@ Highly reusable PyTorch validation utilities for any project. Zero project-speci
 ### dataset/ - Domain Assessment Datasets (Legacy)
 Domain assessment dataset builders and steering configuration. Most functionality moved to specialized modules.
 
-- **__init__.py** - Exports DomainAssessmentDatasetBuilder, DomainAssessmentParser
+- **__init__.py** - Exports DomainAssessmentDatasetBuilder and DomainAssessmentParser (SteeringConfig and SteeringMode are now in embeddings_ops)
 - **dataset_builder_README.md** - README and specifications for JASPER dataset builder pipeline (Tasks 0-9)
 - **domain_assessment_dataset_builder.py** - DomainAssessmentDatasetBuilder: Builds datasets for domain assessment tasks
 - **domain_assessment_parser.py** - Parsers for domain assessment data formats
-
-#### dataset/steering/ - Steering Configuration (Moved)
-- **__init__.py** - Re-exports SteeringConfig and SteeringMode from embeddings_ops for backward compatibility (steering_config.py moved to embeddings_ops to avoid circular imports)
 
 #### dataset/templates/ - Dataset Templates
 - **__init__.py** - Module initialization
@@ -170,7 +167,6 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_dataset_splitter.py** - Tests for DatasetSplitter (splitting logic, persistence)
 - **test_domain_assesment.py** - Tests for DomainAnalysisAgent (all three operation modes)
 - **test_jasper_steering_dataset.py** - Tests for JASPERSteeringDataset (initialization, getitem, steering, curriculum)
-- **test_jepa_steering_dataset.py** - Legacy filename: Tests JASPERSteeringDataset (JEPA renamed to JASPER)
 - **test_keyword_clustering.py** - Tests for KeywordClustering (clustering algorithms)
 - **test_loader.py** - Tests for JASPER Steering DataLoader (batch shapes, iteration, validation)
 - **test_merge_csv.py** - Tests for CSVMerger (normalization, deduplication, ID assignment)
@@ -219,8 +215,6 @@ Detailed usage guides for each agent with examples.
 - **DOMAIN_ASSESSMENT_EXAMPLES.md** - Domain assessment usage examples
 - **JASPER_STEERING_DATASET.md** - JASPER Steering Dataset guide: PyTorch dataset for pre-computed embedding triplets with curriculum learning and hard negatives
 - **JASPER_TRAINING_EXAMPLE.md** - Training examples for JASPER Steering Dataset with curriculum learning and hard negatives
-- **JEPA_STEERING_DATASET.md** - Deprecated: Use JASPER_STEERING_DATASET.md (JEPA renamed to JASPER)
-- **JEPA_TRAINING_EXAMPLE.md** - Deprecated: Use JASPER_TRAINING_EXAMPLE.md (JEPA renamed to JASPER)
 
 ---
 

@@ -41,7 +41,7 @@ pydocstyle RAG_supporters/nn/
 mypy RAG_supporters/nn/ RAG_supporters/dataset/
 
 # Tests (CRITICAL)
-pytest tests/test_jasper_steering_dataset.py tests/test_jepa_steering_dataset.py -v
+pytest tests/ -v
 pytest tests/ --cov=RAG_supporters/nn --cov=RAG_supporters/dataset
 
 # Performance profiling

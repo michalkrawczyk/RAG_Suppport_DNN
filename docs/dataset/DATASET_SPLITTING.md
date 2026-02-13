@@ -1,5 +1,8 @@
 # Dataset Splitting with Persistent Sample Tracking
 
+**Note**: This documentation covers the legacy `DatasetSplitter` from `data_prep.dataset_splitter`.
+For new stratified splitting with no-leakage guarantees, see `RAG_supporters.data_prep.split.DatasetSplitter`.
+
 This guide demonstrates how to split datasets into training and validation sets with persistent sample tracking, ensuring consistency across runs and experiments.
 
 ## Overview
@@ -13,11 +16,14 @@ The dataset splitting functionality provides:
 
 ## Installation
 
-The dataset splitting functionality is included with the core package:
+The dataset splitting functionality is available in the data_prep module:
 
 ```python
-from RAG_supporters.dataset import DatasetSplitter, create_train_val_split
+from RAG_supporters.data_prep.dataset_splitter import DatasetSplitter, create_train_val_split
 ```
+
+**Note**: This documentation covers the legacy simple splitter. For stratified splitting with
+no-leakage guarantees, see `RAG_supporters.data_prep.split.DatasetSplitter`.
 
 **Dependencies**: `numpy`
 
@@ -26,7 +32,7 @@ from RAG_supporters.dataset import DatasetSplitter, create_train_val_split
 ### Basic Usage
 
 ```python
-from RAG_supporters.dataset import DatasetSplitter
+from RAG_supporters.data_prep.dataset_splitter import DatasetSplitter
 
 # Create a splitter with a random seed for reproducibility
 splitter = DatasetSplitter(random_state=42)
@@ -45,7 +51,7 @@ print(f"Val samples: {len(val_indices)}")      # 20
 ### Saving and Loading Splits
 
 ```python
-from RAG_supporters.dataset import DatasetSplitter
+from RAG_supporters.data_prep.dataset_splitter import DatasetSplitter
 
 # Create and save a split
 splitter = DatasetSplitter(random_state=42)
@@ -64,7 +70,7 @@ assert val_idx == val_idx2
 ### Convenience Function
 
 ```python
-from RAG_supporters.dataset import create_train_val_split
+from RAG_supporters.data_prep.dataset_splitter import create_train_val_split
 
 # One-liner to create and optionally save a split
 train_idx, val_idx = create_train_val_split(
@@ -123,7 +129,8 @@ for epoch in range(num_epochs):
 ### Method 3: Manual Split Creation
 
 ```python
-from RAG_supporters.dataset import ClusterLabeledDataset, DatasetSplitter
+from RAG_supporters.dataset import ClusterLabeledDataset
+from RAG_supporters.data_prep.dataset_splitter import DatasetSplitter
 
 # Load dataset
 dataset = ClusterLabeledDataset('path/to/dataset')

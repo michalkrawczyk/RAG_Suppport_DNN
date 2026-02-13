@@ -289,7 +289,6 @@ The builder automatically selects the correct column based on whether the row is
 ```python
 from pathlib import Path
 from RAG_supporters.dataset import DomainAssessmentDatasetBuilder, ClusterLabeledDataset
-# SteeringConfig and SteeringMode are now in embeddings_ops, but can be imported from dataset.steering for compatibility
 from RAG_supporters.embeddings_ops import SteeringConfig, SteeringMode
 
 # Step 5.1: Configure steering (optional augmentation)
