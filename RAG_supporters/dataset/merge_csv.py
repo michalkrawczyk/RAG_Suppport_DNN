@@ -177,6 +177,11 @@ class CSVMerger:
         List[str]
             Parsed keywords
         """
+        # Handle list/tuple type first (before isna check)
+        if isinstance(value, (list, tuple)):
+            return [str(k).strip() for k in value if k]
+        
+        # Check for None/NaN/empty string
         if pd.isna(value) or value == "":
             return []
         
@@ -192,10 +197,6 @@ class CSVMerger:
         # Parse as comma-separated
         if isinstance(value, str):
             return [k.strip() for k in value.split(",") if k.strip()]
-        
-        # Already a list
-        if isinstance(value, (list, tuple)):
-            return [str(k).strip() for k in value if k]
         
         # Single value
         return [str(value).strip()]
