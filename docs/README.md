@@ -85,6 +85,17 @@ Each agent documentation includes:
 
 ## Other Documentation
 
+### Module Documentation
+
+- **[MODULE_DOCUMENTATION.md](./MODULE_DOCUMENTATION.md)** - **Comprehensive reference for all modules** including:
+  - **Contrastive Learning**: NegativeMiner, SteeringBuilder
+  - **Data Preparation**: CSVMerger, DatasetSplitter (both versions)
+  - **Data Validation**: validation_utils, tensor_utils, label_calculator
+  - **JASPER Builder**: BuildConfig, DatasetFinalizer, build_dataset orchestrator
+  - **Embeddings Operations**: EmbeddingGenerator, SteeringEmbeddingGenerator
+  - **Clustering Operations**: ClusterParser, SourceClusterLinker
+  - **General Utilities**: text_utils, suggestion_processing, text_splitters
+
 ### Utilities
 
 - **[TOPIC_DISTANCE_CALCULATOR.md](./clustering/TOPIC_DISTANCE_CALCULATOR.md)** - Calculate embedding distances to topic keywords without LLM
@@ -93,6 +104,7 @@ Each agent documentation includes:
 
 ### Datasets
 
+- **[JASPER Builder Guide](./dataset/JASPER_BUILDER_GUIDE.md)** - **Complete user guide for building JASPER datasets** from CSV and cluster JSON
 - **[JASPER_STEERING_DATASET.md](./dataset/JASPER_STEERING_DATASET.md)** - PyTorch dataset for pre-computed embedding triplets with hard negatives (JASPER: Joint Architecture for Subspace Prediction with Explainable Routing). Features: zero-I/O training, curriculum learning, GPU preloading, context manager support, referential integrity validation
 - **[JASPER_TRAINING_EXAMPLE.md](./dataset/JASPER_TRAINING_EXAMPLE.md)** - Training examples for JASPER steering dataset
 - **[DATASET_SPLITTING.md](./dataset/DATASET_SPLITTING.md)** - Guide for splitting datasets with persistent sample tracking
