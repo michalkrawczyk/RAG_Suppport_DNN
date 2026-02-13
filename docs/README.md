@@ -87,14 +87,15 @@ Each agent documentation includes:
 
 ### Module Documentation
 
-- **[MODULE_DOCUMENTATION.md](./MODULE_DOCUMENTATION.md)** - **Comprehensive reference for all modules** including:
-  - **Contrastive Learning**: NegativeMiner, SteeringBuilder
-  - **Data Preparation**: CSVMerger, DatasetSplitter (both versions)
-  - **Data Validation**: validation_utils, tensor_utils, label_calculator
-  - **JASPER Builder**: BuildConfig, DatasetFinalizer, build_dataset orchestrator
-  - **Embeddings Operations**: EmbeddingGenerator, SteeringEmbeddingGenerator
-  - **Clustering Operations**: ClusterParser, SourceClusterLinker
-  - **General Utilities**: text_utils, suggestion_processing, text_splitters
+Comprehensive reference for all modules organized by category:
+
+- **[Contrastive Learning](CONTRASTIVE_LEARNING.md)** - NegativeMiner (4-tier hard negative sampling), SteeringBuilder (steering signal generation)
+- **[Data Preparation](DATA_PREPARATION.md)** - CSVMerger, DatasetSplitter (simple and stratified versions)
+- **[Data Validation](DATA_VALIDATION.md)** - validation_utils, tensor_utils, label_calculator
+- **[JASPER Builder](JASPER_BUILDER.md)** - BuildConfig, DatasetFinalizer, build_dataset orchestrator
+- **[Embeddings Operations](EMBEDDINGS_OPERATIONS.md)** - EmbeddingGenerator, SteeringEmbeddingGenerator, SteeringConfig/Mode
+- **[Clustering Operations](CLUSTERING_OPERATIONS.md)** - ClusterParser, SourceClusterLinker
+- **[General Utilities](GENERAL_UTILITIES.md)** - text_utils, suggestion_processing, text_splitters
 
 ### Utilities
 
