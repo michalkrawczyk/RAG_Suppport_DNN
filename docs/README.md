@@ -87,15 +87,18 @@ Each agent documentation includes:
 
 ### Module Documentation
 
-Comprehensive reference for all modules organized by category:
+Comprehensive reference for all modules organized in module-specific subdirectories:
 
-- **[Contrastive Learning](CONTRASTIVE_LEARNING.md)** - NegativeMiner (4-tier hard negative sampling), SteeringBuilder (steering signal generation)
-- **[Data Preparation](DATA_PREPARATION.md)** - CSVMerger, DatasetSplitter (simple and stratified versions)
-- **[Data Validation](DATA_VALIDATION.md)** - validation_utils, tensor_utils, label_calculator
-- **[JASPER Builder](JASPER_BUILDER.md)** - BuildConfig, DatasetFinalizer, build_dataset orchestrator
-- **[Embeddings Operations](EMBEDDINGS_OPERATIONS.md)** - EmbeddingGenerator, SteeringEmbeddingGenerator, SteeringConfig/Mode
-- **[Clustering Operations](CLUSTERING_OPERATIONS.md)** - ClusterParser, SourceClusterLinker
-- **[General Utilities](GENERAL_UTILITIES.md)** - text_utils, suggestion_processing, text_splitters
+- **[Module Documentation Index](MODULE_DOCUMENTATION.md)** - Complete index with links to all module categories
+
+**Module Categories**:
+- **[Contrastive Learning](contrastive_learning/CONTRASTIVE_LEARNING.md)** - NegativeMiner (4-tier hard negative sampling), SteeringBuilder (steering signal generation)
+- **[Data Preparation](data_preparation/DATA_PREPARATION.md)** - CSVMerger, DatasetSplitter (simple and stratified versions)
+- **[Data Validation](data_validation/DATA_VALIDATION.md)** - validation_utils, tensor_utils, label_calculator
+- **[JASPER Builder](jasper_builder/JASPER_BUILDER.md)** - BuildConfig, DatasetFinalizer, build_dataset orchestrator
+- **[Embeddings Operations](embeddings/EMBEDDINGS_OPERATIONS.md)** - EmbeddingGenerator, SteeringEmbeddingGenerator, SteeringConfig/Mode
+- **[Clustering Operations](clustering/CLUSTERING_OPERATIONS.md)** - ClusterParser, SourceClusterLinker
+- **[General Utilities](utilities/GENERAL_UTILITIES.md)** - text_utils, suggestion_processing, text_splitters
 
 ### Utilities
 
