@@ -345,6 +345,24 @@ class ClusterParser:
         """
         return self.clustering_data.get_centroid(cluster_id)
     
+    def get_all_centroids(self) -> Optional[np.ndarray]:
+        """Get all cluster centroids.
+        
+        Returns
+        -------
+        np.ndarray or None
+            Array of shape (n_clusters, embedding_dim) containing all centroids,
+            or None if centroids are not available
+        
+        Examples
+        --------
+        >>> parser = ClusterParser("clusters.json")
+        >>> centroids = parser.get_all_centroids()
+        >>> print(centroids.shape)
+        (20, 384)
+        """
+        return self.clustering_data.centroids
+    
     def get_cluster_keywords(self, cluster_id: int) -> Optional[List[str]]:
         """Get all keywords assigned to a cluster.
         
