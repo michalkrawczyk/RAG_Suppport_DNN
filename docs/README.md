@@ -100,6 +100,14 @@ Each agent documentation includes:
 - **[QUICK_REFERENCE.md](../RAG_supporters/dataset/QUICK_REFERENCE.md)** - Quick reference for dataset utilities
 - **[DOMAIN_ASSESSMENT_CLUSTERING_DATASET_EXAMPLE.md](./dataset/DOMAIN_ASSESSMENT_CLUSTERING_DATASET_EXAMPLE.md)** - Domain assessment with clustering examples
 
+### PyTorch Datasets
+
+- **[PyTorch Datasets Overview](./pytorch_datasets/README.md)** - Complete overview of all PyTorch Dataset implementations with quick start and comparison
+- **[JASPERSteeringDataset](./pytorch_datasets/JASPER_STEERING_DATASET.md)** - Pre-computed embeddings with curriculum learning and hard negatives for JASPER training
+- **[ClusterLabeledDataset](./pytorch_datasets/CLUSTER_LABELED_DATASET.md)** - Domain classification dataset with memmap storage and efficient LRU caching
+- **[RAG Dataset Generator](./pytorch_datasets/RAG_DATASET.md)** - Abstract base for RAG triplet generation with ChromaDB storage
+- **[DataLoader Utilities](./pytorch_datasets/LOADER_UTILITIES.md)** - Factory functions and validation utilities for creating DataLoaders
+
 ## Contributing
 
 When adding new agents or features:

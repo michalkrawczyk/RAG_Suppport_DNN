@@ -216,13 +216,20 @@ Detailed usage guides for each agent with examples.
 - **JASPER_STEERING_DATASET.md** - JASPER Steering Dataset guide: PyTorch dataset for pre-computed embedding triplets with curriculum learning and hard negatives
 - **JASPER_TRAINING_EXAMPLE.md** - Training examples for JASPER Steering Dataset with curriculum learning and hard negatives
 
+### docs/pytorch_datasets/ - PyTorch Dataset Documentation
+- **README.md** - PyTorch datasets overview, quick start, feature comparison table
+- **JASPER_STEERING_DATASET.md** - JASPERSteeringDataset: curriculum learning, hard negatives, zero I/O training
+- **CLUSTER_LABELED_DATASET.md** - ClusterLabeledDataset: domain classification with memmap storage and LRU cache
+- **RAG_DATASET.md** - BaseRAGDatasetGenerator: abstract base for RAG triplet generation and ChromaDB sampling
+- **LOADER_UTILITIES.md** - DataLoader factory functions, batch validation, distributed training support
+
 ---
 
 ## File Count Summary
 
 - **Python Source Files**: 53 files in RAG_supporters/ (added build.py for Task 9)
 - **Test Files**: 18 files in tests/ (added test_dataset_build.py)
-- **Documentation Files**: 16 markdown files in docs/
+- **Documentation Files**: 21 markdown files in docs/ (added 5 pytorch_datasets docs)
 - **Configuration**: 2 files (pyproject.toml, .gitignore)
 - **Root Documentation**: 2 files (AGENTS.md, README.md)
 
