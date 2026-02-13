@@ -32,7 +32,7 @@ Agent modules for dataset operations and analysis. All agents use LangChain abst
 
 - **__init__.py** - Exports agent classes: DatasetCheckAgent, DomainAnalysisAgent, etc.
 - **dataset_check.py** - DatasetCheckAgent: Uses LangGraph StateGraph to compare and select better source for questions
-- **domain_assesment.py** - DomainAnalysisAgent: Three operation modes (EXTRACT/GUESS/ASSESS) for domain analysis
+- **domain_assesment.py** - DomainAnalysisAgent: Five operation modes (EXTRACT/GUESS/ASSESS/TOPIC_RELEVANCE_PROB/GROUP_TOPIC_RELEVANCE_PROB) for domain analysis
 - **question_augmentation_agent.py** - QuestionAugmentationAgent: Question rephrasing and generation with source context
 - **source_assesment.py** - SourceEvaluationAgent: Multi-dimensional source quality scoring (relevance, completeness, etc.)
 - **text_augmentation.py** - TextAugmentationAgent: Text augmentation while preserving semantic meaning
@@ -142,7 +142,7 @@ Lightweight neural network models for RAG improvement.
 Centralized prompt definitions for all agents. Never hardcode prompts in agent code.
 
 - **__init__.py** - Module initialization
-- **domain_extraction.py** - Prompts for domain extraction, guessing, and assessment operations
+- **domain_extraction.py** - Prompts for domain extraction, guessing, assessment, topic relevance, and grouped topic relevance operations
 - **rag_generators.py** - Prompts for RAG question and answer generation
 - **rag_verifiers.py** - Prompts for RAG quality verification and validation
 - **text_augmentation.py** - Prompts for text augmentation while preserving meaning
