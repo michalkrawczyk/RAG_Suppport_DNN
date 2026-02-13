@@ -6,8 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from RAG_supporters.dataset import build_dataset
-from RAG_supporters.dataset.builder_config import BuildConfig
+from RAG_supporters.jasper import build_dataset, BuildConfig
 
 
 class MockEmbeddingModel:

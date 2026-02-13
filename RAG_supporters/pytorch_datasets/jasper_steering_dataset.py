@@ -15,7 +15,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, Subset
 
-from RAG_supporters.data_validation.tensor_utils import load_tensor_artifact
+from RAG_supporters.data_validation import load_tensor_artifact
 
 LOGGER = logging.getLogger(__name__)
 

@@ -5,8 +5,7 @@ import json
 import pytest
 import torch
 
-from RAG_supporters.dataset.builder_config import BuildConfig
-from RAG_supporters.dataset.finalize import DatasetFinalizer, finalize_dataset
+from RAG_supporters.jasper import BuildConfig, DatasetFinalizer, finalize_dataset
 
 
 def _write_valid_pt_dataset(output_dir, embedding_dim=8, n_neg=3):

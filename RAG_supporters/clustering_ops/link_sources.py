@@ -21,7 +21,7 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
-from .parse_clusters import ClusterParser
+from RAG_supporters.clustering_ops import ClusterParser
 
 LOGGER = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from .sqlite_storage import SQLiteStorageManager
+from RAG_supporters.jasper.sqlite_storage import SQLiteStorageManager
 from torch.utils.data import Dataset, Subset
 
 
@@ -456,7 +456,7 @@ class ClusterLabeledDataset(Dataset):
             ... )
             >>> print(f"Train size: {len(train_dataset)}, Val size: {len(val_dataset)}")
         """
-        from RAG_supporters.dataset.dataset_splitter import DatasetSplitter
+        from RAG_supporters.data_prep.dataset_splitter import DatasetSplitter
 
         splitter = DatasetSplitter(random_state=random_state)
         train_indices, val_indices = splitter.split(
@@ -504,7 +504,7 @@ class ClusterLabeledDataset(Dataset):
             ...     split_path='split_config.json'
             ... )
         """
-        from RAG_supporters.dataset.dataset_splitter import DatasetSplitter
+        from RAG_supporters.data_prep.dataset_splitter import DatasetSplitter
 
         # Load the full dataset
         dataset = ClusterLabeledDataset(

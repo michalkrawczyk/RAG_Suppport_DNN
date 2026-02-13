@@ -12,9 +12,9 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 
-from RAG_supporters.jasper.builder_config import BuildConfig
-from RAG_supporters.data_validation.tensor_utils import load_tensor_artifact, load_multiple_tensors
-from RAG_supporters.data_validation.validation_utils import (
+from .builder_config import BuildConfig
+from RAG_supporters.data_validation import load_tensor_artifact, load_multiple_tensors
+from RAG_supporters.data_validation import (
     validate_tensor_1d,
     validate_tensor_2d,
     validate_pair_indices_bounds,

@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import torch
 
-from RAG_supporters.dataset.build_steering import (
+from RAG_supporters.contrastive import (
     SteeringBuilder,
     build_steering,
 )

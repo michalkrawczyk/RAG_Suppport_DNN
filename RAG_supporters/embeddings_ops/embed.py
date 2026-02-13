@@ -24,7 +24,7 @@ import torch
 from tqdm import tqdm
 
 from RAG_supporters.embeddings import KeywordEmbedder
-from .parse_clusters import ClusterParser
+from RAG_supporters.clustering_ops import ClusterParser
 
 LOGGER = logging.getLogger(__name__)
 

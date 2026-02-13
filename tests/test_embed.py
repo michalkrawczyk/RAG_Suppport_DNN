@@ -9,11 +9,11 @@ import pandas as pd
 import pytest
 import torch
 
-from RAG_supporters.dataset.embed import (
+from RAG_supporters.embeddings_ops import (
     EmbeddingGenerator,
     generate_embeddings,
 )
-from RAG_supporters.dataset.parse_clusters import ClusterParser
+from RAG_supporters.clustering_ops import ClusterParser
 
 
 # Mock embedding model for testing

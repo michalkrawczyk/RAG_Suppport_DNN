@@ -7,9 +7,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 from RAG_supporters.augmentations.embedding import random_noise_embedding, random_zero_embedding
 from RAG_supporters.clustering.clustering_data import ClusteringData
-from .steering.steering_config import SteeringConfig, SteeringMode
 from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
 from RAG_supporters.utils.text_utils import normalize_string
+
+from .steering_config import SteeringConfig, SteeringMode
 
 
 class SteeringEmbeddingGenerator:

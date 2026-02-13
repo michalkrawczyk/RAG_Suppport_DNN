@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from RAG_supporters.dataset import (
+from RAG_supporters.pytorch_datasets import (
     JASPERSteeringDataset,
     create_loader,
     set_epoch,

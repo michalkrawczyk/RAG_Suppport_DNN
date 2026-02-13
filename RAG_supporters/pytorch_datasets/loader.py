@@ -13,7 +13,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from .jasper_steering_dataset import JASPERSteeringDataset
+from RAG_supporters.pytorch_datasets import JASPERSteeringDataset
 
 LOGGER = logging.getLogger(__name__)
 

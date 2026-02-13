@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from RAG_supporters.dataset.builder_config import BuildConfig
+from RAG_supporters.jasper import BuildConfig
 
 
 class TestBuildConfigInit:

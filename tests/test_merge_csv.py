@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from RAG_supporters.dataset.merge_csv import CSVMerger, merge_csv_files
+from RAG_supporters.data_prep import CSVMerger, merge_csv_files
 
 
 class TestCSVMergerInit:

@@ -9,11 +9,11 @@ import pandas as pd
 import pytest
 import torch
 
-from RAG_supporters.dataset.link_sources import (
+from RAG_supporters.clustering_ops import (
     SourceClusterLinker,
     link_sources,
 )
-from RAG_supporters.dataset.parse_clusters import ClusterParser
+from RAG_supporters.clustering_ops import ClusterParser
 
 
 @pytest.fixture

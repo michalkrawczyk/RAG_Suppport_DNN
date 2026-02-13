@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from RAG_supporters.dataset.parse_clusters import ClusterParser, parse_clusters
+from RAG_supporters.clustering_ops import ClusterParser, parse_clusters
 
 
 @pytest.fixture

@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import torch
 
-from RAG_supporters.dataset.validation_utils import (
+from RAG_supporters.data_validation import (
     validate_tensor_2d,
     validate_tensor_1d,
     validate_embedding_dimensions,

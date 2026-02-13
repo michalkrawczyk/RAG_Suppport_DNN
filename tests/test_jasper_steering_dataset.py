@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import torch
 
-from RAG_supporters.dataset import JASPERSteeringDataset
+from RAG_supporters.pytorch_datasets import JASPERSteeringDataset
 
 
 @pytest.fixture

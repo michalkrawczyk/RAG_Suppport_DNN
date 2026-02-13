@@ -5,7 +5,7 @@ import torch
 from pathlib import Path
 import tempfile
 
-from RAG_supporters.dataset.tensor_utils import (
+from RAG_supporters.data_validation import (
     load_tensor_artifact,
     load_multiple_tensors,
     save_tensor_artifact,

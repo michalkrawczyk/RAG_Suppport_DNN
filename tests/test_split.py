@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import torch
 
-from RAG_supporters.dataset.split import (
+from RAG_supporters.data_prep import (
     DatasetSplitter,
     split_dataset,
 )

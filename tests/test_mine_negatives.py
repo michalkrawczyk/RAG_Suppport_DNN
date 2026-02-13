@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import torch
 
-from RAG_supporters.dataset.mine_negatives import (
+from RAG_supporters.contrastive import (
     NegativeMiner,
     mine_negatives,
 )
