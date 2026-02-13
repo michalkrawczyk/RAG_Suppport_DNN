@@ -80,6 +80,11 @@ class JASPERSteeringDataset(Dataset):
         self.embedding_dim = self.config["embedding_dim"]
         self.n_neg = self.config["n_neg"]
 
+        # Validate split file exists
+        split_file = self.dataset_dir / f"{split}_idx.pt"
+        if not split_file.exists():
+            raise ValueError(f"Split file not found: {split_file}. Valid splits are: train, val, test")
+
         # Load split indices
         self.split_indices = load_tensor_artifact(
             self.dataset_dir, f"{split}_idx.pt",
