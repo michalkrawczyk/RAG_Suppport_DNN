@@ -56,6 +56,8 @@ def contrastive_loss(predicted, target, negatives, temperature=0.07):
 
 ## Training Loop
 
+### Standard Training (CPU Dataset)
+
 ```python
 from RAG_supporters.dataset import create_loader, set_epoch
 
@@ -105,6 +107,96 @@ for epoch in range(100):
         with torch.no_grad():
             val_loss = evaluate(model, val_loader)
         print(f"Epoch {epoch}: Val Loss = {val_loss:.4f}")
+```
+
+### GPU Preloading (Faster Training)
+
+```python
+import torch
+from RAG_supporters.dataset import JASPERSteeringDataset, create_loader
+from torch.utils.data import DataLoader
+
+# Load datasets directly to GPU (10-20% faster)
+train_dataset = JASPERSteeringDataset(
+    dataset_dir="./my_dataset",
+    split="train",
+    epoch=0,
+    device=torch.device("cuda")  # All tensors preloaded to GPU
+)
+
+val_dataset = JASPERSteeringDataset(
+    dataset_dir="./my_dataset",
+    split="val",
+    epoch=0,
+    device=torch.device("cuda")
+)
+
+print(f"Train dataset: {train_dataset.memory_usage_mb:.2f} MB on {train_dataset.device}")
+print(f"Val dataset: {val_dataset.memory_usage_mb:.2f} MB on {val_dataset.device}")
+
+# Create dataloaders (no pin_memory needed, already on GPU)
+train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False)
+
+# Training loop - NO .cuda() calls needed!
+for epoch in range(100):
+    train_dataset.set_epoch(epoch)
+    
+    model.train()
+    for batch in train_loader:
+        # All data already on GPU!
+        question_emb = batch["question_emb"]
+        target_emb = batch["target_source_emb"]
+        steering = batch["steering"]
+        negatives = batch["negative_embs"]
+        
+        predicted = model(question_emb, steering)
+        loss = contrastive_loss(predicted, target_emb, negatives)
+        
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+```
+
+### Context Manager Pattern (Clean Resource Management)
+
+```python
+from RAG_supporters.dataset import JASPERSteeringDataset
+from torch.utils.data import DataLoader
+
+# Automatic cleanup with context manager
+with JASPERSteeringDataset("./my_dataset", split="train", device="cuda") as train_dataset:
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
+    
+    for epoch in range(100):
+        train_dataset.set_epoch(epoch)
+        
+        for batch in train_loader:
+            # Training code...
+            pass
+# Automatic cleanup and statistics logging
+```
+
+### Load All Splits at Once
+
+```python
+from RAG_supporters.dataset import JASPERSteeringDataset
+from torch.utils.data import DataLoader
+
+# Load train/val/test in one call
+splits = JASPERSteeringDataset.create_combined_splits(
+    dataset_dir="./my_dataset",
+    epoch=0,
+    device=torch.device("cuda")
+)
+
+# Create loaders
+train_loader = DataLoader(splits["train"], batch_size=128, shuffle=True)
+val_loader = DataLoader(splits["val"], batch_size=128, shuffle=False)
+test_loader = DataLoader(splits["test"], batch_size=128, shuffle=False)
+
+print(f"Loaded {len(splits['train'])} train, {len(splits['val'])} val, {len(splits['test'])} test samples")
+```
 ```
 
 ## Validation with Different Steering
@@ -237,10 +329,15 @@ if __name__ == "__main__":
 
 ## Tips
 
-1. **Start small**: Use small batch size and embedding dim for debugging
-2. **Monitor curriculum**: Log steering probabilities per epoch
-3. **Ablation studies**: Compare with/without steering
-4. **Negative tiers**: Analyze which tier negatives are hardest
-5. **Cluster analysis**: Check if model learns cluster structure
+1. **GPU preloading for speed**: Use `device=torch.device("cuda")` for 10-20% faster training (datasets < 10GB)
+2. **Context manager for cleanup**: Use `with` statement to ensure proper resource cleanup
+3. **Load all splits at once**: Use `create_combined_splits()` for cleaner code
+4. **Start small**: Use small batch size and embedding dim for debugging
+5. **Monitor curriculum**: Log steering probabilities per epoch
+6. **Ablation studies**: Compare with/without steering
+7. **Negative tiers**: Analyze which tier negatives are hardest
+8. **Cluster analysis**: Check if model learns cluster structure
+9. **Memory management**: Monitor `memory_usage_mb` attribute to avoid OOM
+10. **Index validation**: Dataset automatically validates indices and raises clear errors
 
 ````

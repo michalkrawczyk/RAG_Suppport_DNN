@@ -80,7 +80,7 @@ The dataset builder supports configurable column names for suggestions:
 
 ```python
 from RAG_supporters.dataset import DomainAssessmentDatasetBuilder
-from RAG_supporters.dataset.steering import SteeringConfig, SteeringMode
+from RAG_supporters.embeddings_ops import SteeringConfig, SteeringMode
 
 # Option 1: Pass model name as string (simplest)
 builder = DomainAssessmentDatasetBuilder(
@@ -293,7 +293,7 @@ Configure different steering embedding modes:
 ### ZERO Mode (No Steering)
 
 ```python
-from RAG_supporters.dataset.steering import SteeringConfig, SteeringMode
+from RAG_supporters.embeddings_ops import SteeringConfig, SteeringMode
 
 config = SteeringConfig(
     mode=[(SteeringMode.ZERO, 1.0)]  # Always use zero embedding

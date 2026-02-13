@@ -89,7 +89,7 @@ Each agent documentation includes:
 
 ### Datasets
 
-- **[JASPER_STEERING_DATASET.md](./dataset/JASPER_STEERING_DATASET.md)** - PyTorch dataset for pre-computed embedding triplets with hard negatives (JASPER: Joint Architecture for Subspace Prediction with Explainable Routing)
+- **[JASPER_STEERING_DATASET.md](./dataset/JASPER_STEERING_DATASET.md)** - PyTorch dataset for pre-computed embedding triplets with hard negatives (JASPER: Joint Architecture for Subspace Prediction with Explainable Routing). Features: zero-I/O training, curriculum learning, GPU preloading, context manager support, referential integrity validation
 - **[JASPER_TRAINING_EXAMPLE.md](./dataset/JASPER_TRAINING_EXAMPLE.md)** - Training examples for JASPER steering dataset
 - **[DATASET_SPLITTING.md](./dataset/DATASET_SPLITTING.md)** - Guide for splitting datasets with persistent sample tracking
 - **[SAMPLE_GENERATION_GUIDE.md](../RAG_supporters/dataset/SAMPLE_GENERATION_GUIDE.md)** - Guide for generating RAG dataset samples
