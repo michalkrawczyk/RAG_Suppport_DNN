@@ -29,7 +29,7 @@ for epoch in range(100):
 **GPU Preloading (10-20% faster):**
 ```python
 import torch
-from RAG_supporters.dataset import JASPERSteeringDataset
+from RAG_supporters.pytorch_datasets import JASPERSteeringDataset
 
 # All tensors loaded directly to GPU - zero transfer during training
 with JASPERSteeringDataset(

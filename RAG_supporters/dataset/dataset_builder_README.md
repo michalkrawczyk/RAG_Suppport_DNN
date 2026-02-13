@@ -435,10 +435,10 @@ Create `tests/test_dataset_build.py` with:
 ## Related Files
 
 ### Core Components
-- **Runtime**: `RAG_supporters/dataset/jasper_steering_dataset.py` ✅ Implemented
-- **Loader**: `RAG_supporters/dataset/loader.py` ✅ Implemented
-- **Builder**: `RAG_supporters/dataset/build.py` ✅ Implemented
-- **Finalizer**: `RAG_supporters/dataset/finalize.py` ✅ Implemented
+- **Runtime**: `RAG_supporters/pytorch_datasets/jasper_steering_dataset.py` ✅ Implemented
+- **Loader**: `RAG_supporters/pytorch_datasets/loader.py` ✅ Implemented (DataLoader factory for JASPERSteeringDataset)
+- **Builder**: `RAG_supporters/jasper/build.py` ✅ Implemented (moved to jasper/ module)
+- **Finalizer**: `RAG_supporters/jasper/finalize.py` ✅ Implemented (moved to jasper/ module)
 
 ### Shared Utilities (New)
 - **Validation**: `RAG_supporters/dataset/validation_utils.py` ✅ Implemented

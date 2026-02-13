@@ -154,7 +154,7 @@ Added 13 new test cases in `test_jasper_steering_dataset.py`:
 ### Basic Usage with Device
 ```python
 import torch
-from RAG_supporters.dataset import JASPERSteeringDataset
+from RAG_supporters.pytorch_datasets import JASPERSteeringDataset
 
 # Load to GPU
 dataset = JASPERSteeringDataset(

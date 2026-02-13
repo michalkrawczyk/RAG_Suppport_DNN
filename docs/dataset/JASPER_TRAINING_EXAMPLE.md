@@ -113,7 +113,7 @@ for epoch in range(100):
 
 ```python
 import torch
-from RAG_supporters.dataset import JASPERSteeringDataset, create_loader
+from RAG_supporters.pytorch_datasets import JASPERSteeringDataset, create_loader
 from torch.utils.data import DataLoader
 
 # Load datasets directly to GPU (10-20% faster)
@@ -161,7 +161,7 @@ for epoch in range(100):
 ### Context Manager Pattern (Clean Resource Management)
 
 ```python
-from RAG_supporters.dataset import JASPERSteeringDataset
+from RAG_supporters.pytorch_datasets import JASPERSteeringDataset
 from torch.utils.data import DataLoader
 
 # Automatic cleanup with context manager
@@ -180,7 +180,7 @@ with JASPERSteeringDataset("./my_dataset", split="train", device="cuda") as trai
 ### Load All Splits at Once
 
 ```python
-from RAG_supporters.dataset import JASPERSteeringDataset
+from RAG_supporters.pytorch_datasets import JASPERSteeringDataset
 from torch.utils.data import DataLoader
 
 # Load train/val/test in one call
