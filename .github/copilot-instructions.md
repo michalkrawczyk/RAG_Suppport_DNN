@@ -55,7 +55,7 @@ This repository contains RAG (Retrieval-Augmented Generation) support tools and 
 
 ### Before Writing Code
 
-1. Review [AGENTS.md](../docs/AGENTS.md) - Technical guidelines and architecture
+1. Review [AGENTS.md](../AGENTS.md) - Technical guidelines and architecture
 2. Check [AGENTS_OVERVIEW.md](../docs/agents/AGENTS_OVERVIEW.md) - Existing agent patterns
 3. Identify similar agents to follow as templates
 
@@ -226,7 +226,7 @@ Keep descriptions **precise and concise** - one line per file.
 ## Resources
 
 ### Technical Guidelines
-- [AGENTS.md](../docs/AGENTS.md) - Architecture, tech stack, patterns, and standards
+- [AGENTS.md](../AGENTS.md) - Architecture, tech stack, patterns, and standards
 
 ### Agent Documentation
 - [AGENTS_OVERVIEW.md](../docs/agents/AGENTS_OVERVIEW.md) - Agent features and usage examples

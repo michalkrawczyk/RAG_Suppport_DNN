@@ -289,7 +289,7 @@ The builder automatically selects the correct column based on whether the row is
 ```python
 from pathlib import Path
 from RAG_supporters.dataset import DomainAssessmentDatasetBuilder, ClusterLabeledDataset
-from RAG_supporters.dataset.steering import SteeringConfig, SteeringMode
+from RAG_supporters.embeddings_ops import SteeringConfig, SteeringMode
 
 # Step 5.1: Configure steering (optional augmentation)
 steering_config = SteeringConfig(
@@ -431,7 +431,7 @@ from RAG_supporters.agents.domain_assesment import DomainAnalysisAgent, Operatio
 from RAG_supporters.embeddings import KeywordEmbedder
 from RAG_supporters.clustering import cluster_keywords_from_embeddings, KeywordClusterer
 from RAG_supporters.dataset import DomainAssessmentDatasetBuilder, ClusterLabeledDataset
-from RAG_supporters.dataset.steering import SteeringConfig, SteeringMode
+from RAG_supporters.embeddings_ops import SteeringConfig, SteeringMode
 
 # ============================================================================
 # STEP 1: Extract domain suggestions from sources

@@ -66,10 +66,10 @@ pytest tests/test_question_augmentation_agent.py -v
 2. Documentation in `../../docs/agents/`
 3. Updates to this README and AGENTS_OVERVIEW.md
 
-**→ See [AGENTS_OVERVIEW.md#contributing](../../docs/agents/AGENTS_OVERVIEW.md#contributing) and [AGENTS.md](../../docs/AGENTS.md) for detailed guidelines**
+**→ See [AGENTS_OVERVIEW.md#contributing](../../docs/agents/AGENTS_OVERVIEW.md#contributing) and [AGENTS.md](../../AGENTS.md) for detailed guidelines**
 
 ## Additional Resources
 
 - **[AGENTS_OVERVIEW.md](../../docs/agents/AGENTS_OVERVIEW.md)** - Complete documentation, workflows, examples, and best practices
-- **[AGENTS.md](../../docs/AGENTS.md)** - Technical guidelines, architecture, and standards
+- **[AGENTS.md](../../AGENTS.md)** - Technical guidelines, architecture, and standards
 - **[pyproject.toml](../../pyproject.toml)** - Package configuration with optional dependencies

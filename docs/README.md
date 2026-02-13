@@ -2,6 +2,10 @@
 
 This directory contains comprehensive documentation for all RAG Supporters components.
 
+## Developer Guidelines
+
+- **[AGENTS.md](../AGENTS.md)** - Technical guidelines, architecture, commands, code style, and development patterns for the entire project
+
 ## Agent Documentation
 
 The RAG Supporters library provides specialized LLM-powered agents for RAG dataset creation and curation.
@@ -81,6 +85,21 @@ Each agent documentation includes:
 
 ## Other Documentation
 
+### Module Documentation
+
+Comprehensive reference for all modules organized in module-specific subdirectories:
+
+- **[Module Documentation Index](MODULE_DOCUMENTATION.md)** - Complete index with links to all module categories
+
+**Module Categories**:
+- **[Contrastive Learning](contrastive_learning/CONTRASTIVE_LEARNING.md)** - NegativeMiner (4-tier hard negative sampling), SteeringBuilder (steering signal generation)
+- **[Data Preparation](data_preparation/DATA_PREPARATION.md)** - CSVMerger, DatasetSplitter (simple and stratified versions)
+- **[Data Validation](data_validation/DATA_VALIDATION.md)** - validation_utils, tensor_utils, label_calculator
+- **[JASPER Builder](jasper_builder/JASPER_BUILDER.md)** - BuildConfig, DatasetFinalizer, build_dataset orchestrator
+- **[Embeddings Operations](embeddings/EMBEDDINGS_OPERATIONS.md)** - EmbeddingGenerator, SteeringEmbeddingGenerator, SteeringConfig/Mode
+- **[Clustering Operations](clustering/CLUSTERING_OPERATIONS.md)** - ClusterParser, SourceClusterLinker
+- **[General Utilities](utilities/GENERAL_UTILITIES.md)** - text_utils, suggestion_processing, text_splitters
+
 ### Utilities
 
 - **[TOPIC_DISTANCE_CALCULATOR.md](./clustering/TOPIC_DISTANCE_CALCULATOR.md)** - Calculate embedding distances to topic keywords without LLM
@@ -89,9 +108,21 @@ Each agent documentation includes:
 
 ### Datasets
 
+- **[JASPER Builder Guide](./dataset/JASPER_BUILDER_GUIDE.md)** - **Complete user guide for building JASPER datasets** from CSV and cluster JSON
+- **[JASPER_STEERING_DATASET.md](./dataset/JASPER_STEERING_DATASET.md)** - PyTorch dataset for pre-computed embedding triplets with hard negatives (JASPER: Joint Architecture for Subspace Prediction with Explainable Routing). Features: zero-I/O training, curriculum learning, GPU preloading, context manager support, referential integrity validation
+- **[JASPER_TRAINING_EXAMPLE.md](./dataset/JASPER_TRAINING_EXAMPLE.md)** - Training examples for JASPER steering dataset
+- **[DATASET_SPLITTING.md](./dataset/DATASET_SPLITTING.md)** - Guide for splitting datasets with persistent sample tracking
 - **[SAMPLE_GENERATION_GUIDE.md](../RAG_supporters/dataset/SAMPLE_GENERATION_GUIDE.md)** - Guide for generating RAG dataset samples
 - **[QUICK_REFERENCE.md](../RAG_supporters/dataset/QUICK_REFERENCE.md)** - Quick reference for dataset utilities
 - **[DOMAIN_ASSESSMENT_CLUSTERING_DATASET_EXAMPLE.md](./dataset/DOMAIN_ASSESSMENT_CLUSTERING_DATASET_EXAMPLE.md)** - Domain assessment with clustering examples
+
+### PyTorch Datasets
+
+- **[PyTorch Datasets Overview](./pytorch_datasets/README.md)** - Complete overview of all PyTorch Dataset implementations with quick start and comparison
+- **[JASPERSteeringDataset](./pytorch_datasets/JASPER_STEERING_DATASET.md)** - Pre-computed embeddings with curriculum learning and hard negatives for JASPER training
+- **[ClusterLabeledDataset](./pytorch_datasets/CLUSTER_LABELED_DATASET.md)** - Domain classification dataset with memmap storage and efficient LRU caching
+- **[RAG Dataset Generator](./pytorch_datasets/RAG_DATASET.md)** - Abstract base for RAG triplet generation with ChromaDB storage
+- **[DataLoader Utilities](./pytorch_datasets/LOADER_UTILITIES.md)** - Factory functions and validation utilities for creating DataLoaders
 
 ## Contributing
 

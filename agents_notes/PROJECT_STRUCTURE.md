@@ -50,22 +50,43 @@ Keyword-based and topic-based clustering for dataset organization.
 - **keyword_clustering.py** - KeywordClustering: Clusters items by keyword similarity using embeddings
 - **topic_distance_calculator.py** - TopicDistanceCalculator: Calculates semantic distances between topics
 
-### dataset/ - Dataset Management
-Dataset creation, manipulation, splitting, and storage.
+### clustering_ops/ - Clustering Operations
+Keyword-based clustering and cluster assignment operations. Reusable for any keyword/topic clustering project.
 
-- **__init__.py** - Exports dataset classes
-- **cluster_labeled_dataset.py** - ClusterLabeledDataset: Dataset with cluster assignments and labels
-- **dataset_splitter.py** - DatasetSplitter: Train/val/test splitting with persistence to JSON
+- **__init__.py** - Exports ClusterParser, SourceClusterLinker, and utility functions
+- **parse_clusters.py** - ClusterParser: Parses KeywordClusterer JSON format with keyword matching (exact + cosine fallback)
+- **link_sources.py** - SourceClusterLinker: Links question-source pairs to clusters via keyword intersection with majority voting
+
+### contrastive/ - Contrastive Learning Tools
+Hard negative mining and steering signals for contrastive learning. Highly reusable for metric learning, siamese networks, triplet loss training.
+
+- **__init__.py** - Exports NegativeMiner, SteeringBuilder, and utility functions
+- **mine_negatives.py** - NegativeMiner: 4-tier hard negative sampling (in-cluster, adjacent, high-similarity, random) for contrastive learning with configurable tier proportions and validation
+- **build_steering.py** - SteeringBuilder: Generates steering signals (centroid, keyword-weighted, residual) and centroid distances for curriculum learning
+
+### data_prep/ - Data Preprocessing
+Generic data preprocessing utilities for CSV merging, deduplication, and dataset splitting. Works with any tabular data format.
+
+- **__init__.py** - Exports CSVMerger and DatasetSplitter with utility functions
+- **merge_csv.py** - CSVMerger: Merges multiple CSV files with column normalization, deduplication, and ID assignment
+- **dataset_splitter.py** - Simple train/val/test splitting with persistence to JSON (for specific test compatibility)
+- **split.py** - DatasetSplitter: Question-level stratified train/val/test splitting with no leakage, saves to PyTorch tensors
+
+### data_validation/ - Data Validation & Tensor Utilities
+Highly reusable PyTorch validation utilities for any project. Zero project-specific dependencies.
+
+- **__init__.py** - Exports validation functions, tensor I/O utilities, and label calculators
+- **validation_utils.py** - Tensor shape/type/bounds validation, dimension consistency checks, NaN/Inf detection - eliminates code duplication
+- **tensor_utils.py** - Tensor loading and storage utilities with shape validation and error handling - standardizes torch.load operations
+- **label_calculator.py** - Label normalization utilities (softmax, L1) for training
+
+### dataset/ - Domain Assessment Datasets (Legacy)
+Domain assessment dataset builders and steering configuration. Most functionality moved to specialized modules.
+
+- **__init__.py** - Exports DomainAssessmentDatasetBuilder and DomainAssessmentParser (SteeringConfig and SteeringMode are now in embeddings_ops)
+- **dataset_builder_README.md** - README and specifications for JASPER dataset builder pipeline (Tasks 0-9)
 - **domain_assessment_dataset_builder.py** - DomainAssessmentDatasetBuilder: Builds datasets for domain assessment tasks
 - **domain_assessment_parser.py** - Parsers for domain assessment data formats
-- **label_calculator.py** - Label calculation utilities for dataset annotations
-- **rag_dataset.py** - RAGDataset: Core dataset class for RAG question-answer-source triples
-- **sqlite_storage.py** - SQLite-based storage backend for dataset persistence
-- **steering_embedding_generator.py** - Generates steering embeddings for model control
-
-#### dataset/steering/ - Steering Configuration
-- **__init__.py** - Module initialization
-- **steering_config.py** - Configuration classes for model steering/control mechanisms
 
 #### dataset/templates/ - Dataset Templates
 - **__init__.py** - Module initialization
@@ -74,6 +95,32 @@ Dataset creation, manipulation, splitting, and storage.
 #### dataset/utils/ - Dataset Utilities
 - **__init__.py** - Module initialization
 - **dataset_loader.py** - Generic dataset loading utilities
+
+### embeddings_ops/ - Embedding Operations
+Embedding generation and manipulation utilities. Extends existing embeddings/ module with batch processing and validation.
+
+- **__init__.py** - Exports EmbeddingGenerator, SteeringEmbeddingGenerator, SteeringConfig, SteeringMode, and utility functions
+- **embed.py** - EmbeddingGenerator: Batch embedding generation with validation (NaN/Inf checks, centroid similarity sanity checks)
+- **steering_config.py** - Configuration classes for model steering/control mechanisms (SteeringConfig, SteeringMode) - moved here to avoid circular imports
+- **steering_embedding_generator.py** - SteeringEmbeddingGenerator: Generates steering embeddings for model control with augmentations
+
+### jasper/ - JASPER Dataset Builder
+JASPER-specific dataset builder orchestration. Project-specific but demonstrates patterns for future dataset builders.
+
+- **__init__.py** - Exports build_dataset, BuildConfig, DatasetFinalizer, finalize_dataset, SQLiteStorageManager
+- **build.py** - build_dataset: Task 9 orchestrator that runs Tasks 1-8 sequentially with per-task timing/logging and final config validation
+- **builder_config.py** - BuildConfig: Configuration dataclass for JASPER dataset building with validation and JSON serialization
+- **finalize.py** - DatasetFinalizer: Cross-validates all builder outputs, checks referential integrity/dimensions, and writes final config.json
+- **sqlite_storage.py** - SQLiteStorageManager: SQLite + numpy memmap storage backend for dataset persistence
+
+### pytorch_datasets/ - PyTorch Dataset Implementations
+PyTorch Dataset classes for training. Specific implementations but patterns are highly reusable.
+
+- **__init__.py** - Exports JASPERSteeringDataset, RAG datasets, ClusterLabeledDataset, DataLoader utilities
+- **jasper_steering_dataset.py** - JASPERSteeringDataset: PyTorch dataset for JASPER - pre-computed embedding triplets with hard negatives, curriculum learning, device placement, context manager, referential integrity validation, HDF5 storage format support, memory-mapped loading for large datasets (>10GB)
+- **rag_dataset.py** - RAGDataset: Core PyTorch dataset class for RAG question-answer-source triples
+- **cluster_labeled_dataset.py** - ClusterLabeledDataset: PyTorch dataset with cluster assignments and labels
+- **loader.py** - DataLoader factory and validation utilities for JASPER Steering Dataset (create_loader, validate_first_batch, set_epoch)
 
 ### embeddings/ - Embedding I/O
 Embedding generation, storage, and retrieval.
@@ -115,14 +162,28 @@ Cross-cutting utilities for text processing and data manipulation.
 Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls for reproducibility.
 
 - **conftest.py** - Pytest configuration and shared fixtures
+- **test_builder_config.py** - Tests for BuildConfig (initialization, validation, serialization)
 - **test_dataset_check_agent.py** - Tests for DatasetCheckAgent (LangGraph workflow, mocking)
 - **test_dataset_splitter.py** - Tests for DatasetSplitter (splitting logic, persistence)
 - **test_domain_assesment.py** - Tests for DomainAnalysisAgent (all three operation modes)
+- **test_jasper_steering_dataset.py** - Tests for JASPERSteeringDataset (initialization, getitem, steering, curriculum, storage formats [PT/HDF5], memory-mapping, HDF5 conversion)
 - **test_keyword_clustering.py** - Tests for KeywordClustering (clustering algorithms)
+- **test_loader.py** - Tests for JASPER Steering DataLoader (batch shapes, iteration, validation)
+- **test_merge_csv.py** - Tests for CSVMerger (normalization, deduplication, ID assignment)
+- **test_parse_clusters.py** - Tests for ClusterParser (keyword matching, fuzzy matching, cluster metadata)
+- **test_link_sources.py** - Tests for SourceClusterLinker (pair-to-cluster linking, fallback strategies, validation)
+- **test_embed.py** - Tests for EmbeddingGenerator (batch generation, validation, sanity checks)
+- **test_build_steering.py** - Tests for SteeringBuilder (centroid, keyword-weighted, residual steering variants, distances, validations)
+- **test_dataset_build.py** - Tests for Task 9 build orchestrator (end-to-end pipeline execution, artifact generation, storage format validation)
+- **test_mine_negatives.py** - Tests for NegativeMiner (4-tier negative sampling, validation, edge cases with small clusters)
+- **test_split.py** - Tests for DatasetSplitter (question-level splitting, stratification, no leakage validation, determinism)
+- **test_finalize.py** - Tests for DatasetFinalizer (cross-validation, referential integrity checks, config writing)
 - **test_question_augmentation_agent.py** - Tests for QuestionAugmentationAgent
 - **test_source_evaluation_agent.py** - Tests for SourceEvaluationAgent
 - **test_text_augmentation_agent.py** - Tests for TextAugmentationAgent
 - **test_topic_distance_calculator.py** - Tests for TopicDistanceCalculator
+- **test_validation_utils.py** - Tests for validation_utils shared utilities (tensor validation, bounds checking, etc.)
+- **test_tensor_utils.py** - Tests for tensor_utils I/O functions (loading, saving, batch operations)
 
 ---
 
@@ -130,7 +191,6 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 
 ### Root Documentation
 - **README.md** - Documentation index with links to all guides
-- **AGENTS.md** - Duplicate of root AGENTS.md (technical reference)
 
 ### docs/agents/ - Agent Documentation
 Detailed usage guides for each agent with examples.
@@ -153,14 +213,24 @@ Detailed usage guides for each agent with examples.
 - **DATASET_SPLITTING.md** - DatasetSplitter guide with persistence examples
 - **DOMAIN_ASSESSMENT_CLUSTERING_DATASET_EXAMPLE.md** - Domain assessment with clustering examples
 - **DOMAIN_ASSESSMENT_EXAMPLES.md** - Domain assessment usage examples
+- **JASPER_STEERING_DATASET.md** - JASPER Steering Dataset guide: PyTorch dataset for pre-computed embedding triplets with curriculum learning and hard negatives
+- **JASPER_TRAINING_EXAMPLE.md** - Training examples for JASPER Steering Dataset with curriculum learning and hard negatives
+
+### docs/pytorch_datasets/ - PyTorch Dataset Documentation
+- **README.md** - PyTorch datasets overview, quick start, feature comparison table
+- **JASPER_STEERING_DATASET.md** - JASPERSteeringDataset: curriculum learning, hard negatives, zero I/O training, HDF5/PT storage formats, memory-mapping
+- **CLUSTER_LABELED_DATASET.md** - ClusterLabeledDataset: domain classification with memmap storage and LRU cache
+- **RAG_DATASET.md** - BaseRAGDatasetGenerator: abstract base for RAG triplet generation and ChromaDB sampling
+- **LOADER_UTILITIES.md** - DataLoader factory functions, batch validation, distributed training support
+- **STORAGE_FORMATS.md** - Comprehensive guide to PT, HDF5, and memory-mapped loading strategies for large datasets
 
 ---
 
 ## File Count Summary
 
-- **Python Source Files**: 44 files in RAG_supporters/
-- **Test Files**: 9 files in tests/
-- **Documentation Files**: 16 markdown files in docs/
+- **Python Source Files**: 53 files in RAG_supporters/ (added build.py for Task 9)
+- **Test Files**: 18 files in tests/ (added test_dataset_build.py)
+- **Documentation Files**: 21 markdown files in docs/ (added 5 pytorch_datasets docs)
 - **Configuration**: 2 files (pyproject.toml, .gitignore)
 - **Root Documentation**: 2 files (AGENTS.md, README.md)
 

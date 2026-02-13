@@ -1,55 +1,30 @@
 """
 Dataset module for RAG Support DNN.
 
-This module provides PyTorch datasets for RAG-based question answering
-and cluster steering.
+Legacy module that now only contains domain assessment dataset builders.
+Most functionality has been moved to specialized modules:
 
-Domain Assessment Dataset (Recommended):
-- ClusterLabeledDataset: PyTorch dataset with CSV domain assessment + clustering JSON
-- DomainAssessmentDatasetBuilder: Build dataset from CSV files
+- PyTorch datasets: RAG_supporters.pytorch_datasets
+- Dataset building: RAG_supporters.jasper
+- Data preprocessing: RAG_supporters.data_prep
+- Contrastive learning: RAG_supporters.contrastive
+- Data validation: RAG_supporters.data_validation
+- Embedding operations: RAG_supporters.embeddings_ops (includes SteeringConfig, SteeringMode)
+- Clustering operations: RAG_supporters.clustering_ops
+
+This module provides:
+- DomainAssessmentDatasetBuilder: Build domain assessment datasets
 - DomainAssessmentParser: Parse domain assessment CSVs
-- LabelCalculator: Calculate 3-type labels (source, steering, combined)
-- SteeringEmbeddingGenerator: Generate steering embeddings with augmentations
-- SQLiteStorageManager: SQLite + numpy memmap storage
-- SteeringMode: Enum for steering embedding modes
-- SteeringConfig: Configuration for steering generation
-- DatasetSplitter: Split datasets with persistent sample tracking
-- create_train_val_split: Convenience function for creating splits
+
+Note: SteeringConfig and SteeringMode have been moved to RAG_supporters.embeddings_ops.
+Import them directly from there instead of from this module.
 """
 
-# ClusteringData from clustering module
-from RAG_supporters.clustering import ClusteringData
-
 # Domain assessment components
-from .cluster_labeled_dataset import ClusterLabeledDataset
-
-# Dataset splitting utilities
-from .dataset_splitter import DatasetSplitter, create_train_val_split
 from .domain_assessment_dataset_builder import DomainAssessmentDatasetBuilder
 from .domain_assessment_parser import DomainAssessmentParser
-from .label_calculator import LabelCalculator
-from .sqlite_storage import SQLiteStorageManager
-
-# Steering configuration components
-from .steering import SteeringConfig, SteeringMode
-from .steering_embedding_generator import SteeringEmbeddingGenerator
-
-# (Removed legacy backward-compatibility imports)
-
 
 __all__ = [
-    # Steering configuration
-    "SteeringMode",
-    "SteeringConfig",
-    "ClusteringData",
-    # Domain assessment approach (RECOMMENDED)
-    "ClusterLabeledDataset",
     "DomainAssessmentDatasetBuilder",
     "DomainAssessmentParser",
-    "LabelCalculator",
-    "SteeringEmbeddingGenerator",
-    "SQLiteStorageManager",
-    # Dataset splitting
-    "DatasetSplitter",
-    "create_train_val_split",
 ]
