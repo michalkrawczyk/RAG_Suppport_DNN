@@ -11,14 +11,28 @@
 
 ### Documentation Files
 - **AGENTS.md** - Comprehensive technical documentation for developers: architecture, commands, conventions, patterns, gotchas
-- **.github/copilot-instructions.md** - GitHub Copilot coding standards and project-specific rules
 
 ### Directories
+- **.github/** - GitHub configuration files including custom agents and workflows
 - **RAG_supporters/** - Main Python package with all source code
 - **tests/** - Unit tests for agents and core functionality
 - **docs/** - Comprehensive documentation organized by topic
 - **dependencies/** - External dependencies or requirements files
 - **agents_notes/** - Project structure documentation and agent-specific notes
+
+---
+
+## .github/ (GitHub Configuration)
+
+### agents/ - Custom Agent Configurations
+Custom agent definition files for specialized coding workflows.
+
+- **coder.agent.md** - Expert ML engineer agent for PyTorch-based RAG research with LangChain agents, dataset operations, and neural network experimentation
+- **nn-reviewer.agent.md** - Code reviewer enforcing PyTorch patterns, Dataset implementation, training correctness, and GPU efficiency
+- **code_planner.agent.md** - Strategic coding plan generator that analyzes codebases and produces structured, executable implementation plans with clear success criteria
+
+### Configuration Files
+- **copilot-instructions.md** - GitHub Copilot coding standards and project-specific rules
 
 ---
 
