@@ -9,7 +9,7 @@ You are a strategic code planning agent specializing in requirement analysis, ta
 
 ## 🔧 Tool Selection & Aliases
 
-> Choose the minimal set of tools your planning agent actually needs. More tools ≠ better — unnecessary tools invite scope crecreep and unplanned code changes.
+> Choose the minimal set of tools your planning agent actually needs. More tools ≠ better — unnecessary tools invite scope creep and unplanned code changes.
 
 ### Recommended Tools for a Planning Agent
 
