@@ -1,0 +1,52 @@
+# JASPER Base Training Configuration
+# Usage: python examples/train_jasper_predictor.py --config configs/jasper_base.yaml
+
+model:
+  embedding_dim: 768          # Dimensionality of question/source/steering embeddings
+  hidden_dim: 512             # Width of hidden layers in each sub-network
+  num_layers: 3               # Depth of each MLP block
+  dropout: 0.1                # Dropout probability (0 = disabled)
+  activation: GELU            # torch.nn activation class
+  use_layer_norm: true        # Apply LayerNorm after hidden activations
+  normalize_output: false     # L2-normalize the prediction (try true if using cosine losses)
+
+ema:
+  tau_min: 0.996              # Starting momentum (lower = faster target updates)
+  tau_max: 0.999              # Ending momentum (higher = slower target updates)
+  schedule: cosine            # Annealing schedule for tau (only 'cosine' supported)
+
+loss:
+  lambda_jasper: 1.0          # Weight for SmoothL1 prediction loss
+  lambda_contrastive: 0.5     # Weight for InfoNCE contrastive loss
+  lambda_centroid: 0.1        # Weight for centroid classification loss
+  lambda_vicreg: 0.1          # Weight for VICReg regularisation
+  jasper_beta: 1.0            # SmoothL1 beta parameter
+  contrastive_temperature: 0.07
+  centroid_temperature: 0.1
+  vicreg_lambda_v: 25.0       # VICReg variance weight
+  vicreg_lambda_i: 25.0       # VICReg invariance weight
+  vicreg_lambda_c: 1.0        # VICReg covariance weight
+
+training:
+  batch_size: 64
+  num_epochs: 50
+  warmup_epochs: 2            # Epochs to ramp LR from 0 to base_lr
+  learning_rate: 3.0e-4
+  weight_decay: 1.0e-4
+  num_workers: 4
+  pin_memory: true
+  max_grad_norm: 1.0          # Gradient clipping (0 = disabled)
+  mixed_precision: false      # Set true for AMP on CUDA
+  save_every_n_epochs: 5
+  keep_last_n_checkpoints: 3
+  log_every_n_steps: 50
+
+dataset:
+  split_train: train
+  split_val: val
+  n_neg: 8                    # Number of hard negatives per sample (must match dataset)
+
+monitoring:
+  use_wandb: false
+  wandb_project: jasper-rag
+  wandb_name: null            # Auto-generated if null
