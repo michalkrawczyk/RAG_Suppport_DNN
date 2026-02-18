@@ -110,8 +110,8 @@ class TestContrastiveLoss:
 
     def test_gradients_flow(self):
         loss_fn = ContrastiveLoss()
-        p = _rand(4, 32).requires_grad_(True)
-        _, t, neg, *_ = _make_batch()
+        p, t, neg, *_ = _make_batch(B=4)
+        p = p.requires_grad_(True)
         result = loss_fn(p, t, neg)
         result["contrastive"].backward()
         assert p.grad is not None
@@ -124,7 +124,7 @@ class TestContrastiveLoss:
         loss_fn = ContrastiveLoss()
         p = _rand(4, 32)
         t = _rand(4, 32)
-        neg = _rand(4, 1, 32)
+        neg = torch.randn(4, 1, 32)
         result = loss_fn(p, t, neg)
         assert result["contrastive"].shape == ()
 
@@ -166,16 +166,16 @@ class TestCentroidLoss:
 
     def test_gradients_flow(self):
         loss_fn = CentroidLoss()
-        p = _rand(4, 32).requires_grad_(True)
-        _, _, _, centroids, cluster_ids = _make_batch()
+        p, _, _, centroids, cluster_ids = _make_batch(B=4)
+        p = p.requires_grad_(True)
         result = loss_fn(p, centroids, cluster_ids)
         result["centroid"].backward()
         assert p.grad is not None
 
     def test_accuracy_is_detached(self):
         loss_fn = CentroidLoss()
-        p = _rand(4, 32).requires_grad_(True)
-        _, _, _, centroids, cluster_ids = _make_batch()
+        p, _, _, centroids, cluster_ids = _make_batch(B=4)
+        p = p.requires_grad_(True)
         result = loss_fn(p, centroids, cluster_ids)
         assert not result["centroid_acc"].requires_grad
 

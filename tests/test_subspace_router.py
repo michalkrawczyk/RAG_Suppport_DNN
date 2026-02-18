@@ -169,6 +169,7 @@ class TestGumbel:
     def test_inference_mode_is_deterministic(self):
         """Without Gumbel noise, same inputs → same outputs."""
         router = _make_router()
+        router.eval()
         q, s = _make_inputs()
         w1, _ = router(q, s, training=False)
         w2, _ = router(q, s, training=False)
