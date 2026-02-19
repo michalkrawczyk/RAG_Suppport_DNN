@@ -143,6 +143,14 @@ class JASPERTrainer:
         # Total steps needed for EMA tau schedule
         self._max_steps: int = 0  # set in fit()
 
+        # Warn when running on CUDA with a single-threaded DataLoader —
+        # num_workers=0 will saturate the CPU→GPU transfer pipeline.
+        if self.device.type == "cuda" and getattr(self.train_loader, "num_workers", 0) == 0:
+            LOGGER.warning(
+                "DataLoader num_workers=0 on CUDA device — consider num_workers >= 2 "
+                "to avoid CPU-bound data loading bottlenecks."
+            )
+
         LOGGER.info(
             "JASPERTrainer ready | device=%s | mixed_precision=%s",
             self.device,
