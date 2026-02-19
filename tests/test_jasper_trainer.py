@@ -113,16 +113,20 @@ def trainer_components(tmp_path):
 class TestInit:
     def test_device_is_cpu(self, trainer_components):
         trainer, *_ = trainer_components
-        assert trainer.device.type == "cpu"
+        assert trainer.device.type == "cpu", \
+            "Trainer device should be 'cpu' when config.device='cpu'"
 
     def test_checkpoint_dir_created(self, trainer_components, tmp_path):
         trainer, *_ = trainer_components
-        assert Path(trainer.config.checkpoint_dir).exists()
+        assert Path(trainer.config.checkpoint_dir).exists(), \
+            "Trainer __init__ should create the checkpoint directory"
 
     def test_centroids_loaded_from_dataset(self, trainer_components):
         trainer, *_ = trainer_components
-        assert trainer._centroid_embs is not None
-        assert trainer._centroid_embs.shape == (C, D)
+        assert trainer._centroid_embs is not None, \
+            "Trainer should load centroid embeddings from the dataset"
+        assert trainer._centroid_embs.shape == (C, D), \
+            f"Centroid embeddings should have shape ({C}, {D})"
 
     def test_from_dict_config(self, tmp_path):
         model = JASPERPredictor({"embedding_dim": D, "hidden_dim": D, "num_layers": 1})
@@ -136,7 +140,8 @@ class TestInit:
             train_loader=_make_loader(),
             val_loader=_make_loader(),
         )
-        assert trainer.device.type == "cpu"
+        assert trainer.device.type == "cpu", \
+            "Trainer should resolve to CPU when config.device='cpu'"
 
 
 # ---------------------------------------------------------------------------
@@ -150,8 +155,9 @@ class TestTrainStep:
         trainer._max_steps = 100
         batch = _make_batch()
         metrics = trainer._train_step(batch)
-        assert "total" in metrics
-        assert isinstance(metrics["total"], float)
+        assert "total" in metrics, "_train_step should return a dict with 'total' key"
+        assert isinstance(metrics["total"], float), \
+            "metrics['total'] should be a Python float"
 
     def test_parameters_updated_after_step(self, trainer_components):
         trainer, model, _ = trainer_components
@@ -199,21 +205,26 @@ class TestEpoch:
         trainer, *_ = trainer_components
         trainer._max_steps = len(trainer.train_loader)
         metrics = trainer.train_epoch(epoch=0)
-        assert isinstance(metrics, dict)
-        assert "total" in metrics
+        assert isinstance(metrics, dict), \
+            "train_epoch should return a dict of metrics"
+        assert "total" in metrics, \
+            "train_epoch metrics dict must contain 'total' key"
 
     def test_validate_returns_dict(self, trainer_components):
         trainer, *_ = trainer_components
         metrics = trainer.validate()
-        assert isinstance(metrics, dict)
-        assert "total" in metrics
+        assert isinstance(metrics, dict), \
+            "validate() should return a dict of metrics"
+        assert "total" in metrics, \
+            "validate() metrics dict must contain 'total' key"
 
     def test_global_step_increments(self, trainer_components):
         trainer, *_ = trainer_components
         trainer._max_steps = len(trainer.train_loader)
         before = trainer.global_step
         trainer.train_epoch(epoch=0)
-        assert trainer.global_step == before + len(trainer.train_loader)
+        assert trainer.global_step == before + len(trainer.train_loader), \
+            f"global_step should increase by {len(trainer.train_loader)} after one epoch"
 
     def test_model_in_train_mode_during_epoch(self, trainer_components):
         trainer, model, _ = trainer_components
@@ -223,13 +234,15 @@ class TestEpoch:
         trainer.train_epoch(epoch=0)
         # validate switches to eval; but after train_epoch model should be in training mode
         # (it gets set at start of train_epoch)
-        assert model.training  # still in train mode after epoch
+        assert model.training, \
+            "Model should still be in training mode after train_epoch completes"
 
     def test_validate_model_in_eval_mode(self, trainer_components):
         trainer, model, _ = trainer_components
         model.train()
         trainer.validate()
-        assert not model.training  # validate() sets eval mode
+        assert not model.training, \
+            "Model should be in eval mode after validate() completes"
 
 
 # ---------------------------------------------------------------------------
@@ -242,7 +255,8 @@ class TestCheckpoint:
         trainer, *_ = trainer_components
         ckpt_path = tmp_path / "test.pt"
         trainer.save_checkpoint(ckpt_path, epoch=3)
-        assert ckpt_path.exists()
+        assert ckpt_path.exists(), \
+            "save_checkpoint should create the checkpoint file on disk"
 
     def test_checkpoint_contains_required_keys(self, trainer_components, tmp_path):
         trainer, *_ = trainer_components
@@ -258,8 +272,9 @@ class TestCheckpoint:
         trainer._global_step = 50
         trainer.save_checkpoint(ckpt_path, epoch=5, metrics={"val/total": 0.42})
         epoch, metrics = trainer.load_checkpoint(ckpt_path)
-        assert epoch == 5
-        assert abs(metrics.get("val/total", 0) - 0.42) < 1e-6
+        assert epoch == 5, "load_checkpoint should restore the saved epoch number"
+        assert abs(metrics.get("val/total", 0) - 0.42) < 1e-6, \
+            "load_checkpoint should restore the saved metrics"
 
     def test_load_restores_model_weights(self, trainer_components, tmp_path):
         trainer, model, _ = trainer_components
@@ -283,7 +298,8 @@ class TestCheckpoint:
         trainer.save_checkpoint(ckpt_path, epoch=0)
         trainer._global_step = 0
         trainer.load_checkpoint(ckpt_path)
-        assert trainer.global_step == 123
+        assert trainer.global_step == 123, \
+            "load_checkpoint should restore global_step to the saved value"
 
     def test_checkpoint_rotation(self, trainer_components, tmp_path):
         trainer, *_ = trainer_components
@@ -295,9 +311,10 @@ class TestCheckpoint:
             paths.append(p)
         # After 4 saves with keep=2, only the last 2 should remain
         existing = [p for p in paths if p.exists()]
-        assert len(existing) == 2
-        assert paths[-1] in existing
-        assert paths[-2] in existing
+        assert len(existing) == 2, \
+            f"With keep_last_n_checkpoints=2, only 2 files should remain; found {len(existing)}"
+        assert paths[-1] in existing, "The most recent checkpoint should be kept"
+        assert paths[-2] in existing, "The second most recent checkpoint should be kept"
 
 
 # ---------------------------------------------------------------------------
