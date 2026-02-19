@@ -42,33 +42,34 @@ class TestRoutingLoss:
         loss_fn = RoutingLoss()
         logits, _, ids, _ = _make_inputs()
         result = loss_fn(logits, ids)
-        assert "routing" in result
-        assert "routing_acc" in result
+        assert "routing" in result, "RoutingLoss result must contain 'routing' key"
+        assert "routing_acc" in result, "RoutingLoss result must contain 'routing_acc' key"
 
     def test_loss_is_scalar(self):
         loss_fn = RoutingLoss()
         logits, _, ids, _ = _make_inputs()
         result = loss_fn(logits, ids)
-        assert result["routing"].shape == ()
+        assert result["routing"].shape == (), "RoutingLoss should return a scalar tensor"
 
     def test_loss_is_non_negative(self):
         loss_fn = RoutingLoss()
         logits, _, ids, _ = _make_inputs()
         result = loss_fn(logits, ids)
-        assert result["routing"].item() >= 0
+        assert result["routing"].item() >= 0, "RoutingLoss should always be non-negative"
 
     def test_accuracy_in_range(self):
         loss_fn = RoutingLoss()
         logits, _, ids, _ = _make_inputs()
         result = loss_fn(logits, ids)
         acc = result["routing_acc"].item()
-        assert 0.0 <= acc <= 1.0
+        assert 0.0 <= acc <= 1.0, f"routing_acc={acc} is outside [0, 1]"
 
     def test_accuracy_is_detached(self):
         loss_fn = RoutingLoss()
         logits, _, ids, _ = _make_inputs()
         result = loss_fn(logits, ids)
-        assert not result["routing_acc"].requires_grad
+        assert not result["routing_acc"].requires_grad, \
+            "routing_acc must be detached (no gradient) to avoid interfering with backprop"
 
     def test_gradients_flow(self):
         loss_fn = RoutingLoss()
@@ -76,7 +77,8 @@ class TestRoutingLoss:
         ids = torch.randint(0, K, (B,))
         result = loss_fn(logits, ids)
         result["routing"].backward()
-        assert logits.grad is not None
+        assert logits.grad is not None, \
+            "Gradient must flow back to routing logits"
 
     def test_perfect_logits_give_perfect_accuracy(self):
         loss_fn = RoutingLoss()
@@ -109,20 +111,24 @@ class TestEntropyRegularization:
         loss_fn = EntropyRegularization()
         _, weights, _, _ = _make_inputs()
         result = loss_fn(weights, current_epoch=0)
-        assert "entropy_reg" in result
-        assert "routing_entropy" in result
+        assert "entropy_reg" in result, \
+            "EntropyRegularization result must contain 'entropy_reg' key"
+        assert "routing_entropy" in result, \
+            "EntropyRegularization result must contain 'routing_entropy' key"
 
     def test_loss_is_scalar(self):
         loss_fn = EntropyRegularization()
         _, weights, _, _ = _make_inputs()
         result = loss_fn(weights, current_epoch=0)
-        assert result["entropy_reg"].shape == ()
+        assert result["entropy_reg"].shape == (), \
+            "EntropyRegularization should return a scalar tensor"
 
     def test_entropy_is_detached(self):
         loss_fn = EntropyRegularization()
         _, weights, _, _ = _make_inputs()
         result = loss_fn(weights, current_epoch=0)
-        assert not result["routing_entropy"].requires_grad
+        assert not result["routing_entropy"].requires_grad, \
+            "routing_entropy must be detached to avoid interfering with backprop"
 
     def test_uniform_weights_give_max_entropy(self):
         """Uniform weights should give entropy ≈ log(K)."""
@@ -146,14 +152,17 @@ class TestEntropyRegularization:
         loss_fn = EntropyRegularization(entropy_high=2.0, entropy_low=0.1, anneal_epochs=5)
         t5 = loss_fn.get_target_entropy(5)
         t100 = loss_fn.get_target_entropy(100)
-        assert t5 == pytest.approx(0.1, abs=1e-6)
-        assert t100 == pytest.approx(0.1, abs=1e-6)
+        assert t5 == pytest.approx(0.1, abs=1e-6), \
+            "After anneal_epochs the schedule should clamp at entropy_low"
+        assert t100 == pytest.approx(0.1, abs=1e-6), \
+            "Well after anneal_epochs the schedule should stay clamped at entropy_low"
 
     def test_entropy_high_defaults_to_log_k(self):
         loss_fn = EntropyRegularization(entropy_high=None)
         uniform = torch.ones(B, K) / K
         loss_fn(uniform, current_epoch=0)   # triggers lazy init
-        assert abs(loss_fn._entropy_high - math.log(K)) < 1e-5
+        assert abs(loss_fn._entropy_high - math.log(K)) < 1e-5, \
+            f"_entropy_high should default to log(K)={math.log(K):.4f} for K={K} subspaces"
 
     def test_gradients_flow(self):
         loss_fn = EntropyRegularization()
@@ -161,7 +170,8 @@ class TestEntropyRegularization:
         weights = F.softmax(logits, dim=-1)
         result = loss_fn(weights, current_epoch=0)
         result["entropy_reg"].backward()
-        assert logits.grad is not None
+        assert logits.grad is not None, \
+            "Gradient must flow back through EntropyRegularization to routing logits"
 
     def test_invalid_entropy_low_raises(self):
         with pytest.raises(ValueError, match="entropy_low"):
@@ -182,14 +192,17 @@ class TestResidualPenalty:
         loss_fn = ResidualPenalty()
         _, _, _, fine = _make_inputs()
         result = loss_fn(fine)
-        assert "residual_penalty" in result
-        assert "residual_norm_mean" in result
+        assert "residual_penalty" in result, \
+            "ResidualPenalty result must contain 'residual_penalty' key"
+        assert "residual_norm_mean" in result, \
+            "ResidualPenalty result must contain 'residual_norm_mean' key"
 
     def test_loss_is_scalar(self):
         loss_fn = ResidualPenalty()
         _, _, _, fine = _make_inputs()
         result = loss_fn(fine)
-        assert result["residual_penalty"].shape == ()
+        assert result["residual_penalty"].shape == (), \
+            "ResidualPenalty should return a scalar tensor"
 
     def test_zero_loss_below_margin(self):
         """If all norms are below margin, penalty should be exactly 0."""
@@ -203,7 +216,8 @@ class TestResidualPenalty:
         loss_fn = ResidualPenalty(margin=0.1)
         fine = torch.ones(B, D) * 10.0   # large norm
         result = loss_fn(fine)
-        assert result["residual_penalty"].item() > 0
+        assert result["residual_penalty"].item() > 0, \
+            "Residual penalty should be positive when fine-vector norms exceed the margin"
 
     def test_hinge_behaviour(self):
         """Only samples exceeding margin should contribute to the loss."""
@@ -217,23 +231,27 @@ class TestResidualPenalty:
 
         result = loss_fn(fine)
         # Loss should be positive because half the batch exceeds the margin
-        assert result["residual_penalty"].item() > 0
+        assert result["residual_penalty"].item() > 0, \
+            "Hinge loss should be positive when half the batch exceeds the margin"
         # And zero if we raise margin far above all norms
         result_no_penalty = ResidualPenalty(margin=100.0)(fine)
-        assert result_no_penalty["residual_penalty"].item() == pytest.approx(0.0, abs=1e-6)
+        assert result_no_penalty["residual_penalty"].item() == pytest.approx(0.0, abs=1e-6), \
+            "Penalty should be zero when margin is far above all norms"
 
     def test_norm_mean_is_detached(self):
         loss_fn = ResidualPenalty()
         _, _, _, fine = _make_inputs()
         result = loss_fn(fine)
-        assert not result["residual_norm_mean"].requires_grad
+        assert not result["residual_norm_mean"].requires_grad, \
+            "residual_norm_mean must be detached (monitoring metric, not for backprop)"
 
     def test_gradients_flow(self):
         loss_fn = ResidualPenalty(margin=0.01)
         fine = torch.randn(B, D, requires_grad=True)
         result = loss_fn(fine)
         result["residual_penalty"].backward()
-        assert fine.grad is not None
+        assert fine.grad is not None, \
+            "Gradient must flow back to fine residual vector through ResidualPenalty"
 
     def test_invalid_margin_raises(self):
         with pytest.raises(ValueError, match="margin"):
@@ -258,13 +276,15 @@ class TestDisentanglementLoss:
         loss_fn = DisentanglementLoss()
         _, weights, _, _ = _make_inputs()
         result = loss_fn(weights)
-        assert "disentanglement" in result
+        assert "disentanglement" in result, \
+            "DisentanglementLoss result must contain 'disentanglement' key"
 
     def test_loss_is_scalar(self):
         loss_fn = DisentanglementLoss()
         _, weights, _, _ = _make_inputs()
         result = loss_fn(weights)
-        assert result["disentanglement"].shape == ()
+        assert result["disentanglement"].shape == (), \
+            "DisentanglementLoss should return a scalar tensor"
 
     def test_correlated_inputs_give_higher_loss(self):
         """Identical rows (fully correlated) should give higher loss than random rows."""
@@ -278,8 +298,8 @@ class TestDisentanglementLoss:
         # Correlated routing should incur higher covariance penalty
         # (not always guaranteed due to random init, but correlated should be larger)
         # Use a loose check: both are non-negative
-        assert loss_corr >= 0
-        assert loss_rand >= 0
+        assert loss_corr >= 0, "DisentanglementLoss should be non-negative for correlated inputs"
+        assert loss_rand >= 0, "DisentanglementLoss should be non-negative for random inputs"
 
     def test_gradients_flow(self):
         loss_fn = DisentanglementLoss()
@@ -287,7 +307,8 @@ class TestDisentanglementLoss:
         weights = F.softmax(logits, dim=-1)
         result = loss_fn(weights)
         result["disentanglement"].backward()
-        assert logits.grad is not None
+        assert logits.grad is not None, \
+            "Gradient must flow back through DisentanglementLoss to routing logits"
 
     def test_single_sample_returns_zero(self):
         """Covariance undefined for B=1; should return zero tensor."""
