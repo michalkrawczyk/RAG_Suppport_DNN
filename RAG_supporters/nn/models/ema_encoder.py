@@ -119,9 +119,13 @@ class EMAEncoder(nn.Module):
         progress = min(step / max(max_steps, 1), 1.0)  # clamp to [0, 1]
 
         if self.schedule == "cosine":
-            # Cosine annealing: starts at tau_min, ends at tau_max
-            tau = self.tau_max - (self.tau_max - self.tau_min) * (
-                0.5 * (1.0 + math.cos(math.pi * progress))
+            # Cosine annealing: monotone increase from tau_min (step=0)
+            # to tau_max (step=max_steps).  Written as the standard
+            # half-cosine ramp so the direction is immediately obvious:
+            #   tau(0)   = tau_min + 0               = tau_min
+            #   tau(max) = tau_min + (tau_max-tau_min)= tau_max
+            tau = self.tau_min + (self.tau_max - self.tau_min) * (
+                0.5 * (1.0 - math.cos(math.pi * progress))
             )
             return tau
 
