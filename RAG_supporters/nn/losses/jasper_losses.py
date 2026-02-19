@@ -236,10 +236,13 @@ class VICRegLoss(nn.Module):
         inv_loss = F.smooth_l1_loss(predicted, target)
 
         # --- Variance ---
-        v_loss = self._variance_loss(predicted) + self._variance_loss(target)
+        # Only regularise the trainable (predicted) side; the EMA target is
+        # frozen and does not receive gradient updates, so applying variance /
+        # covariance regularisation to it would be meaningless.
+        v_loss = self._variance_loss(predicted)
 
         # --- Covariance ---
-        c_loss = self._covariance_loss(predicted) + self._covariance_loss(target)
+        c_loss = self._covariance_loss(predicted)
 
         total = self.lambda_v * v_loss + self.lambda_i * inv_loss + self.lambda_c * c_loss
 
