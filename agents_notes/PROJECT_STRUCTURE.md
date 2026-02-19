@@ -184,6 +184,7 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_topic_distance_calculator.py** - Tests for TopicDistanceCalculator
 - **test_validation_utils.py** - Tests for validation_utils shared utilities (tensor validation, bounds checking, etc.)
 - **test_tensor_utils.py** - Tests for tensor_utils I/O functions (loading, saving, batch operations)
+- **test_monitoring.py** - Tests for TrainingMonitor (metric logging, W&B payload bool filtering, plot_losses/plot_steering_distribution guards, CSV+JSON export, empty-history regression)
 
 ---
 
@@ -226,13 +227,23 @@ Detailed usage guides for each agent with examples.
 
 ---
 
+## agents_notes/ - Project Tooling & Structure Documentation
+
+- **PROJECT_STRUCTURE.md** - Comprehensive file-by-file listing of all project files with concise purpose descriptions
+- **generate_module_map.py** - CLI script that AST-parses Python files and emits `module_map.json` (classes, methods, functions, docstrings)
+- **module_map.json** - Generated JSON index of all modules in `RAG_supporters/` and `tests/`; consumed by search_module_map.py
+- **search_module_map.py** - CLI search tool for `module_map.json`; supports filtering by symbol type (class/method/function/module), package, parent_module; outputs human-readable or JSON
+
+---
+
 ## File Count Summary
 
 - **Python Source Files**: 53 files in RAG_supporters/ (added build.py for Task 9)
-- **Test Files**: 18 files in tests/ (added test_dataset_build.py)
+- **Test Files**: 19 files in tests/ (added test_monitoring.py)
 - **Documentation Files**: 21 markdown files in docs/ (added 5 pytorch_datasets docs)
 - **Configuration**: 2 files (pyproject.toml, .gitignore)
 - **Root Documentation**: 2 files (AGENTS.md, README.md)
+- **Tooling Scripts**: 2 files in agents_notes/ (generate_module_map.py, search_module_map.py)
 
 ---
 
