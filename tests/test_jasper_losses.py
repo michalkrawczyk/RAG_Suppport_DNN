@@ -43,26 +43,27 @@ class TestJASPERLoss:
         loss_fn = JASPERLoss()
         p, t, *_ = _make_batch()
         result = loss_fn(p, t)
-        assert isinstance(result, dict)
-        assert "jasper" in result
+        assert isinstance(result, dict), "JASPERLoss should return a dict"
+        assert "jasper" in result, "Result dict must contain 'jasper' key"
 
     def test_loss_is_scalar(self):
         loss_fn = JASPERLoss()
         p, t, *_ = _make_batch()
         result = loss_fn(p, t)
-        assert result["jasper"].shape == ()
+        assert result["jasper"].shape == (), "JASPERLoss should return a scalar tensor"
 
     def test_loss_is_non_negative(self):
         loss_fn = JASPERLoss()
         p, t, *_ = _make_batch()
         result = loss_fn(p, t)
-        assert result["jasper"].item() >= 0
+        assert result["jasper"].item() >= 0, "JASPERLoss should always be non-negative"
 
     def test_zero_loss_for_identical_inputs(self):
         loss_fn = JASPERLoss()
         p = torch.ones(4, 16)
         result = loss_fn(p, p.clone())
-        assert result["jasper"].item() < 1e-6
+        assert result["jasper"].item() < 1e-6, \
+            "JASPERLoss for identical predicted and target should be ~0"
 
     def test_gradients_flow(self):
         loss_fn = JASPERLoss()
@@ -70,7 +71,7 @@ class TestJASPERLoss:
         t = _rand(4, 16)
         result = loss_fn(p, t)
         result["jasper"].backward()
-        assert p.grad is not None
+        assert p.grad is not None, "Gradient must flow back to predicted embeddings"
 
     def test_invalid_reduction_raises(self):
         with pytest.raises(ValueError):
@@ -87,18 +88,19 @@ class TestContrastiveLoss:
         loss_fn = ContrastiveLoss()
         p, t, neg, *_ = _make_batch()
         result = loss_fn(p, t, neg)
-        assert "contrastive" in result
+        assert "contrastive" in result, "ContrastiveLoss result dict must contain 'contrastive' key"
 
     def test_output_is_scalar(self):
         loss_fn = ContrastiveLoss()
         p, t, neg, *_ = _make_batch()
         result = loss_fn(p, t, neg)
-        assert result["contrastive"].shape == ()
+        assert result["contrastive"].shape == (), "ContrastiveLoss should return a scalar tensor"
 
     def test_non_negative_loss(self):
         loss_fn = ContrastiveLoss()
         p, t, neg, *_ = _make_batch()
-        assert loss_fn(p, t, neg)["contrastive"].item() >= 0
+        assert loss_fn(p, t, neg)["contrastive"].item() >= 0, \
+            "ContrastiveLoss should always be non-negative"
 
     def test_lower_temperature_gives_larger_loss_variance(self):
         """Lower temperature should generally sharpen predictions."""
@@ -106,7 +108,8 @@ class TestContrastiveLoss:
         loss_hi = ContrastiveLoss(temperature=1.0)(p, t, neg)["contrastive"]
         loss_lo = ContrastiveLoss(temperature=0.01)(p, t, neg)["contrastive"]
         # With random embeddings and low temperature the loss should be higher
-        assert loss_lo.item() != loss_hi.item()
+        assert loss_lo.item() != loss_hi.item(), \
+            "ContrastiveLoss at different temperatures should yield different values"
 
     def test_gradients_flow(self):
         loss_fn = ContrastiveLoss()
@@ -114,7 +117,7 @@ class TestContrastiveLoss:
         p = p.requires_grad_(True)
         result = loss_fn(p, t, neg)
         result["contrastive"].backward()
-        assert p.grad is not None
+        assert p.grad is not None, "Gradient must flow back to predicted embeddings in ContrastiveLoss"
 
     def test_invalid_temperature_raises(self):
         with pytest.raises(ValueError):
@@ -126,7 +129,8 @@ class TestContrastiveLoss:
         t = _rand(4, 32)
         neg = torch.randn(4, 1, 32)
         result = loss_fn(p, t, neg)
-        assert result["contrastive"].shape == ()
+        assert result["contrastive"].shape == (), \
+            "ContrastiveLoss with single negative should still return a scalar"
 
 
 # ---------------------------------------------------------------------------
@@ -139,20 +143,20 @@ class TestCentroidLoss:
         loss_fn = CentroidLoss()
         p, _, _, centroids, cluster_ids = _make_batch()
         result = loss_fn(p, centroids, cluster_ids)
-        assert "centroid" in result
-        assert "centroid_acc" in result
+        assert "centroid" in result, "CentroidLoss result dict must contain 'centroid' key"
+        assert "centroid_acc" in result, "CentroidLoss result dict must contain 'centroid_acc' key"
 
     def test_loss_is_scalar(self):
         loss_fn = CentroidLoss()
         p, _, _, centroids, cluster_ids = _make_batch()
         result = loss_fn(p, centroids, cluster_ids)
-        assert result["centroid"].shape == ()
+        assert result["centroid"].shape == (), "CentroidLoss should return a scalar tensor"
 
     def test_accuracy_in_range(self):
         loss_fn = CentroidLoss()
         p, _, _, centroids, cluster_ids = _make_batch()
         acc = loss_fn(p, centroids, cluster_ids)["centroid_acc"].item()
-        assert 0.0 <= acc <= 1.0
+        assert 0.0 <= acc <= 1.0, f"centroid_acc={acc} is outside [0, 1]"
 
     def test_perfect_prediction_gives_high_accuracy(self):
         """If predicted == centroid for each sample, accuracy should be 1.0."""
@@ -162,7 +166,8 @@ class TestCentroidLoss:
         # Predicted = exact centroids
         loss_fn = CentroidLoss(temperature=0.01)
         result = loss_fn(centroids.clone(), centroids, cluster_ids)
-        assert result["centroid_acc"].item() > 0.9
+        assert result["centroid_acc"].item() > 0.9, \
+            "CentroidLoss accuracy should be near 1.0 when predicted == centroids"
 
     def test_gradients_flow(self):
         loss_fn = CentroidLoss()
@@ -170,14 +175,15 @@ class TestCentroidLoss:
         p = p.requires_grad_(True)
         result = loss_fn(p, centroids, cluster_ids)
         result["centroid"].backward()
-        assert p.grad is not None
+        assert p.grad is not None, "Gradient must flow back to predicted embeddings in CentroidLoss"
 
     def test_accuracy_is_detached(self):
         loss_fn = CentroidLoss()
         p, _, _, centroids, cluster_ids = _make_batch(B=4)
         p = p.requires_grad_(True)
         result = loss_fn(p, centroids, cluster_ids)
-        assert not result["centroid_acc"].requires_grad
+        assert not result["centroid_acc"].requires_grad, \
+            "centroid_acc must be detached (no gradient) to avoid interfering with backprop"
 
 
 # ---------------------------------------------------------------------------
@@ -190,21 +196,21 @@ class TestVICRegLoss:
         loss_fn = VICRegLoss()
         p, t, *_ = _make_batch()
         result = loss_fn(p, t)
-        assert "vicreg" in result
-        assert "vicreg_v" in result
-        assert "vicreg_i" in result
-        assert "vicreg_c" in result
+        assert "vicreg" in result, "VICRegLoss result must contain 'vicreg' key"
+        assert "vicreg_v" in result, "VICRegLoss result must contain 'vicreg_v' (variance) key"
+        assert "vicreg_i" in result, "VICRegLoss result must contain 'vicreg_i' (invariance) key"
+        assert "vicreg_c" in result, "VICRegLoss result must contain 'vicreg_c' (covariance) key"
 
     def test_total_loss_is_scalar(self):
         loss_fn = VICRegLoss()
         p, t, *_ = _make_batch()
         result = loss_fn(p, t)
-        assert result["vicreg"].shape == ()
+        assert result["vicreg"].shape == (), "VICRegLoss total should be a scalar tensor"
 
     def test_non_negative_total_loss(self):
         loss_fn = VICRegLoss()
         p, t, *_ = _make_batch()
-        assert loss_fn(p, t)["vicreg"].item() >= 0
+        assert loss_fn(p, t)["vicreg"].item() >= 0, "VICRegLoss total should always be non-negative"
 
     def test_gradients_flow(self):
         loss_fn = VICRegLoss()
@@ -212,7 +218,7 @@ class TestVICRegLoss:
         t = _rand(8, 32)
         result = loss_fn(p, t)
         result["vicreg"].backward()
-        assert p.grad is not None
+        assert p.grad is not None, "Gradient must flow back to predicted embeddings in VICRegLoss"
 
     def test_vicreg_prevents_collapse(self):
         """Constant embeddings (collapsed) should produce high variance loss."""
@@ -226,7 +232,8 @@ class TestVICRegLoss:
         random = torch.randn(B, D)
         result_random = loss_fn(random, random)
 
-        assert result_collapsed["vicreg"].item() > result_random["vicreg"].item()
+        assert result_collapsed["vicreg"].item() > result_random["vicreg"].item(), \
+            "Collapsed embeddings should produce higher VICReg variance loss than random embeddings"
 
     def test_sub_components_are_detached(self):
         loss_fn = VICRegLoss()
@@ -234,7 +241,8 @@ class TestVICRegLoss:
         t = _rand(8, 32)
         result = loss_fn(p, t)
         for key in ("vicreg_v", "vicreg_i", "vicreg_c"):
-            assert not result[key].requires_grad
+            assert not result[key].requires_grad, \
+                f"VICReg component '{key}' must be detached from the computation graph"
 
 
 # ---------------------------------------------------------------------------
@@ -259,14 +267,16 @@ class TestJASPERMultiObjectiveLoss:
     def test_returns_total_and_dict(self, loss_fn, batch_inputs):
         p, t, neg, c, ids = batch_inputs
         total, loss_dict = loss_fn(p, t, neg, c, ids)
-        assert isinstance(total, torch.Tensor)
-        assert isinstance(loss_dict, dict)
-        assert "total" in loss_dict
+        assert isinstance(total, torch.Tensor), \
+            "JASPERMultiObjectiveLoss should return a Tensor as first output"
+        assert isinstance(loss_dict, dict), \
+            "JASPERMultiObjectiveLoss should return a dict as second output"
+        assert "total" in loss_dict, "Loss dict must contain 'total' key"
 
     def test_total_is_scalar(self, loss_fn, batch_inputs):
         p, t, neg, c, ids = batch_inputs
         total, _ = loss_fn(p, t, neg, c, ids)
-        assert total.shape == ()
+        assert total.shape == (), "JASPERMultiObjectiveLoss total should be a scalar tensor"
 
     def test_all_components_present(self, loss_fn, batch_inputs):
         p, t, neg, c, ids = batch_inputs
@@ -279,7 +289,8 @@ class TestJASPERMultiObjectiveLoss:
         p = _rand(8, 32).requires_grad_(True)
         total, _ = loss_fn(p, t, neg, c, ids)
         total.backward()
-        assert p.grad is not None
+        assert p.grad is not None, \
+            "Gradient must flow back to predicted embeddings through combined JASPER loss"
 
     def test_sub_components_detached(self, loss_fn, batch_inputs):
         _, t, neg, c, ids = batch_inputs
@@ -298,8 +309,9 @@ class TestJASPERMultiObjectiveLoss:
         )
         p, t, neg, c, ids = batch_inputs
         total, _ = loss_fn(p, t, neg, c, ids)
-        assert abs(total.item()) < 1e-6
+        assert abs(total.item()) < 1e-6, \
+            "All-zero lambda weights should produce ~0 total loss"
 
     def test_repr(self, loss_fn):
         r = repr(loss_fn)
-        assert "JASPERMultiObjectiveLoss" in r
+        assert "JASPERMultiObjectiveLoss" in r, "repr should contain 'JASPERMultiObjectiveLoss'"
