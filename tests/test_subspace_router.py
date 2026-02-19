@@ -51,16 +51,20 @@ class TestInit:
     def test_from_config_object(self):
         cfg = SubspaceRouterConfig(embedding_dim=D, hidden_dim=H, num_subspaces=K)
         router = SubspaceRouter(cfg)
-        assert router.config is cfg
+        assert router.config is cfg, \
+            "SubspaceRouter.config should be the same object as the config passed in"
 
     def test_from_dict(self):
         router = SubspaceRouter({"embedding_dim": D, "hidden_dim": H, "num_subspaces": K})
-        assert router.num_subspaces == K
-        assert router.embedding_dim == D
+        assert router.num_subspaces == K, \
+            "num_subspaces property should reflect the value from the dict config"
+        assert router.embedding_dim == D, \
+            "embedding_dim property should reflect the value from the dict config"
 
     def test_router_mlp_present(self):
         router = _make_router()
-        assert hasattr(router, "router_mlp")
+        assert hasattr(router, "router_mlp"), \
+            "SubspaceRouter must have a 'router_mlp' attribute"
 
     def test_invalid_temperature_raises(self):
         with pytest.raises(ValueError, match="temperature"):
@@ -83,13 +87,15 @@ class TestInit:
     def test_get_model_summary(self):
         router = _make_router()
         summary = router.get_model_summary()
-        assert "SubspaceRouter" in summary
-        assert str(K) in summary
+        assert "SubspaceRouter" in summary, \
+            "Model summary should contain 'SubspaceRouter'"
+        assert str(K) in summary, \
+            f"Model summary should contain num_subspaces={K}"
 
     def test_repr(self):
         router = _make_router()
         r = repr(router)
-        assert "SubspaceRouter" in r
+        assert "SubspaceRouter" in r, "repr should contain 'SubspaceRouter'"
 
 
 # ---------------------------------------------------------------------------
@@ -116,21 +122,23 @@ class TestForward:
         router = _make_router()
         q, s = _make_inputs()
         weights, _ = router(q, s, training=False)
-        assert (weights >= 0).all()
+        assert (weights >= 0).all(), "All routing weights must be non-negative"
 
     def test_no_nan_in_output(self):
         router = _make_router()
         q, s = _make_inputs()
         weights, logits = router(q, s, training=False)
-        assert not torch.isnan(weights).any()
-        assert not torch.isnan(logits).any()
+        assert not torch.isnan(weights).any(), "Routing weights must not contain NaN"
+        assert not torch.isnan(logits).any(), "Routing logits must not contain NaN"
 
     def test_no_nan_in_training_output(self):
         router = _make_router()
         q, s = _make_inputs()
         weights, logits = router(q, s, training=True)
-        assert not torch.isnan(weights).any()
-        assert not torch.isnan(logits).any()
+        assert not torch.isnan(weights).any(), \
+            "Routing weights must not contain NaN in training mode"
+        assert not torch.isnan(logits).any(), \
+            "Routing logits must not contain NaN in training mode"
 
     @pytest.mark.parametrize("batch_size", [1, 4, 16])
     def test_different_batch_sizes(self, batch_size: int):
@@ -147,7 +155,8 @@ class TestForward:
         q, s = _make_inputs()
         weights, _ = router(q, s, training=True)
         sums = weights.sum(dim=-1)
-        assert torch.allclose(sums, torch.ones(B), atol=1e-5)
+        assert torch.allclose(sums, torch.ones(B), atol=1e-5), \
+            f"Routing weights should sum to 1.0 per sample in training mode, got: {sums}"
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +182,8 @@ class TestGumbel:
         q, s = _make_inputs()
         w1, _ = router(q, s, training=False)
         w2, _ = router(q, s, training=False)
-        assert torch.allclose(w1, w2)
+        assert torch.allclose(w1, w2), \
+            "Inference mode (training=False) should produce deterministic routing weights"
 
     def test_hard_gumbel_produces_one_hot(self):
         """With gumbel_hard=True each routing row should have a single 1.0."""
@@ -221,28 +231,32 @@ class TestGetPrimarySubspace:
         router = _make_router()
         q, s = _make_inputs()
         cluster_ids, confidences = router.get_primary_subspace(q, s)
-        assert cluster_ids.shape == (B,)
-        assert confidences.shape == (B,)
+        assert cluster_ids.shape == (B,), \
+            f"cluster_ids shape should be ({B},), got {cluster_ids.shape}"
+        assert confidences.shape == (B,), \
+            f"confidences shape should be ({B},), got {confidences.shape}"
 
     def test_cluster_ids_in_range(self):
         router = _make_router()
         q, s = _make_inputs()
         cluster_ids, _ = router.get_primary_subspace(q, s)
-        assert (cluster_ids >= 0).all()
-        assert (cluster_ids < K).all()
+        assert (cluster_ids >= 0).all(), "All cluster IDs should be >= 0"
+        assert (cluster_ids < K).all(), f"All cluster IDs should be < num_subspaces={K}"
 
     def test_confidence_in_range(self):
         router = _make_router()
         q, s = _make_inputs()
         _, confidences = router.get_primary_subspace(q, s)
-        assert (confidences >= 0).all()
-        assert (confidences <= 1.0 + 1e-6).all()
+        assert (confidences >= 0).all(), "All routing confidences should be >= 0"
+        assert (confidences <= 1.0 + 1e-6).all(), \
+            "All routing confidences should be <= 1.0"
 
     def test_no_grad_on_output(self):
         router = _make_router()
         q, s = _make_inputs()
         cluster_ids, confidences = router.get_primary_subspace(q, s)
-        assert not confidences.requires_grad
+        assert not confidences.requires_grad, \
+            "get_primary_subspace confidences should be detached (no grad)"
 
 
 # ---------------------------------------------------------------------------
@@ -264,14 +278,16 @@ class TestExplain:
         q, s = _make_inputs()
         names = [f"cluster_{i}" for i in range(K)]
         result = router.explain(q, s, names)
-        assert result["primary_subspace"] in names
+        assert result["primary_subspace"] in names, \
+            "primary_subspace in explain() result should be one of the provided cluster names"
 
     def test_routing_weights_length(self):
         router = _make_router()
         q, s = _make_inputs()
         names = [f"c{i}" for i in range(K)]
         result = router.explain(q, s, names)
-        assert len(result["routing_weights"]) == K
+        assert len(result["routing_weights"]) == K, \
+            f"explain() routing_weights should have length K={K}"
 
     def test_wrong_cluster_names_length_raises(self):
         router = _make_router()
@@ -285,7 +301,8 @@ class TestExplain:
         s_single = torch.randn(D)
         names = [f"c{i}" for i in range(K)]
         result = router.explain(q_single, s_single, names)
-        assert result["primary_subspace"] in names
+        assert result["primary_subspace"] in names, \
+            "explain() with single-sample input should return a valid primary_subspace name"
 
 
 # ---------------------------------------------------------------------------
@@ -311,4 +328,5 @@ class TestGradients:
         router = _make_router()
         q, s = _make_inputs()
         _, confidences = router.get_primary_subspace(q, s)
-        assert not confidences.requires_grad
+        assert not confidences.requires_grad, \
+            "get_primary_subspace() uses torch.no_grad, so output should not require grad"
