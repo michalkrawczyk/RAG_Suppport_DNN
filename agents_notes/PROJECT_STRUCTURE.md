@@ -70,7 +70,6 @@ Generic data preprocessing utilities for CSV merging, deduplication, and dataset
 - **__init__.py** - Exports CSVMerger and DatasetSplitter with utility functions
 - **merge_csv.py** - CSVMerger: Merges multiple CSV files with column normalization, deduplication, and ID assignment
 - **dataset_splitter.py** - Simple train/val/test splitting with persistence to JSON (for specific test compatibility)
-- **split.py** - DatasetSplitter: Question-level stratified train/val/test splitting with no leakage, saves to PyTorch tensors
 
 ### data_validation/ - Data Validation & Tensor Utilities
 Highly reusable PyTorch validation utilities for any project. Zero project-specific dependencies.

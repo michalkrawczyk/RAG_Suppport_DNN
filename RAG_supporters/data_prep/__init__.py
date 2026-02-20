@@ -19,25 +19,29 @@ Examples
 ...     output_path="merged.csv"
 ... )
 >>>
->>> # Stratified split with question-level grouping
+>>> # Simple split (any integer-indexed dataset)
+>>> splitter = DatasetSplitter(val_ratio=0.2, random_state=42)
+>>> train_idx, val_idx = splitter.split(1000)
+>>>
+>>> # Stratified split with question-level grouping (JASPER pair tensors)
 >>> splitter = DatasetSplitter(
 ...     pair_indices=pair_indices,
 ...     pair_cluster_ids=cluster_ids,
-...     train_ratio=0.7,
 ...     val_ratio=0.15,
-...     test_ratio=0.15
+...     test_ratio=0.15,
 ... )
 >>> results = splitter.split()
 """
 
 from .merge_csv import CSVMerger, merge_csv_files
-from .split import DatasetSplitter, split_dataset
+from .dataset_splitter import DatasetSplitter, split_dataset, create_train_val_split
 
 __all__ = [
     # CSV merging
     "CSVMerger",
     "merge_csv_files",
-    # Stratified splitting (no-leakage)
+    # Dataset splitting (simple and stratified)
     "DatasetSplitter",
     "split_dataset",
+    "create_train_val_split",
 ]

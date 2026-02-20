@@ -134,7 +134,7 @@ Loads splitter from JSON (class method).
 
 ## DatasetSplitter (Question-Level Stratified)
 
-**Location**: `RAG_supporters/data_prep/split.py:36`
+**Location**: `RAG_supporters/data_prep/dataset_splitter.py`
 
 **Purpose**: Question-level stratified splitting with cluster-based stratification.
 
