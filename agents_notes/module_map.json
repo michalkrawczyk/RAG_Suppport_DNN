@@ -2950,6 +2950,88 @@
     }
   },
   {
+    "path": "tests/test_monitoring.py",
+    "file": "test_monitoring.py",
+    "module": "test_monitoring",
+    "parent_module": "tests",
+    "package": "tests",
+    "module_docstring": "Tests for TrainingMonitor.\n\nCovers:\n- log_metrics: history accumulation, W&B payload filtering (bool vs int/float)\n- plot_losses: guard on empty history, guard on no recognised loss keys,\n               successful PNG creation, key detection logic\n- plot_steering_distribution: guard on missing steering keys, PNG creation\n- export_history: CSV + JSON sidecar creation, row count, bug regression\n  (empty history with pandas unavailable must not report false success)\n- num_epochs_logged property",
+    "classes": {
+      "TestInit": {
+        "docstring": null,
+        "methods": {
+          "test_output_dir_created": null,
+          "test_initial_epoch_count_is_zero": null,
+          "test_history_initially_empty": null,
+          "test_repr_contains_expected_info": null,
+          "test_no_wandb_by_default": null
+        }
+      },
+      "TestLogMetrics": {
+        "docstring": null,
+        "methods": {
+          "test_history_grows_with_each_call": null,
+          "test_epoch_key_stored_in_record": null,
+          "test_all_metric_keys_stored": null,
+          "test_bool_excluded_from_wandb_payload": "bool is a subclass of int — must be excluded from W&B float payload.",
+          "test_wandb_failure_does_not_raise": null
+        }
+      },
+      "TestPlotLosses": {
+        "docstring": null,
+        "methods": {
+          "test_returns_none_when_history_empty": null,
+          "test_returns_none_when_no_recognised_loss_keys": null,
+          "test_creates_png_file": null,
+          "test_default_filename_used_when_no_save_path": null,
+          "test_detects_both_train_and_val_keys": null,
+          "test_only_val_keys_also_works": null,
+          "test_handles_none_values_in_history": "None values should be converted to NaN without raising."
+        }
+      },
+      "TestPlotSteeringDistribution": {
+        "docstring": null,
+        "methods": {
+          "test_returns_none_when_no_steering_keys": null,
+          "test_returns_none_when_history_empty": null,
+          "test_creates_png_when_steering_keys_present": null,
+          "test_default_filename_used_when_no_save_path": null
+        }
+      },
+      "TestExportHistory": {
+        "docstring": null,
+        "methods": {
+          "test_csv_and_json_sidecar_created": null,
+          "test_csv_has_correct_row_count": null,
+          "test_json_sidecar_is_valid_json": null,
+          "test_default_path_used_when_not_specified": null,
+          "test_empty_history_still_creates_json": "JSON sidecar should always be written (even for empty history).",
+          "test_csv_contains_epoch_column": null,
+          "test_fallback_csv_without_pandas": "Manual CSV fallback (no pandas) should produce a valid file.",
+          "test_empty_history_no_pandas_does_not_create_csv": "Regression test: empty history + no pandas skips CSV but must not false-report success.\n\nThe current implementation skips writing CSV silently.  This test\ndocuments the behaviour so any accidental change is caught."
+        }
+      },
+      "TestGetSummaryTable": {
+        "docstring": null,
+        "methods": {
+          "test_returns_data_matching_history": null,
+          "test_empty_history_returns_empty_structure": null
+        }
+      },
+      "TestFinish": {
+        "docstring": null,
+        "methods": {
+          "test_finish_without_wandb_does_not_raise": null,
+          "test_finish_closes_wandb_run": null,
+          "test_finish_clears_run_even_if_finish_raises": null
+        }
+      }
+    },
+    "functions": {
+      "_make_metrics": "Return a realistic metrics dict for a single epoch."
+    }
+  },
+  {
     "path": "tests/test_parse_clusters.py",
     "file": "test_parse_clusters.py",
     "module": "test_parse_clusters",
