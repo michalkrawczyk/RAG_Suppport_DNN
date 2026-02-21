@@ -13,180 +13,14 @@ This is a Python library for experiments on creating non-LLM solutions (specific
 - **Scikit-learn** for clustering and embeddings
 - **Pydantic** for data validation
 
-## Commands
-
-### Installation
-
-```bash
-# Install core dependencies only (no agents)
-pip install -e .
-
-# Install with agent support (choose one):
-pip install -e .[openai]   # Agents with OpenAI support
-pip install -e .[nvidia]   # Agents with NVIDIA support
-pip install -e .[base]     # Agents only (no LLM provider)
-
-# Install development tools (linting, testing, formatting)
-pip install -e .[dev]
-```
-
-### Testing
-
-```bash
-# Run all tests
-pytest tests/
-
-# Run specific test file
-pytest tests/test_dataset_splitter.py
-
-# Run with verbose output
-pytest -v tests/
-
-# Run with coverage
-pytest --cov=RAG_supporters tests/
-```
-
-### Code Quality
-
-```bash
-# Format code with black
-black RAG_supporters/ tests/
-
-# Sort imports
-isort RAG_supporters/ tests/
-
-# Run linting
-pylint RAG_supporters/
-flake8 RAG_supporters/
-
-# Type checking
-mypy RAG_supporters/
-
-# Check docstring style
-pydocstyle RAG_supporters/
-```
-
 ## Code Style & Conventions
 
-### Import Organization
-
-- **Standard library** imports first
-- **Third-party** imports second (pandas, langchain, torch, etc.)
-- **Local/relative** imports last
-- Use `isort` to maintain consistent ordering
-
-### Module Structure
-
-Each module follows this pattern:
-```python
-"""Module docstring describing purpose."""
-
-import standard_library
-from typing import Any, Dict, List
-
-import third_party
-from third_party import SpecificClass
-
-from local_module import LocalClass
-
-LOGGER = logging.getLogger(__name__)
-
-# Constants in UPPER_CASE
-# Classes in PascalCase
-# Functions/methods in snake_case
-# Private members prefixed with _
-```
-
-### Naming Conventions
-
-- **Classes**: `PascalCase` (e.g., `DatasetCheckAgent`, `DomainAnalysisAgent`)
-- **Functions/Methods**: `snake_case` (e.g., `rephrase_question_with_source`)
-- **Variables**: `snake_case` (e.g., `train_indices`, `val_ratio`)
-- **Constants**: `UPPER_SNAKE_CASE` (e.g., `LOGGER`, `MAX_RETRIES`)
-- **Private members**: Prefix with `_` (e.g., `_build_graph`, `_validate_input`)
-
-### Type Hints
-
-- Use type hints for all function signatures
-- Import from `typing` module: `List`, `Dict`, `Optional`, `Union`, `Tuple`
-- Example:
-  ```python
-  def process_dataframe(
-      self,
-      df: pd.DataFrame,
-      question_col: str,
-      source_col: str,
-      skip_labeled: bool = True
-  ) -> pd.DataFrame:
-  ```
-
-### Docstrings
-
-- Use triple-quoted strings for all docstrings
-- Follow **NumPy docstring style** for parameters, returns, and examples
-- Include type information in docstrings
-- Example:
-  ```python
-  def compare_text_sources(self, question: str, source1: str, source2: str) -> Dict[str, Any]:
-      """Compare two text sources for a given question.
-      
-      Parameters
-      ----------
-      question : str
-          The question to evaluate sources against
-      source1 : str
-          First source text
-      source2 : str
-          Second source text
-          
-      Returns
-      -------
-      Dict[str, Any]
-          Dictionary containing comparison results with keys:
-          - 'selected_source': 1 or 2
-          - 'reason': Explanation of selection
-          - 'label': Numerical label
-      """
-  ```
-
-### Error Handling
-
-- Use try/except blocks for external dependencies (LangChain, LLM calls)
-- Provide helpful fallback messages when optional dependencies are missing
-- Log errors using the module-level `LOGGER`
-- Example pattern:
-  ```python
-  try:
-      import optional_module
-      HAS_OPTIONAL = True
-  except ImportError as e:
-      HAS_OPTIONAL = False
-      _IMPORT_ERROR = str(e)
-  ```
-
-### Testing Conventions
-
-- **Always include assertion messages** - Every `assert` statement must have a descriptive message
-- Use clear, informative messages that explain what is being tested
-- Example:
-  ```python
-  # ❌ WRONG - No message
-  assert result is not None
-  assert len(items) == 5
-  
-  # ✅ CORRECT - Clear messages
-  assert result is not None, "Agent should return result for valid input"
-  assert len(items) == 5, "Should return exactly 5 items from batch processing"
-  ```
-- Messages help diagnose failures quickly without reading test code
-- Especially important for complex conditions or edge cases
-
-### Code Formatting
-
-- Use **Black** for code formatting (line length: 88)
-- Use **isort** for import sorting
-- Follow **PEP 8** style guide
-- No manual formatting needed - tools handle it
+- **Formatting**: Black (line length 88) + isort; standard library → third-party → local import order
+- **Naming**: `PascalCase` classes, `snake_case` functions/variables, `UPPER_SNAKE_CASE` constants, `_` prefix for private members
+- **Type hints**: required on all function signatures; use `typing` module (`List`, `Dict`, `Optional`, etc.)
+- **Docstrings**: NumPy style, triple-quoted, include parameter types
+- **Error handling**: lazy-import optional dependencies with `HAS_X`/`_IMPORT_ERROR` pattern; log with module-level `LOGGER`; return `None` rather than raising on LLM failures
+- **Tests**: every `assert` must have a descriptive message (e.g., `assert x is not None, "reason"`)
 
 ## Architecture & Key Files
 
@@ -261,13 +95,7 @@ tests/                 # Unit tests
 
 - Agent modules have **lazy imports** for LangChain dependencies
 - Import errors are caught and stored in `_IMPORT_ERROR` variable
-- Check for imports before using agents:
-  ```python
-  try:
-      from RAG_supporters.agents import DatasetCheckAgent
-  except ImportError as e:
-      print(f"Install agent dependencies: pip install -e .[openai] or pip install -e .[nvidia]")
-  ```
+- Wrap agent imports in `try/except ImportError` and remind the user to run `pip install -e .[openai]` or `pip install -e .[nvidia]`
 
 ### State Management in Agents
 
@@ -305,98 +133,14 @@ tests/                 # Unit tests
 - Agents validate input text before processing
 - Empty inputs may be skipped or raise errors depending on context
 
-## Developer Environment Setup
 
-### Python Version
-
-- **Python 3.10 or higher** is required
-- Recommended: Use `pyenv` for Python version management
-  ```bash
-  pyenv install 3.10
-  pyenv local 3.10
-  ```
-
-### Virtual Environment
-
-```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate (Linux/Mac)
-source venv/bin/activate
-
-# Activate (Windows)
-venv\Scripts\activate
-
-# Install all dependencies
-pip install -r RAG_supporters/requirements.txt
-pip install -e .[openai]   # or .[nvidia] for NVIDIA support
-pip install -e .[dev]
-```
-
-### Environment Variables
-
-For OpenAI-based agents, set your API key:
-```bash
-export OPENAI_API_KEY="your-api-key-here"
-```
-
-### Running in Dev Container
-
-This workspace is configured for dev containers (Ubuntu 24.04.3 LTS):
-- All system dependencies are pre-installed
-- Python environment is set up automatically
-- Use `git`, `docker`, `kubectl` commands directly
-
-### IDE Configuration
-
-#### VS Code Settings (Recommended)
-```json
-{
-  "python.linting.enabled": true,
-  "python.linting.pylintEnabled": true,
-  "python.linting.flake8Enabled": true,
-  "python.formatting.provider": "black",
-  "python.sortImports.path": "isort",
-  "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": {
-    "source.organizeImports": true
-  }
-}
-```
 
 ## Repository Etiquette
 
-### Branch Naming
-
-- Feature branches: `feature/<description>` or `copilot/<description>`
-- Bug fixes: `fix/<description>`
-- Documentation: `docs/<description>`
-
-### Commit Messages
-
-- Use clear, descriptive commit messages
-- Start with verb in imperative mood: "Add feature", "Fix bug", "Update docs"
-- Reference issue numbers when applicable
-
-### Pull Requests
-
-- Ensure all tests pass before creating PR
-- Run code quality checks (black, isort, pylint)
-- **Update documentation and project structure** when:
-  - Adding new features or functionality
-  - Modifying existing features or APIs
-  - Changing agent behavior or workflows
-  - Update relevant files in `docs/` directory
-  - Update `AGENTS.md` if adding/modifying agents
-  - Update README.md if changing project structure
-- Add tests for new functionality
-
-### Code Review
-
-- Keep changes focused and atomic
+- Branch naming: `feature/`, `fix/`, `docs/`, `copilot/` prefixes
+- Commits: imperative mood, reference issue numbers when applicable
+- PRs: all tests pass; update `docs/`, `AGENTS.md`, `README.md`, and `agents_notes/PROJECT_STRUCTURE.md` for any file additions/deletions/API changes
 - Document why, not just what
-- Update relevant documentation in `docs/` folder
 
 ## Documentation
 
@@ -421,11 +165,7 @@ Each agent has detailed documentation in `docs/agents/`:
 
 ### Project Structure Documentation
 
-- **[agents_notes/PROJECT_STRUCTURE.md](agents_notes/PROJECT_STRUCTURE.md)** - Comprehensive file-by-file project structure reference
-
-The `agents_notes/` directory contains project structure documentation and agent-specific notes:
-- **PROJECT_STRUCTURE.md** - Complete listing of all project files with concise descriptions of their purpose and contents
-- **Maintenance Requirement**: Every PR that adds, deletes, or significantly modifies files MUST update PROJECT_STRUCTURE.md
+- **[agents_notes/PROJECT_STRUCTURE.md](agents_notes/PROJECT_STRUCTURE.md)** - File-by-file listing with purpose descriptions; **must be updated in every PR that adds, deletes, or significantly modifies files**
 
 ## #@agent Flag Convention
 
@@ -443,103 +183,9 @@ The `#@agent` flag marks instructions in code/prompts that should be extracted t
 ```
 → Extract to AGENTS.md as: "Preserve original DataFrame index in all operations"
 
-## Quick Reference
 
-### Initialize an Agent
 
-```python
-from langchain_openai import ChatOpenAI
-from RAG_supporters.agents import QuestionAugmentationAgent
 
-llm = ChatOpenAI(model="gpt-4", temperature=0.3)
-agent = QuestionAugmentationAgent(llm=llm)
-```
-
-### Process a DataFrame
-
-```python
-import pandas as pd
-from RAG_supporters.agents import DatasetCheckAgent
-
-agent = DatasetCheckAgent(llm=llm)
-df = pd.read_csv("dataset.csv")
-result_df = agent.process_dataframe(
-    df,
-    question_col="question",
-    source_col="source",
-    skip_labeled=True
-)
-```
-
-### Domain Analysis Modes
-
-```python
-from RAG_supporters.agents import DomainAnalysisAgent, OperationMode
-
-agent = DomainAnalysisAgent(llm=llm, operation_mode=OperationMode.EXTRACT)
-result = agent.extract_domains_from_source(source_text)
-
-agent.operation_mode = OperationMode.GUESS
-result = agent.guess_question_domains(question)
-
-agent.operation_mode = OperationMode.ASSESS
-result = agent.assess_question_against_terms(question, available_terms)
-```
-
-### Dataset Splitting
-
-```python
-from RAG_supporters.dataset import DatasetSplitter
-
-splitter = DatasetSplitter(random_state=42)
-train_idx, val_idx = splitter.split(dataset_size=1000, val_ratio=0.2)
-splitter.save("splits.json")
-
-# Later, load the same split
-loaded = DatasetSplitter.from_file("splits.json")
-```
-
-## Common Patterns
-
-### Error Handling for Agent Operations
-
-```python
-import logging
-
-LOGGER = logging.getLogger(__name__)
-
-try:
-    result = agent.process_text(text)
-except Exception as e:
-    LOGGER.error(f"Agent processing failed: {e}")
-    result = None  # or provide default
-```
-
-### Batch Processing with Progress
-
-```python
-from tqdm import tqdm
-
-results = []
-for item in tqdm(items, desc="Processing"):
-    result = agent.process(item)
-    results.append(result)
-```
-
-### Validating LLM Outputs
-
-```python
-from langchain_classic.output_parsers import OutputFixingParser
-from langchain_core.output_parsers import PydanticOutputParser
-
-parser = PydanticOutputParser(pydantic_object=YourModel)
-fixing_parser = OutputFixingParser.from_llm(parser=parser, llm=llm)
-
-try:
-    parsed = parser.parse(llm_output)
-except Exception:
-    parsed = fixing_parser.parse(llm_output)  # Attempt to fix
-```
 
 ## Notes for AI Coding Agents
 
