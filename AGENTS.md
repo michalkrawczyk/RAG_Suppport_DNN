@@ -543,6 +543,29 @@ except Exception:
 
 ## Notes for AI Coding Agents
 
+### Module Map Search Tool
+
+Before reading source files to find class signatures or method parameters, use the
+module map search tool — it is faster and avoids loading large files:
+
+```bash
+# Look up a class
+python agents_notes/search_module_map.py DatasetCheckAgent --type class
+
+# Look up a method signature
+python agents_notes/search_module_map.py process_dataframe --type method
+
+# Find all call sites of a function
+python agents_notes/search_module_map.py scan_directories --type usage
+```
+
+See **[agents_notes/MODULE_MAP_USAGE.md](agents_notes/MODULE_MAP_USAGE.md)** for full reference.
+
+If `agent_ignore/module_map.json` is missing, regenerate it first:
+```bash
+python agents_notes/generate_module_map.py
+```
+
 ### When Adding New Agents
 
 1. Create agent class in `RAG_supporters/agents/`

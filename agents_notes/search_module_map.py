@@ -20,7 +20,7 @@ from typing import Any
 # Data model
 # ---------------------------------------------------------------------------
 
-_SEARCH_TYPES = ("all", "module", "class", "method", "function")
+_SEARCH_TYPES = ("all", "module", "class", "method", "function", "usage", "param")
 
 
 @dataclass
@@ -111,7 +111,14 @@ def _match_record(
         for cls_name, cls_info in record.get("classes", {}).items():
             if not isinstance(cls_info, dict):
                 continue
-            for method_name, method_doc in cls_info.get("methods", {}).items():
+            for method_name, method_info in cls_info.get("methods", {}).items():
+                # Support both new dict format and legacy str|None
+                if isinstance(method_info, dict):
+                    method_doc = method_info.get("docstring")
+                    method_line = method_info.get("line")
+                else:
+                    method_doc = method_info
+                    method_line = None
                 if _contains(method_name, query) or _contains(method_doc, query):
                     results.append(
                         MatchResult(
@@ -120,12 +127,20 @@ def _match_record(
                             symbol=method_name,
                             parent_symbol=cls_name,
                             docstring=method_doc,
+                            extra={"line": method_line},
                         )
                     )
 
     # -- module-level functions ---------------------------------------------
     if search_type in ("all", "function"):
-        for fn_name, fn_doc in record.get("functions", {}).items():
+        for fn_name, fn_info in record.get("functions", {}).items():
+            # Support both new dict format and legacy str|None
+            if isinstance(fn_info, dict):
+                fn_doc = fn_info.get("docstring")
+                fn_line = fn_info.get("line")
+            else:
+                fn_doc = fn_info
+                fn_line = None
             if _contains(fn_name, query) or _contains(fn_doc, query):
                 results.append(
                     MatchResult(
@@ -133,8 +148,53 @@ def _match_record(
                         kind="function",
                         symbol=fn_name,
                         docstring=fn_doc,
+                        extra={"line": fn_line},
                     )
                 )
+
+    # -- call-site usages ---------------------------------------------------
+    if search_type in ("usage", "all"):
+        for call in record.get("calls", []):
+            if _contains(call.get("name"), query):
+                results.append(
+                    MatchResult(
+                        path=path,
+                        kind="usage",
+                        symbol=call["name"],
+                        parent_symbol=call.get("receiver") or "",
+                        extra={"line": call.get("line")},
+                    )
+                )
+
+    # -- parameter names / annotations --------------------------------------
+    if search_type in ("param", "all"):
+        # Collect (func_name, signature) pairs from classes and module functions
+        func_items: list[tuple[str, dict]] = []
+        for cls_name, cls_info in record.get("classes", {}).items():
+            if not isinstance(cls_info, dict):
+                continue
+            for method_name, method_info in cls_info.get("methods", {}).items():
+                if isinstance(method_info, dict) and "signature" in method_info:
+                    label = f"{cls_name}.{method_name}"
+                    func_items.append((label, method_info["signature"]))
+        for fn_name, fn_info in record.get("functions", {}).items():
+            if isinstance(fn_info, dict) and "signature" in fn_info:
+                func_items.append((fn_name, fn_info["signature"]))
+
+        for func_label, sig in func_items:
+            for param in sig.get("params", []):
+                if _contains(param.get("name"), query) or _contains(
+                    param.get("annotation"), query
+                ):
+                    results.append(
+                        MatchResult(
+                            path=path,
+                            kind="param",
+                            symbol=param["name"],
+                            parent_symbol=func_label,
+                            extra={"annotation": param.get("annotation")},
+                        )
+                    )
 
     return results
 
@@ -191,6 +251,8 @@ _KIND_LABEL = {
     "class": "CLASS",
     "method": "METHOD",
     "function": "FUNCTION",
+    "usage": "USAGE",
+    "param": "PARAM",
 }
 
 _INDENT = "  "
@@ -242,7 +304,13 @@ def format_results(
                     lines.append(doc_line)
             if show_methods and res.extra.get("methods"):
                 lines.append(f"{_INDENT}Methods:")
-                for m_name, m_doc in res.extra["methods"].items():
+                for m_name, m_info in res.extra["methods"].items():
+                    # Support new dict format {"docstring": ..., ...} and legacy str|None
+                    m_doc = (
+                        m_info.get("docstring")
+                        if isinstance(m_info, dict)
+                        else m_info
+                    )
                     if show_docstrings and m_doc:
                         first_doc = m_doc.strip().splitlines()[0].strip()
                         lines.append(f"{_INDENT * 2}{m_name} — \"{first_doc}\"")
@@ -265,6 +333,20 @@ def format_results(
                 if doc_line:
                     lines.append(doc_line)
 
+        elif res.kind == "usage":
+            receiver = res.parent_symbol
+            via_part = f"  (via: {receiver})" if receiver else ""
+            line_num = res.extra.get("line")
+            at_part = f"  @ {res.path}:{line_num}" if line_num else f"  @ {res.path}"
+            lines.append(f"{_INDENT}{res.symbol}{via_part}{at_part}")
+
+        elif res.kind == "param":
+            annotation = res.extra.get("annotation")
+            type_part = f": {annotation}" if annotation else ""
+            lines.append(
+                f"{_INDENT}{res.symbol}{type_part}  in {res.parent_symbol}  @ {res.path}"
+            )
+
     return "\n".join(lines)
 
 
@@ -277,6 +359,7 @@ def format_results_json(results: list[MatchResult]) -> str:
             "symbol": r.symbol,
             "parent_symbol": r.parent_symbol or None,
             "docstring": r.docstring,
+            "extra": r.extra if r.extra else None,
         }
         for r in results
     ]
@@ -306,7 +389,7 @@ Examples:
     parser.add_argument(
         "--type",
         dest="search_type",
-        choices=_SEARCH_TYPES,
+        choices=list(_SEARCH_TYPES),
         default="all",
         help="Restrict search to a specific symbol type (default: all).",
     )
@@ -326,7 +409,7 @@ Examples:
         "--map",
         default=None,
         metavar="PATH",
-        help="Path to module_map.json (default: module_map.json next to this script).",
+        help="Path to module_map.json (default: agent_ignore/module_map.json in project root).",
     )
     parser.add_argument(
         "--no-docstrings",
@@ -360,7 +443,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.map:
         map_path = Path(args.map).expanduser().resolve()
     else:
-        map_path = Path(__file__).parent / "module_map.json"
+        map_path = Path(__file__).parent.parent / "agent_ignore" / "module_map.json"
 
     module_map = load_map(map_path)
 

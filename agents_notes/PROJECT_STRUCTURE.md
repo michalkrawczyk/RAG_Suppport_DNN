@@ -18,7 +18,8 @@
 - **tests/** - Unit tests for agents and core functionality
 - **docs/** - Comprehensive documentation organized by topic
 - **dependencies/** - External dependencies or requirements files
-- **agents_notes/** - Project structure documentation and agent-specific notes
+- **agents_notes/** - Project structure documentation, tooling scripts, and module-map usage guide
+- **agent_ignore/** - Generated artifacts hidden from Copilot (module_map.json); contents git-ignored
 
 ---
 
@@ -275,10 +276,16 @@ Documentation for JASPER predictor, training, subspace routing, and XAI componen
 ## agents_notes/ - Project Tooling & Structure Documentation
 
 - **PROJECT_STRUCTURE.md** - Comprehensive file-by-file listing of all project files with concise purpose descriptions
-- **generate_module_map.py** - CLI script that AST-parses Python files and emits `module_map.json` (classes, methods, functions, docstrings)
-- **module_map.json** - Generated JSON index of all modules in `RAG_supporters/` and `tests/`; consumed by search_module_map.py
-- **search_module_map.py** - CLI search tool for `module_map.json`; supports filtering by symbol type (class/method/function/module), package, parent_module; outputs human-readable or JSON
+- **MODULE_MAP_USAGE.md** - Guide for coding agents: how to generate and search the module map
+- **generate_module_map.py** - CLI script that AST-parses Python files and emits `agent_ignore/module_map.json` (classes, methods, functions, docstrings)
+- **search_module_map.py** - CLI search tool for `agent_ignore/module_map.json`; supports filtering by symbol type (class/method/function/module), package, parent_module; outputs human-readable or JSON
 
+---
+
+## agent_ignore/ - Generated Artifacts (Hidden from Copilot)
+
+> This directory is excluded from VS Code file explorer and Copilot search context via `.vscode/settings.json`.
+> Its contents are also git-ignored (`agent_ignore/*` in `.gitignore`); only `.gitkeep` is tracked.
 ---
 
 ## File Count Summary
@@ -288,7 +295,7 @@ Documentation for JASPER predictor, training, subspace routing, and XAI componen
 - **Documentation Files**: 25 markdown files in docs/ (added 4 docs/nn/ files)
 - **Configuration**: 4 files (pyproject.toml, .gitignore, jasper_base.yaml, subspace_jasper.yaml)
 - **Root Documentation**: 2 files (AGENTS.md, README.md)
-- **Tooling Scripts**: 2 files in agents_notes/ (generate_module_map.py, search_module_map.py)
+- **Tooling Scripts**: 3 files in agents_notes/ (generate_module_map.py, search_module_map.py, MODULE_MAP_USAGE.md)
 - **Training Scripts**: 2 files in examples/ (train_jasper_predictor.py, train_subspace_jasper.py)
 
 ---

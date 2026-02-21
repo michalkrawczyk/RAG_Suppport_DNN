@@ -10,12 +10,12 @@ Usage
     python agents_notes/generate_module_map.py
     python agents_notes/generate_module_map.py --root /path/to/project
     python agents_notes/generate_module_map.py --dirs RAG_supporters tests examples
-    python agents_notes/generate_module_map.py --output agents_notes/custom_map.json
+    python agents_notes/generate_module_map.py --output agent_ignore/custom_map.json
 
 Filtering examples (Python)
 ---------------------------
     import json
-    data = json.load(open("agents_notes/module_map.json"))
+    data = json.load(open("agent_ignore/module_map.json"))
 
     # All entries from the 'agents' submodule:
     [e for e in data if e["parent_module"] == "agents"]
@@ -50,8 +50,54 @@ DEFAULT_SCAN_DIRS = ["RAG_supporters", "tests"]
 # ---------------------------------------------------------------------------
 
 
-def _extract_methods(class_node: ast.ClassDef) -> dict[str, str | None]:
-    """Extract method names and their docstrings from a class AST node.
+def _extract_signature(
+    func_node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> dict:
+    """Extract parameter list, return annotation and decorators from a function node.
+
+    Parameters
+    ----------
+    func_node : ast.FunctionDef | ast.AsyncFunctionDef
+        The AST node representing the function or method.
+
+    Returns
+    -------
+    dict
+        Keys:
+        - ``params``: list of ``{"name": str, "annotation": str | None}``
+        - ``return_annotation``: ``ast.unparse`` result or ``None``
+        - ``decorators``: list of decorator name strings
+    """
+    params: list[dict] = []
+    for arg in func_node.args.args:
+        annotation = ast.unparse(arg.annotation) if arg.annotation else None
+        params.append({"name": arg.arg, "annotation": annotation})
+
+    return_annotation = (
+        ast.unparse(func_node.returns) if func_node.returns else None
+    )
+
+    decorators: list[str] = []
+    for dec in func_node.decorator_list:
+        if isinstance(dec, ast.Name):
+            decorators.append(dec.id)
+        elif isinstance(dec, ast.Attribute):
+            decorators.append(dec.attr)
+        else:
+            try:
+                decorators.append(ast.unparse(dec))
+            except Exception:  # noqa: BLE001
+                pass
+
+    return {
+        "params": params,
+        "return_annotation": return_annotation,
+        "decorators": decorators,
+    }
+
+
+def _extract_methods(class_node: ast.ClassDef) -> dict[str, dict]:
+    """Extract method names, docstrings, signatures and line numbers from a class.
 
     Parameters
     ----------
@@ -60,13 +106,18 @@ def _extract_methods(class_node: ast.ClassDef) -> dict[str, str | None]:
 
     Returns
     -------
-    dict[str, str | None]
-        Mapping of method name -> docstring (None if absent).
+    dict[str, dict]
+        Mapping of method name -> ``{"docstring": str|None, "signature": dict,
+        "line": int}``.
     """
-    methods: dict[str, str | None] = {}
+    methods: dict[str, dict] = {}
     for node in ast.iter_child_nodes(class_node):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            methods[node.name] = ast.get_docstring(node)
+            methods[node.name] = {
+                "docstring": ast.get_docstring(node),
+                "signature": _extract_signature(node),
+                "line": node.lineno,
+            }
     return methods
 
 
@@ -111,8 +162,8 @@ def _iter_module_level_defs(
 
 def _extract_top_level_functions(
     module_node: ast.Module,
-) -> dict[str, str | None]:
-    """Extract top-level function names and their docstrings from a module AST.
+) -> dict[str, dict]:
+    """Extract top-level function names, docstrings, signatures and line numbers.
 
     Descends into wrapper blocks (Try, If, With) to capture functions defined
     inside optional-import guards.
@@ -124,13 +175,18 @@ def _extract_top_level_functions(
 
     Returns
     -------
-    dict[str, str | None]
-        Mapping of function name -> docstring (None if absent).
+    dict[str, dict]
+        Mapping of function name -> ``{"docstring": str|None, "signature": dict,
+        "line": int}``.
     """
-    functions: dict[str, str | None] = {}
+    functions: dict[str, dict] = {}
     for node in _iter_module_level_defs(module_node):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            functions[node.name] = ast.get_docstring(node)
+            functions[node.name] = {
+                "docstring": ast.get_docstring(node),
+                "signature": _extract_signature(node),
+                "line": node.lineno,
+            }
     return functions
 
 
@@ -155,9 +211,88 @@ def _extract_classes(module_node: ast.Module) -> dict[str, dict]:
         if isinstance(node, ast.ClassDef):
             classes[node.name] = {
                 "docstring": ast.get_docstring(node),
+                "bases": [ast.unparse(b) for b in node.bases],
+                "line": node.lineno,
                 "methods": _extract_methods(node),
             }
     return classes
+
+
+def _extract_calls(tree: ast.AST) -> list[dict]:
+    """Extract all function/method call sites from an AST tree.
+
+    Uses ``ast.walk`` so nested calls (e.g. inside comprehensions or lambdas)
+    are included.
+
+    Parameters
+    ----------
+    tree : ast.AST
+        Parsed AST of the module.
+
+    Returns
+    -------
+    list[dict]
+        Each element has keys:
+        - ``name``: callee name (attribute name or bare name)
+        - ``receiver``: variable name before the dot, or ``None``
+        - ``line``: source line number
+    """
+    calls: list[dict] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Name):
+            calls.append({"name": func.id, "receiver": None, "line": node.lineno})
+        elif isinstance(func, ast.Attribute):
+            receiver = (
+                func.value.id if isinstance(func.value, ast.Name) else None
+            )
+            calls.append(
+                {"name": func.attr, "receiver": receiver, "line": node.lineno}
+            )
+    return calls
+
+
+def _extract_constants(tree: ast.Module) -> dict:
+    """Extract module-level UPPER_CASE constants and ``__all__`` from an AST.
+
+    Only direct module-level ``ast.Assign`` nodes are scanned (no wrapper
+    blocks), which matches typical constant declaration style.
+
+    Parameters
+    ----------
+    tree : ast.Module
+        Parsed AST of the module.
+
+    Returns
+    -------
+    dict
+        Keys:
+        - ``module_constants``: list of ``UPPER_CASE`` variable names
+        - ``__all__``: list of exported names, or ``None`` if absent
+    """
+    upper_case: list[str] = []
+    all_list: list[str] | None = None
+
+    for node in ast.iter_child_nodes(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if not isinstance(target, ast.Name):
+                continue
+            name = target.id
+            if name == "__all__" and isinstance(node.value, ast.List):
+                all_list = [
+                    elt.value
+                    if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+                    else ast.unparse(elt)
+                    for elt in node.value.elts
+                ]
+            elif name.isupper() and name != "__all__":
+                upper_case.append(name)
+
+    return {"module_constants": upper_case, "__all__": all_list}
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +358,8 @@ def process_file(abs_path: Path, rel_path: Path) -> dict:
     entry["module_docstring"] = ast.get_docstring(tree)
     entry["classes"] = _extract_classes(tree)
     entry["functions"] = _extract_top_level_functions(tree)
+    entry["calls"] = _extract_calls(tree)
+    entry["constants"] = _extract_constants(tree)
     return entry
 
 
@@ -284,7 +421,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """
     script_dir = Path(__file__).parent
     default_root = script_dir.parent
-    default_output = script_dir / "module_map.json"
+    default_output = default_root / "agent_ignore" / "module_map.json"
 
     parser = argparse.ArgumentParser(
         description="Generate a JSON map of modules -> classes/functions/docstrings.",

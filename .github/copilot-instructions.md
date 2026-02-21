@@ -58,6 +58,7 @@ This repository contains RAG (Retrieval-Augmented Generation) support tools and 
 1. Review [AGENTS.md](../AGENTS.md) - Technical guidelines and architecture
 2. Check [AGENTS_OVERVIEW.md](../docs/agents/AGENTS_OVERVIEW.md) - Existing agent patterns
 3. Identify similar agents to follow as templates
+4. Use `search_module_map.py` to look up class/method signatures — see [agents_notes/MODULE_MAP_USAGE.md](../agents_notes/MODULE_MAP_USAGE.md)
 
 ### While Writing Code
 
@@ -207,10 +208,17 @@ The `#@agent` flag marks instructions in code/prompts that should be extracted t
 
 ### agents_notes/ Directory
 
-The `agents_notes/` directory contains project structure documentation:
+The `agents_notes/` directory contains project structure documentation and tooling:
 - **PROJECT_STRUCTURE.md** - File-by-file listing with purpose descriptions
+- **MODULE_MAP_USAGE.md** - How to generate and search the module map index
+- **generate_module_map.py** - Generates `agent_ignore/module_map.json` via AST parsing
+- **search_module_map.py** - CLI search over the module map (classes, methods, functions, params)
 - Organized by directory (RAG_supporters/, tests/, docs/, etc.)
 - Each file has one-line description of its primary purpose
+
+### agent_ignore/ Directory
+
+The `agent_ignore/` directory holds **generated artifacts** that are intentionally **hidden from LLM agents** (excluded via `.vscode/settings.json` and `.gitignore`). Contents are git-ignored; only `.gitkeep` is tracked
 
 ### Update Requirements
 
@@ -239,4 +247,4 @@ Keep descriptions **precise and concise** - one line per file.
 
 ---
 
-**For AI Coding Agents**: Always start by reading AGENTS.md and AGENTS_OVERVIEW.md. When in doubt, follow existing agent patterns. Tests are mandatory, not optional.
+**For AI Coding Agents**: Always start by reading AGENTS.md. When in doubt, follow existing agent patterns. Tests are mandatory, not optional.
