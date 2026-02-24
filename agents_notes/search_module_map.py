@@ -60,7 +60,7 @@ def load_map(map_path: Path) -> list[dict]:
 
 def _matches(text: str | None, query: str, exact: bool = False) -> bool:
     """Case-insensitive matching (substring or exact).
-    
+
     Parameters
     ----------
     text:
@@ -85,7 +85,7 @@ def _match_record(
     exact: bool = False,
 ) -> list[MatchResult]:
     """Return all MatchResults from *record* matching *query* and *search_type*.
-    
+
     Parameters
     ----------
     record:
@@ -335,14 +335,10 @@ def format_results(
                 lines.append(f"{_INDENT}Methods:")
                 for m_name, m_info in res.extra["methods"].items():
                     # Support new dict format {"docstring": ..., ...} and legacy str|None
-                    m_doc = (
-                        m_info.get("docstring")
-                        if isinstance(m_info, dict)
-                        else m_info
-                    )
+                    m_doc = m_info.get("docstring") if isinstance(m_info, dict) else m_info
                     if show_docstrings and m_doc:
                         first_doc = m_doc.strip().splitlines()[0].strip()
-                        lines.append(f"{_INDENT * 2}{m_name} — \"{first_doc}\"")
+                        lines.append(f'{_INDENT * 2}{m_name} — "{first_doc}"')
                     else:
                         lines.append(f"{_INDENT * 2}{m_name}")
 
@@ -372,9 +368,7 @@ def format_results(
         elif res.kind == "param":
             annotation = res.extra.get("annotation")
             type_part = f": {annotation}" if annotation else ""
-            lines.append(
-                f"{_INDENT}{res.symbol}{type_part}  in {res.parent_symbol}  @ {res.path}"
-            )
+            lines.append(f"{_INDENT}{res.symbol}{type_part}  in {res.parent_symbol}  @ {res.path}")
 
     return "\n".join(lines)
 

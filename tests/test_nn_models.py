@@ -54,13 +54,15 @@ def predictor_batch():
 class TestJASPERPredictorInit:
     def test_from_config_object(self, predictor_config):
         model = JASPERPredictor(predictor_config)
-        assert model.config is predictor_config, \
-            "JASPERPredictor.config should be the same object as the config passed in"
+        assert (
+            model.config is predictor_config
+        ), "JASPERPredictor.config should be the same object as the config passed in"
 
     def test_from_dict(self):
         model = JASPERPredictor({"embedding_dim": 32, "hidden_dim": 16, "num_layers": 1})
-        assert model.embedding_dim == 32, \
-            "embedding_dim property should reflect the value from the dict config"
+        assert (
+            model.embedding_dim == 32
+        ), "embedding_dim property should reflect the value from the dict config"
 
     def test_invalid_num_layers_raises(self):
         with pytest.raises(ValueError, match="num_layers"):
@@ -75,24 +77,32 @@ class TestJASPERPredictorInit:
             JASPERPredictorConfig(embedding_dim=64, hidden_dim=32, activation="NonExistent")
 
     def test_sub_networks_present(self, predictor):
-        assert hasattr(predictor, "question_encoder"), \
-            "JASPERPredictor must have a 'question_encoder' attribute"
-        assert hasattr(predictor, "steering_encoder"), \
-            "JASPERPredictor must have a 'steering_encoder' attribute"
-        assert hasattr(predictor, "predictor_head"), \
-            "JASPERPredictor must have a 'predictor_head' attribute"
-        assert isinstance(predictor.question_encoder, nn.Sequential), \
-            "question_encoder should be an nn.Sequential"
-        assert isinstance(predictor.steering_encoder, nn.Sequential), \
-            "steering_encoder should be an nn.Sequential"
-        assert isinstance(predictor.predictor_head, nn.Sequential), \
-            "predictor_head should be an nn.Sequential"
+        assert hasattr(
+            predictor, "question_encoder"
+        ), "JASPERPredictor must have a 'question_encoder' attribute"
+        assert hasattr(
+            predictor, "steering_encoder"
+        ), "JASPERPredictor must have a 'steering_encoder' attribute"
+        assert hasattr(
+            predictor, "predictor_head"
+        ), "JASPERPredictor must have a 'predictor_head' attribute"
+        assert isinstance(
+            predictor.question_encoder, nn.Sequential
+        ), "question_encoder should be an nn.Sequential"
+        assert isinstance(
+            predictor.steering_encoder, nn.Sequential
+        ), "steering_encoder should be an nn.Sequential"
+        assert isinstance(
+            predictor.predictor_head, nn.Sequential
+        ), "predictor_head should be an nn.Sequential"
 
     def test_properties(self, predictor_config, predictor):
-        assert predictor.embedding_dim == predictor_config.embedding_dim, \
-            "model.embedding_dim should match config.embedding_dim"
-        assert predictor.hidden_dim == predictor_config.hidden_dim, \
-            "model.hidden_dim should match config.hidden_dim"
+        assert (
+            predictor.embedding_dim == predictor_config.embedding_dim
+        ), "model.embedding_dim should match config.embedding_dim"
+        assert (
+            predictor.hidden_dim == predictor_config.hidden_dim
+        ), "model.hidden_dim should match config.hidden_dim"
 
     def test_has_parameters(self, predictor):
         total = sum(p.numel() for p in predictor.parameters())
@@ -102,13 +112,15 @@ class TestJASPERPredictorInit:
         model = JASPERPredictor(
             {"embedding_dim": 32, "hidden_dim": 16, "num_layers": 1, "unknown_key": "ignored"}
         )
-        assert model.embedding_dim == 32, \
-            "Extra unknown keys in config dict should be silently ignored"
+        assert (
+            model.embedding_dim == 32
+        ), "Extra unknown keys in config dict should be silently ignored"
 
     def test_config_from_dict_classmethod(self):
-        cfg = JASPERPredictorConfig.from_dict({"embedding_dim": 128, "hidden_dim": 64, "num_layers": 2})
-        assert cfg.embedding_dim == 128, \
-            "from_dict class method should correctly set embedding_dim"
+        cfg = JASPERPredictorConfig.from_dict(
+            {"embedding_dim": 128, "hidden_dim": 64, "num_layers": 2}
+        )
+        assert cfg.embedding_dim == 128, "from_dict class method should correctly set embedding_dim"
 
     def test_summary_string(self, predictor):
         summary = predictor.get_model_summary()
@@ -118,8 +130,9 @@ class TestJASPERPredictorInit:
     def test_repr(self, predictor):
         r = repr(predictor)
         assert "JASPERPredictor" in r, "repr should contain 'JASPERPredictor'"
-        assert str(predictor.config.embedding_dim) in r, \
-            "repr should contain the embedding_dim value"
+        assert (
+            str(predictor.config.embedding_dim) in r
+        ), "repr should contain the embedding_dim value"
 
 
 class TestJASPERPredictorForward:
@@ -147,14 +160,17 @@ class TestJASPERPredictorForward:
 
     def test_normalize_output_flag(self):
         model = JASPERPredictor(
-            JASPERPredictorConfig(embedding_dim=32, hidden_dim=16, num_layers=1, normalize_output=True)
+            JASPERPredictorConfig(
+                embedding_dim=32, hidden_dim=16, num_layers=1, normalize_output=True
+            )
         )
         q = torch.randn(4, 32)
         s = torch.randn(4, 32)
         out = model(q, s)
         norms = out.norm(dim=-1)
-        assert torch.allclose(norms, torch.ones_like(norms), atol=1e-5), \
-            "With normalize_output=True, all output vectors should have unit norm"
+        assert torch.allclose(
+            norms, torch.ones_like(norms), atol=1e-5
+        ), "With normalize_output=True, all output vectors should have unit norm"
 
     def test_single_layer_model(self):
         model = JASPERPredictor(JASPERPredictorConfig(embedding_dim=16, hidden_dim=8, num_layers=1))
@@ -162,7 +178,9 @@ class TestJASPERPredictorForward:
         assert out.shape == (2, 16), "Single-layer model should produce output of shape (2, 16)"
 
     def test_deep_model(self):
-        model = JASPERPredictor(JASPERPredictorConfig(embedding_dim=32, hidden_dim=16, num_layers=5))
+        model = JASPERPredictor(
+            JASPERPredictorConfig(embedding_dim=32, hidden_dim=16, num_layers=5)
+        )
         out = model(torch.randn(3, 32), torch.randn(3, 32))
         assert out.shape == (3, 32), "Deep model should produce output of shape (3, 32)"
 
@@ -178,8 +196,9 @@ class TestJASPERPredictorGradients:
     def test_no_grad_context_produces_no_grad(self, predictor, predictor_batch):
         with torch.no_grad():
             out = predictor(predictor_batch["question_emb"], predictor_batch["steering_emb"])
-        assert not out.requires_grad, \
-            "Output inside torch.no_grad() context should not require grad"
+        assert (
+            not out.requires_grad
+        ), "Output inside torch.no_grad() context should not require grad"
 
     def test_grad_enabled_produces_grad(self, predictor, predictor_batch):
         q = predictor_batch["question_emb"].requires_grad_(True)
@@ -198,28 +217,35 @@ class TestJASPERPredictorLatents:
     def test_populated_after_forward(self, predictor, predictor_batch):
         predictor(predictor_batch["question_emb"], predictor_batch["steering_emb"])
         latents = predictor.get_latent_representations()
-        assert "question_latent" in latents, \
-            "Latents should contain 'question_latent' after forward pass"
-        assert "steering_latent" in latents, \
-            "Latents should contain 'steering_latent' after forward pass"
+        assert (
+            "question_latent" in latents
+        ), "Latents should contain 'question_latent' after forward pass"
+        assert (
+            "steering_latent" in latents
+        ), "Latents should contain 'steering_latent' after forward pass"
 
     def test_latent_shapes(self, predictor, predictor_batch):
         predictor(predictor_batch["question_emb"], predictor_batch["steering_emb"])
         latents = predictor.get_latent_representations()
         B = predictor_batch["question_emb"].shape[0]
         H = predictor.config.hidden_dim
-        assert latents["question_latent"].shape == (B, H), \
-            f"question_latent shape should be ({B}, {H})"
-        assert latents["steering_latent"].shape == (B, H), \
-            f"steering_latent shape should be ({B}, {H})"
+        assert latents["question_latent"].shape == (
+            B,
+            H,
+        ), f"question_latent shape should be ({B}, {H})"
+        assert latents["steering_latent"].shape == (
+            B,
+            H,
+        ), f"steering_latent shape should be ({B}, {H})"
 
     def test_latents_are_detached(self, predictor, predictor_batch):
         q = predictor_batch["question_emb"].requires_grad_(True)
         predictor(q, predictor_batch["steering_emb"])
         latents = predictor.get_latent_representations()
         for v in latents.values():
-            assert not v.requires_grad, \
-                "All cached latent representations must be detached from the computation graph"
+            assert (
+                not v.requires_grad
+            ), "All cached latent representations must be detached from the computation graph"
 
 
 # ===========================================================================
@@ -255,8 +281,7 @@ class TestDecomposedPredictorInit:
     def test_sub_modules_present(self):
         model = _make_decomposed()
         for attr in ("question_encoder", "steering_encoder", "router", "fine_mlp"):
-            assert hasattr(model, attr), \
-                f"DecomposedJASPERPredictor must have a '{attr}' attribute"
+            assert hasattr(model, attr), f"DecomposedJASPERPredictor must have a '{attr}' attribute"
 
     def test_num_subspaces(self):
         model = _make_decomposed()
@@ -271,12 +296,16 @@ class TestDecomposedPredictorInit:
         assert model.hidden_dim == _H_D, f"hidden_dim property should be {_H_D}"
 
     def test_from_dict(self):
-        model = DecomposedJASPERPredictor({
-            "embedding_dim": _D_D, "hidden_dim": _H_D, "num_subspaces": _K_D,
-            "num_layers": 2, "router_hidden_dim": _H_D,
-        })
-        assert model.num_subspaces == _K_D, \
-            "num_subspaces should be set correctly from dict config"
+        model = DecomposedJASPERPredictor(
+            {
+                "embedding_dim": _D_D,
+                "hidden_dim": _H_D,
+                "num_subspaces": _K_D,
+                "num_layers": 2,
+                "router_hidden_dim": _H_D,
+            }
+        )
+        assert model.num_subspaces == _K_D, "num_subspaces should be set correctly from dict config"
 
     def test_invalid_fine_input_mode_raises(self):
         with pytest.raises(ValueError, match="fine_input_mode"):
@@ -286,24 +315,28 @@ class TestDecomposedPredictorInit:
 
     def test_add_mode_has_coarse_projector(self):
         model = _make_decomposed(fine_input_mode="add")
-        assert model.coarse_projector is not None, \
-            "'add' fine_input_mode should create a coarse_projector"
+        assert (
+            model.coarse_projector is not None
+        ), "'add' fine_input_mode should create a coarse_projector"
 
     def test_concat_mode_no_coarse_projector(self):
         model = _make_decomposed(fine_input_mode="concat")
-        assert model.coarse_projector is None, \
-            "'concat' fine_input_mode should not create a coarse_projector"
+        assert (
+            model.coarse_projector is None
+        ), "'concat' fine_input_mode should not create a coarse_projector"
 
     def test_get_model_summary(self):
         model = _make_decomposed()
         summary = model.get_model_summary()
-        assert "DecomposedJASPERPredictor" in summary, \
-            "Model summary should contain 'DecomposedJASPERPredictor'"
+        assert (
+            "DecomposedJASPERPredictor" in summary
+        ), "Model summary should contain 'DecomposedJASPERPredictor'"
 
     def test_repr(self):
         model = _make_decomposed()
-        assert "DecomposedJASPERPredictor" in repr(model), \
-            "repr should contain 'DecomposedJASPERPredictor'"
+        assert "DecomposedJASPERPredictor" in repr(
+            model
+        ), "repr should contain 'DecomposedJASPERPredictor'"
 
 
 class TestDecomposedPredictorForward:
@@ -311,8 +344,10 @@ class TestDecomposedPredictorForward:
         model = _make_decomposed()
         q, s, c = _make_decomposed_inputs()
         pred, _ = model(q, s, c)
-        assert pred.shape == (_B_D, _D_D), \
-            f"Prediction shape should be ({_B_D}, {_D_D}), got {pred.shape}"
+        assert pred.shape == (
+            _B_D,
+            _D_D,
+        ), f"Prediction shape should be ({_B_D}, {_D_D}), got {pred.shape}"
 
     def test_explanation_dict_keys(self):
         model = _make_decomposed()
@@ -325,12 +360,15 @@ class TestDecomposedPredictorForward:
         model = _make_decomposed()
         q, s, c = _make_decomposed_inputs()
         _, xai = model(q, s, c)
-        assert xai["routing_weights"].shape == (_B_D, _K_D), \
-            f"routing_weights shape should be ({_B_D}, {_K_D})"
-        assert xai["coarse"].shape == (_B_D, _D_D), \
-            f"coarse vector shape should be ({_B_D}, {_D_D})"
-        assert xai["fine"].shape == (_B_D, _D_D), \
-            f"fine vector shape should be ({_B_D}, {_D_D})"
+        assert xai["routing_weights"].shape == (
+            _B_D,
+            _K_D,
+        ), f"routing_weights shape should be ({_B_D}, {_K_D})"
+        assert xai["coarse"].shape == (
+            _B_D,
+            _D_D,
+        ), f"coarse vector shape should be ({_B_D}, {_D_D})"
+        assert xai["fine"].shape == (_B_D, _D_D), f"fine vector shape should be ({_B_D}, {_D_D})"
         assert xai["atypicality"].shape == (_B_D,), f"atypicality shape should be ({_B_D},)"
 
     def test_explanation_all_detached(self):
@@ -370,8 +408,9 @@ class TestDecomposedPredictorForward:
         q, s, c = _make_decomposed_inputs()
         _, xai = model(q, s, c)
         sums = xai["routing_weights"].sum(dim=-1)
-        assert torch.allclose(sums, torch.ones(_B_D), atol=1e-5), \
-            f"Routing weights should sum to 1.0 per sample, got: {sums}"
+        assert torch.allclose(
+            sums, torch.ones(_B_D), atol=1e-5
+        ), f"Routing weights should sum to 1.0 per sample, got: {sums}"
 
 
 class TestDecomposedPredictorArithmetic:
@@ -382,9 +421,9 @@ class TestDecomposedPredictorArithmetic:
         with torch.no_grad():
             prediction, xai = model(q, s, c, training=False)
         reconstructed = xai["coarse"] + xai["fine"]
-        assert torch.allclose(prediction.detach(), reconstructed, atol=1e-5), (
-            f"Max diff: {(prediction.detach() - reconstructed).abs().max().item()}"
-        )
+        assert torch.allclose(
+            prediction.detach(), reconstructed, atol=1e-5
+        ), f"Max diff: {(prediction.detach() - reconstructed).abs().max().item()}"
 
     def test_atypicality_equals_fine_norm(self):
         model = _make_decomposed()
@@ -392,8 +431,9 @@ class TestDecomposedPredictorArithmetic:
         with torch.no_grad():
             _, xai = model(q, s, c, training=False)
         expected = xai["fine"].norm(dim=-1)
-        assert torch.allclose(xai["atypicality"], expected, atol=1e-5), \
-            "atypicality should equal the L2 norm of the fine residual vector"
+        assert torch.allclose(
+            xai["atypicality"], expected, atol=1e-5
+        ), "atypicality should equal the L2 norm of the fine residual vector"
 
 
 class TestDecomposedPredictorFineModes:
@@ -410,8 +450,9 @@ class TestDecomposedPredictorFineModes:
         q, s, c = _make_decomposed_inputs()
         pred_c, _ = m_concat(q, s, c)
         pred_a, _ = m_add(q, s, c)
-        assert pred_c.shape == pred_a.shape, \
-            "'concat' and 'add' modes should produce predictions of the same shape"
+        assert (
+            pred_c.shape == pred_a.shape
+        ), "'concat' and 'add' modes should produce predictions of the same shape"
 
 
 class TestDecomposedPredictorGradients:
@@ -429,8 +470,9 @@ class TestDecomposedPredictorGradients:
         c = torch.randn(_K_D, _D_D, requires_grad=True)
         pred, _ = model(q, s, c)
         pred.sum().backward()
-        assert c.grad is not None, \
-            "Gradient should flow back to centroid_embs when requires_grad=True"
+        assert (
+            c.grad is not None
+        ), "Gradient should flow back to centroid_embs when requires_grad=True"
 
 
 class TestDecomposedPredictorLatents:
@@ -454,8 +496,10 @@ class TestDecomposedPredictorLatents:
         model = _make_decomposed()
         q, s, _ = _make_decomposed_inputs()
         weights = model.get_routing_weights(q, s)
-        assert weights.shape == (_B_D, _K_D), \
-            f"get_routing_weights output shape should be ({_B_D}, {_K_D})"
+        assert weights.shape == (
+            _B_D,
+            _K_D,
+        ), f"get_routing_weights output shape should be ({_B_D}, {_K_D})"
 
 
 # ===========================================================================
@@ -494,8 +538,9 @@ class TestSubspaceRouterInit:
     def test_from_config_object(self):
         cfg = SubspaceRouterConfig(embedding_dim=_D_R, hidden_dim=_H_R, num_subspaces=_K_R)
         router = SubspaceRouter(cfg)
-        assert router.config is cfg, \
-            "SubspaceRouter.config should be the same object as the config passed in"
+        assert (
+            router.config is cfg
+        ), "SubspaceRouter.config should be the same object as the config passed in"
 
     def test_from_dict(self):
         router = SubspaceRouter({"embedding_dim": _D_R, "hidden_dim": _H_R, "num_subspaces": _K_R})
@@ -508,7 +553,9 @@ class TestSubspaceRouterInit:
 
     def test_invalid_temperature_raises(self):
         with pytest.raises(ValueError, match="temperature"):
-            SubspaceRouterConfig(embedding_dim=_D_R, hidden_dim=_H_R, num_subspaces=_K_R, temperature=0.0)
+            SubspaceRouterConfig(
+                embedding_dim=_D_R, hidden_dim=_H_R, num_subspaces=_K_R, temperature=0.0
+            )
 
     def test_invalid_num_subspaces_raises(self):
         with pytest.raises(ValueError, match="num_subspaces"):
@@ -516,7 +563,9 @@ class TestSubspaceRouterInit:
 
     def test_invalid_num_layers_raises(self):
         with pytest.raises(ValueError, match="num_layers"):
-            SubspaceRouterConfig(embedding_dim=_D_R, hidden_dim=_H_R, num_subspaces=_K_R, num_layers=0)
+            SubspaceRouterConfig(
+                embedding_dim=_D_R, hidden_dim=_H_R, num_subspaces=_K_R, num_layers=0
+            )
 
     def test_invalid_activation_raises(self):
         with pytest.raises(ValueError, match="activation"):
@@ -577,8 +626,9 @@ class TestSubspaceRouterForward:
         q, s = _make_router_inputs()
         weights, _ = router(q, s, training=True)
         sums = weights.sum(dim=-1)
-        assert torch.allclose(sums, torch.ones(_B_R), atol=1e-5), \
-            f"Routing weights should sum to 1.0 per sample in training mode, got: {sums}"
+        assert torch.allclose(
+            sums, torch.ones(_B_R), atol=1e-5
+        ), f"Routing weights should sum to 1.0 per sample in training mode, got: {sums}"
 
 
 class TestSubspaceRouterGumbel:
@@ -597,8 +647,9 @@ class TestSubspaceRouterGumbel:
         q, s = _make_router_inputs()
         w1, _ = router(q, s, training=False)
         w2, _ = router(q, s, training=False)
-        assert torch.allclose(w1, w2), \
-            "Inference mode (training=False) should produce deterministic routing weights"
+        assert torch.allclose(
+            w1, w2
+        ), "Inference mode (training=False) should produce deterministic routing weights"
 
     def test_hard_gumbel_produces_one_hot(self):
         router = _make_router(gumbel_hard=True)
@@ -637,8 +688,9 @@ class TestSubspaceRouterGetPrimarySubspace:
         router = _make_router()
         q, s = _make_router_inputs()
         _, confidences = router.get_primary_subspace(q, s)
-        assert not confidences.requires_grad, \
-            "get_primary_subspace confidences should be detached (no grad)"
+        assert (
+            not confidences.requires_grad
+        ), "get_primary_subspace confidences should be detached (no grad)"
 
 
 class TestSubspaceRouterExplain:
@@ -647,7 +699,13 @@ class TestSubspaceRouterExplain:
         q, s = _make_router_inputs()
         names = [f"c{i}" for i in range(_K_R)]
         result = router.explain(q, s, names)
-        for key in ("routing_weights", "primary_subspace", "primary_confidence", "entropy", "cluster_names"):
+        for key in (
+            "routing_weights",
+            "primary_subspace",
+            "primary_confidence",
+            "entropy",
+            "cluster_names",
+        ):
             assert key in result, f"Missing key: {key}"
 
     def test_primary_subspace_in_names(self):
@@ -655,8 +713,9 @@ class TestSubspaceRouterExplain:
         q, s = _make_router_inputs()
         names = [f"cluster_{i}" for i in range(_K_R)]
         result = router.explain(q, s, names)
-        assert result["primary_subspace"] in names, \
-            "primary_subspace should be one of the provided cluster names"
+        assert (
+            result["primary_subspace"] in names
+        ), "primary_subspace should be one of the provided cluster names"
 
     def test_wrong_cluster_names_length_raises(self):
         router = _make_router()
@@ -670,8 +729,9 @@ class TestSubspaceRouterExplain:
         s_single = torch.randn(_D_R)
         names = [f"c{i}" for i in range(_K_R)]
         result = router.explain(q_single, s_single, names)
-        assert result["primary_subspace"] in names, \
-            "explain() with single-sample input should return a valid primary_subspace name"
+        assert (
+            result["primary_subspace"] in names
+        ), "explain() with single-sample input should return a valid primary_subspace name"
 
 
 class TestSubspaceRouterGradients:
@@ -681,8 +741,7 @@ class TestSubspaceRouterGradients:
         weights, _ = router(q, s, training=True)
         weights.sum().backward()
         any_grad = any(
-            p.grad is not None and p.grad.abs().sum() > 0
-            for p in router.router_mlp.parameters()
+            p.grad is not None and p.grad.abs().sum() > 0 for p in router.router_mlp.parameters()
         )
         assert any_grad, "No gradient reached router_mlp parameters"
 
@@ -711,11 +770,13 @@ def ema_x():
 
 class TestEMAEncoderInit:
     def test_creates_target_copy(self, ema, small_encoder):
-        assert ema.target_encoder is not ema.online_encoder, \
-            "Target encoder must be a separate object from online encoder"
+        assert (
+            ema.target_encoder is not ema.online_encoder
+        ), "Target encoder must be a separate object from online encoder"
         for op, tp in zip(ema.online_encoder.parameters(), ema.target_encoder.parameters()):
-            assert torch.equal(op.data, tp.data), \
-                "Target and online encoder should start with identical weights"
+            assert torch.equal(
+                op.data, tp.data
+            ), "Target and online encoder should start with identical weights"
 
     def test_target_requires_no_grad(self, ema):
         for p in ema.target_encoder.parameters():
@@ -741,13 +802,15 @@ class TestEMAEncoderInit:
 class TestEMAEncoderTauSchedule:
     def test_tau_at_step_zero(self, ema):
         tau = ema.get_tau(step=0, max_steps=100)
-        assert abs(tau - ema.tau_min) < 1e-6, \
-            f"tau at step 0 should equal tau_min={ema.tau_min}, got {tau}"
+        assert (
+            abs(tau - ema.tau_min) < 1e-6
+        ), f"tau at step 0 should equal tau_min={ema.tau_min}, got {tau}"
 
     def test_tau_at_last_step(self, ema):
         tau = ema.get_tau(step=100, max_steps=100)
-        assert abs(tau - ema.tau_max) < 1e-6, \
-            f"tau at final step should equal tau_max={ema.tau_max}, got {tau}"
+        assert (
+            abs(tau - ema.tau_max) < 1e-6
+        ), f"tau at final step should equal tau_max={ema.tau_max}, got {tau}"
 
     def test_tau_monotonically_increasing(self, ema):
         taus = [ema.get_tau(s, 100) for s in range(0, 101, 10)]
@@ -757,18 +820,19 @@ class TestEMAEncoderTauSchedule:
     def test_tau_within_bounds(self, ema):
         for step in range(0, 110, 10):
             tau = ema.get_tau(step, 100)
-            assert ema.tau_min - 1e-7 <= tau <= ema.tau_max + 1e-7, \
-                f"tau={tau} at step={step} is outside [{ema.tau_min}, {ema.tau_max}]"
+            assert (
+                ema.tau_min - 1e-7 <= tau <= ema.tau_max + 1e-7
+            ), f"tau={tau} at step={step} is outside [{ema.tau_min}, {ema.tau_max}]"
 
     def test_tau_clamps_beyond_max_steps(self, ema):
         tau = ema.get_tau(step=9999, max_steps=100)
-        assert abs(tau - ema.tau_max) < 1e-6, \
-            f"tau beyond max_steps should clamp to tau_max={ema.tau_max}, got {tau}"
+        assert (
+            abs(tau - ema.tau_max) < 1e-6
+        ), f"tau beyond max_steps should clamp to tau_max={ema.tau_max}, got {tau}"
 
     def test_zero_max_steps_returns_tau_max(self, ema):
         tau = ema.get_tau(0, 0)
-        assert tau == ema.tau_max, \
-            f"get_tau with max_steps=0 should return tau_max={ema.tau_max}"
+        assert tau == ema.tau_max, f"get_tau with max_steps=0 should return tau_max={ema.tau_max}"
 
     def test_tau_info_dict(self, ema):
         info = ema.get_tau_info(10, 100)
@@ -785,8 +849,9 @@ class TestEMAEncoderUpdate:
                 p.data += 0.1
         ema.update_target(step=0, max_steps=100)
         for name, param in ema.target_encoder.named_parameters():
-            assert not torch.equal(param.data, original_target[name]), \
-                f"Target param '{name}' should have changed after EMA update"
+            assert not torch.equal(
+                param.data, original_target[name]
+            ), f"Target param '{name}' should have changed after EMA update"
 
     def test_target_drifts_slower_than_online(self, small_encoder):
         ema = EMAEncoder(copy.deepcopy(small_encoder), tau_min=0.99, tau_max=0.999)
@@ -797,11 +862,15 @@ class TestEMAEncoderUpdate:
                 p.data += 1.0
         ema.update_target(0, 100)
         for name in initial_online:
-            online_delta = (ema.online_encoder.state_dict()[name] - initial_online[name]).abs().mean()
-            target_delta = (ema.target_encoder.state_dict()[name] - initial_target[name]).abs().mean()
-            assert target_delta.item() < online_delta.item(), (
-                f"Target ({target_delta:.4f}) drifted more than online ({online_delta:.4f}) for {name}"
+            online_delta = (
+                (ema.online_encoder.state_dict()[name] - initial_online[name]).abs().mean()
             )
+            target_delta = (
+                (ema.target_encoder.state_dict()[name] - initial_target[name]).abs().mean()
+            )
+            assert (
+                target_delta.item() < online_delta.item()
+            ), f"Target ({target_delta:.4f}) drifted more than online ({online_delta:.4f}) for {name}"
 
     def test_update_does_not_restore_grad_to_target(self, ema):
         ema.update_target(0, 100)
@@ -824,14 +893,16 @@ class TestEMAEncoderForward:
     def test_forward_uses_online_encoder(self, ema, ema_x):
         out_ema = ema(ema_x)
         out_online = ema.online_encoder(ema_x)
-        assert torch.allclose(out_ema, out_online), \
-            "EMAEncoder.forward() should route through the online encoder"
+        assert torch.allclose(
+            out_ema, out_online
+        ), "EMAEncoder.forward() should route through the online encoder"
 
     def test_encode_target_uses_target_encoder(self, ema, ema_x):
         out = ema.encode_target(ema_x)
         expected = ema.target_encoder(ema_x)
-        assert torch.allclose(out, expected), \
-            "encode_target() output must match target_encoder(x) directly"
+        assert torch.allclose(
+            out, expected
+        ), "encode_target() output must match target_encoder(x) directly"
 
     def test_encode_target_returns_detached(self, ema, ema_x):
         out = ema.encode_target(ema_x)
@@ -876,8 +947,7 @@ class TestEMAEncoderStateDict:
         ema2 = EMAEncoder(copy.deepcopy(small_encoder))
         ema2.load_state_dict(sd)
         for p in ema2.target_encoder.parameters():
-            assert not p.requires_grad, \
-                "load_state_dict must keep target encoder parameters frozen"
+            assert not p.requires_grad, "load_state_dict must keep target encoder parameters frozen"
 
     def test_repr(self, ema):
         r = repr(ema)

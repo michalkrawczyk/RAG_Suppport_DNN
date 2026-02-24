@@ -9,7 +9,12 @@ import pandas as pd
 import pytest
 import torch
 
-from RAG_supporters.clustering_ops import ClusterParser, SourceClusterLinker, parse_clusters, link_sources
+from RAG_supporters.clustering_ops import (
+    ClusterParser,
+    SourceClusterLinker,
+    parse_clusters,
+    link_sources,
+)
 from RAG_supporters.embeddings_ops import EmbeddingGenerator, generate_embeddings
 
 
@@ -273,13 +278,17 @@ class TestClusterParserKeywordMatching:
         """Test keyword matching with extra whitespace."""
         parser = ClusterParser(clustering_json_file)
 
-        assert parser.match_keyword("  machine learning  ") == 0, "Should match after stripping whitespace"
+        assert (
+            parser.match_keyword("  machine learning  ") == 0
+        ), "Should match after stripping whitespace"
 
     def test_match_keyword_no_match(self, clustering_json_file):
         """Test keyword matching when no match found."""
         parser = ClusterParser(clustering_json_file)
 
-        assert parser.match_keyword("unknown keyword") is None, "Should return None for unmatched keyword"
+        assert (
+            parser.match_keyword("unknown keyword") is None
+        ), "Should return None for unmatched keyword"
 
     def test_match_keyword_all_keywords(self, clustering_json_file):
         """Test matching all keywords in dataset."""
@@ -304,7 +313,9 @@ class TestClusterParserBatchMatching:
         """Test batch keyword matching."""
         parser = ClusterParser(clustering_json_file)
 
-        cluster_ids = parser.match_keywords_batch(["machine learning", "python", "database", "unknown"])
+        cluster_ids = parser.match_keywords_batch(
+            ["machine learning", "python", "database", "unknown"]
+        )
 
         assert cluster_ids == [0, 1, 2, None], "Should match all keywords correctly"
 
@@ -620,7 +631,9 @@ class TestSourceClusterLinkerFallback:
         """Test fallback to largest cluster."""
         linker = SourceClusterLinker(cluster_parser, fallback_strategy="largest")
 
-        assert linker._get_fallback_cluster() == 2, "Should assign to cluster 2 (largest with 4 keywords)"
+        assert (
+            linker._get_fallback_cluster() == 2
+        ), "Should assign to cluster 2 (largest with 4 keywords)"
 
     def test_fallback_uniform(self, cluster_parser):
         """Test fallback with uniform distribution."""
@@ -654,25 +667,33 @@ class TestSourceClusterLinkerSinglePair:
         """Test linking pair with multiple keywords from same cluster."""
         linker = SourceClusterLinker(cluster_parser)
 
-        assert linker.link_pair(["python", "java", "programming"]) == 1, "Should link all programming keywords to cluster 1"
+        assert (
+            linker.link_pair(["python", "java", "programming"]) == 1
+        ), "Should link all programming keywords to cluster 1"
 
     def test_link_multiple_keywords_different_clusters(self, cluster_parser):
         """Test linking pair with keywords from different clusters (majority voting)."""
         linker = SourceClusterLinker(cluster_parser)
 
-        assert linker.link_pair(["python", "java", "machine learning"]) == 1, "Should link to cluster 1 (majority vote: 2 vs 1)"
+        assert (
+            linker.link_pair(["python", "java", "machine learning"]) == 1
+        ), "Should link to cluster 1 (majority vote: 2 vs 1)"
 
     def test_link_empty_keywords(self, cluster_parser):
         """Test linking pair with no keywords uses fallback."""
         linker = SourceClusterLinker(cluster_parser, fallback_strategy="largest")
 
-        assert linker.link_pair([], pair_id=0) == 2, "Should use fallback to largest cluster (cluster 2)"
+        assert (
+            linker.link_pair([], pair_id=0) == 2
+        ), "Should use fallback to largest cluster (cluster 2)"
 
     def test_link_unmatched_keywords(self, cluster_parser):
         """Test linking pair with unmatched keywords uses fallback."""
         linker = SourceClusterLinker(cluster_parser, fallback_strategy="largest")
 
-        assert linker.link_pair(["unknown", "invalid", "keywords"], pair_id=5) == 2, "Should use fallback when no keywords match"
+        assert (
+            linker.link_pair(["unknown", "invalid", "keywords"], pair_id=5) == 2
+        ), "Should use fallback when no keywords match"
 
 
 class TestSourceClusterLinkerBatch:
@@ -726,7 +747,11 @@ class TestSourceClusterLinkerDataFrame:
 
         assert "cluster_id" in df_linked.columns, "Should add cluster_id column"
         assert len(df_linked) == 3, "Should preserve all rows"
-        assert df_linked["cluster_id"].tolist() == [1, 2, 0], "Should have correct cluster assignments"
+        assert df_linked["cluster_id"].tolist() == [
+            1,
+            2,
+            0,
+        ], "Should have correct cluster assignments"
 
     def test_link_dataframe_custom_columns(self, cluster_parser):
         """Test linking DataFrame with custom column names."""
@@ -743,7 +768,11 @@ class TestSourceClusterLinkerDataFrame:
         )
 
         assert "assigned_cluster" in df_linked.columns, "Should add custom output column"
-        assert df_linked["assigned_cluster"].tolist() == [1, 2, 1], "Should have correct assignments"
+        assert df_linked["assigned_cluster"].tolist() == [
+            1,
+            2,
+            1,
+        ], "Should have correct assignments"
 
     def test_link_dataframe_missing_keywords_col(self, cluster_parser):
         """Test linking DataFrame fails when keywords column missing."""
@@ -818,7 +847,9 @@ class TestSourceClusterLinkerValidation:
 
         assert validation["valid"] is True, "Should be valid (warnings don't fail)"
         assert len(validation["warnings"]) > 0, "Should have warnings"
-        assert "have no assignments" in validation["warnings"][0], "Should warn about missing clusters"
+        assert (
+            "have no assignments" in validation["warnings"][0]
+        ), "Should warn about missing clusters"
 
     def test_validate_imbalanced_distribution(self):
         """Test validation warns about highly imbalanced distribution."""
@@ -896,13 +927,17 @@ class TestSourceClusterLinkerEdgeCases:
         """Test keyword matching is case-insensitive."""
         linker = SourceClusterLinker(cluster_parser)
 
-        assert linker.link_pair(["Python", "PROGRAMMING"]) == 1, "Should match keywords case-insensitively"
+        assert (
+            linker.link_pair(["Python", "PROGRAMMING"]) == 1
+        ), "Should match keywords case-insensitively"
 
     def test_link_pair_with_none(self, cluster_parser):
         """Test linking pair handles None keywords gracefully."""
         linker = SourceClusterLinker(cluster_parser, fallback_strategy="largest")
 
-        assert linker.link_pair(None if None else [], pair_id=0) == 2, "Should handle None/empty as fallback"
+        assert (
+            linker.link_pair(None if None else [], pair_id=0) == 2
+        ), "Should handle None/empty as fallback"
 
     def test_link_dataframe_large(self, cluster_parser):
         """Test linking large DataFrame efficiently."""
@@ -1074,7 +1109,9 @@ class TestEmbeddingGeneratorTextEmbeddings:
         embeddings = generator.generate_text_embeddings(["Text 1", "Text 2"], text_type="test")
 
         norms = torch.norm(embeddings, dim=1)
-        assert torch.allclose(norms, torch.ones_like(norms), atol=0.01), "Embeddings should be L2-normalized"
+        assert torch.allclose(
+            norms, torch.ones_like(norms), atol=0.01
+        ), "Embeddings should be L2-normalized"
 
     def test_generate_text_embeddings_deterministic(self, mock_model):
         """Test embeddings are deterministic for same text."""
@@ -1094,9 +1131,7 @@ class TestEmbeddingGeneratorKeywordEmbeddings:
         """Test generating keyword embeddings with mapping."""
         generator = EmbeddingGenerator(mock_model, show_progress=False)
 
-        embeddings, keyword_to_id = generator.generate_keyword_embeddings(
-            ["python", "java", "sql"]
-        )
+        embeddings, keyword_to_id = generator.generate_keyword_embeddings(["python", "java", "sql"])
 
         assert isinstance(embeddings, torch.Tensor), "Should return torch.Tensor"
         assert embeddings.shape == (3, 384), "Should have correct shape"
@@ -1290,7 +1325,10 @@ class TestGenerateEmbeddingsConvenience:
         df = pd.DataFrame({"question": ["Q1"], "source": ["S1"], "keywords": [["python"]]})
 
         generate_embeddings(
-            df=df, embedding_model=mock_model, cluster_parser=embed_cluster_parser, output_dir=tmp_path
+            df=df,
+            embedding_model=mock_model,
+            cluster_parser=embed_cluster_parser,
+            output_dir=tmp_path,
         )
 
         assert (tmp_path / "question_embs.pt").exists(), "Should save question embeddings"
@@ -1354,4 +1392,6 @@ class TestEmbeddingGeneratorEdgeCases:
         assert "question_embs" in embeddings, "Should have question embeddings"
         assert "source_embs" in embeddings, "Should have source embeddings"
         assert "keyword_embs" in embeddings, "Should have keyword embeddings"
-        assert "centroid_embs" not in embeddings, "Should not have centroid embeddings without parser"
+        assert (
+            "centroid_embs" not in embeddings
+        ), "Should not have centroid embeddings without parser"

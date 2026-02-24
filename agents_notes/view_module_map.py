@@ -138,9 +138,7 @@ def _render_record_text(record: dict, includes: set[str]) -> list[str]:
             if _has(includes, "bases") and cls_info.get("bases"):
                 base_part = f"({', '.join(cls_info['bases'])})"
             line_part = (
-                f"  :{cls_info['line']}"
-                if _has(includes, "lines") and cls_info.get("line")
-                else ""
+                f"  :{cls_info['line']}" if _has(includes, "lines") and cls_info.get("line") else ""
             )
             lines.append(f"{_I}class {cls_name}{base_part}{line_part}")
 
@@ -163,9 +161,7 @@ def _render_record_text(record: dict, includes: set[str]) -> list[str]:
                         if _has(includes, "docstring") and m_info.get("docstring"):
                             first = m_info["docstring"].strip().splitlines()[0].strip()
                             doc_part = f'  # "{first}"'
-                    lines.append(
-                        f"{_I * 2}def {m_name}{sig_part}{line_tag}{doc_part}"
-                    )
+                    lines.append(f"{_I * 2}def {m_name}{sig_part}{line_tag}{doc_part}")
 
     # module-level functions
     if _has(includes, "functions"):
@@ -202,9 +198,7 @@ def _render_record_text(record: dict, includes: set[str]) -> list[str]:
                 recv = c.get("receiver")
                 name = c.get("name", "?")
                 lnum = c.get("line")
-                call_strs.append(
-                    f"{recv}.{name}:{lnum}" if recv else f"{name}:{lnum}"
-                )
+                call_strs.append(f"{recv}.{name}:{lnum}" if recv else f"{name}:{lnum}")
             lines.append(f"{_I}calls: {', '.join(call_strs)}")
             if len(calls) > _CALLS_CAP:
                 lines.append(f"{_I}  ... (+{len(calls) - _CALLS_CAP} more)")
@@ -388,10 +382,7 @@ Examples
         choices=list(_INCLUDE_CHOICES),
         metavar="FIELD",
         default=[],
-        help=(
-            "Fields to include beyond path/file. "
-            "Choices: " + ", ".join(_INCLUDE_CHOICES)
-        ),
+        help=("Fields to include beyond path/file. " "Choices: " + ", ".join(_INCLUDE_CHOICES)),
     )
     parser.add_argument(
         "--limit_module",
@@ -416,8 +407,7 @@ Examples
         default=None,
         metavar="PATH",
         help=(
-            "Path to module_map.json "
-            "(default: agent_ignore/module_map.json in project root)."
+            "Path to module_map.json " "(default: agent_ignore/module_map.json in project root)."
         ),
     )
     parser.add_argument(

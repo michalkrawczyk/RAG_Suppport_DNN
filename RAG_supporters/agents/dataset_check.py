@@ -267,7 +267,6 @@ try:
                 source2 = row["answer_text_2"]
                 current_label = row.get("label", -1)
                 try:
-
                     if current_label != -1 and skip_labeled:
                         results.append(current_label)
                         continue

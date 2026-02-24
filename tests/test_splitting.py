@@ -35,9 +35,7 @@ def sample_data():
     question_ids = torch.arange(n_questions)
     pair_question_ids = torch.randint(0, n_questions, (n_pairs,))
     pair_cluster_ids = torch.randint(0, n_clusters, (n_pairs,))
-    pair_indices = torch.stack(
-        [pair_question_ids, torch.randint(0, 50, (n_pairs,))], dim=1
-    )
+    pair_indices = torch.stack([pair_question_ids, torch.randint(0, 50, (n_pairs,))], dim=1)
 
     return {
         "n_questions": n_questions,
@@ -60,9 +58,7 @@ def small_data():
 
     pair_question_ids = torch.randint(0, n_questions, (n_pairs,))
     pair_cluster_ids = torch.randint(0, n_clusters, (n_pairs,))
-    pair_indices = torch.stack(
-        [pair_question_ids, torch.randint(0, 10, (n_pairs,))], dim=1
-    )
+    pair_indices = torch.stack([pair_question_ids, torch.randint(0, 10, (n_pairs,))], dim=1)
 
     return {
         "n_questions": n_questions,
@@ -161,8 +157,12 @@ class TestLegacyDatasetSplitterSplit:
         splitter1.split(100)
         splitter2.split(100)
 
-        assert (splitter1.train_indices == splitter2.train_indices).all(), "Train indices should be reproducible"
-        assert (splitter1.val_indices == splitter2.val_indices).all(), "Val indices should be reproducible"
+        assert (
+            splitter1.train_indices == splitter2.train_indices
+        ).all(), "Train indices should be reproducible"
+        assert (
+            splitter1.val_indices == splitter2.val_indices
+        ).all(), "Val indices should be reproducible"
 
 
 class TestLegacyDatasetSplitterSaveLoad:
@@ -180,7 +180,9 @@ class TestLegacyDatasetSplitterSaveLoad:
 
         loaded = LegacyDatasetSplitter.from_file(save_path)
 
-        assert (splitter.train_indices == loaded.train_indices).all(), "Train indices should be restored"
+        assert (
+            splitter.train_indices == loaded.train_indices
+        ).all(), "Train indices should be restored"
         assert (splitter.val_indices == loaded.val_indices).all(), "Val indices should be restored"
         assert loaded.val_ratio == splitter.val_ratio, "val_ratio should be preserved"
         assert loaded.random_state == splitter.random_state, "random_state should be preserved"

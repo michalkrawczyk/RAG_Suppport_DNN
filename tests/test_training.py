@@ -31,7 +31,7 @@ from RAG_supporters.nn.training.monitoring import TrainingMonitor, _MATPLOTLIB_A
 # JASPERTrainer
 # ===========================================================================
 
-_TB, _TD, _TK, _TC = 8, 32, 4, 6   # batch, embedding dim, negatives, clusters
+_TB, _TD, _TK, _TC = 8, 32, 4, 6  # batch, embedding dim, negatives, clusters
 
 
 def _make_trainer_batch(batch_size: int = _TB) -> Dict[str, torch.Tensor]:
@@ -115,20 +115,25 @@ def trainer_components(tmp_path):
 class TestJASPERTrainerInit:
     def test_device_is_cpu(self, trainer_components):
         trainer, *_ = trainer_components
-        assert trainer.device.type == "cpu", \
-            "Trainer device should be 'cpu' when config.device='cpu'"
+        assert (
+            trainer.device.type == "cpu"
+        ), "Trainer device should be 'cpu' when config.device='cpu'"
 
     def test_checkpoint_dir_created(self, trainer_components, tmp_path):
         trainer, *_ = trainer_components
-        assert Path(trainer.config.checkpoint_dir).exists(), \
-            "Trainer __init__ should create the checkpoint directory"
+        assert Path(
+            trainer.config.checkpoint_dir
+        ).exists(), "Trainer __init__ should create the checkpoint directory"
 
     def test_centroids_loaded_from_dataset(self, trainer_components):
         trainer, *_ = trainer_components
-        assert trainer._centroid_embs is not None, \
-            "Trainer should load centroid embeddings from the dataset"
-        assert trainer._centroid_embs.shape == (_TC, _TD), \
-            f"Centroid embeddings should have shape ({_TC}, {_TD})"
+        assert (
+            trainer._centroid_embs is not None
+        ), "Trainer should load centroid embeddings from the dataset"
+        assert trainer._centroid_embs.shape == (
+            _TC,
+            _TD,
+        ), f"Centroid embeddings should have shape ({_TC}, {_TD})"
 
     def test_from_dict_config(self, tmp_path):
         model = JASPERPredictor({"embedding_dim": _TD, "hidden_dim": _TD, "num_layers": 1})
@@ -142,8 +147,9 @@ class TestJASPERTrainerInit:
             train_loader=_make_trainer_loader(),
             val_loader=_make_trainer_loader(),
         )
-        assert trainer.device.type == "cpu", \
-            "Trainer should resolve to CPU when config.device='cpu'"
+        assert (
+            trainer.device.type == "cpu"
+        ), "Trainer should resolve to CPU when config.device='cpu'"
 
 
 class TestJASPERTrainerStep:
@@ -161,8 +167,7 @@ class TestJASPERTrainerStep:
         params_before = {n: p.data.clone() for n, p in model.named_parameters()}
         trainer._train_step(_make_trainer_batch())
         changed = any(
-            not torch.equal(p.data, params_before[n])
-            for n, p in model.named_parameters()
+            not torch.equal(p.data, params_before[n]) for n, p in model.named_parameters()
         )
         assert changed, "No model parameters changed after training step"
 
@@ -182,9 +187,7 @@ class TestJASPERTrainerStep:
         trainer._max_steps = 100
         metrics = trainer._train_step(_make_trainer_batch())
         assert not any(
-            v != v or abs(v) == float("inf")
-            for v in metrics.values()
-            if isinstance(v, float)
+            v != v or abs(v) == float("inf") for v in metrics.values() if isinstance(v, float)
         )
 
 
@@ -207,22 +210,21 @@ class TestJASPERTrainerEpoch:
         trainer._max_steps = len(trainer.train_loader)
         before = trainer.global_step
         trainer.train_epoch(epoch=0)
-        assert trainer.global_step == before + len(trainer.train_loader), \
-            f"global_step should increase by {len(trainer.train_loader)} after one epoch"
+        assert trainer.global_step == before + len(
+            trainer.train_loader
+        ), f"global_step should increase by {len(trainer.train_loader)} after one epoch"
 
     def test_model_in_train_mode_during_epoch(self, trainer_components):
         trainer, model, _ = trainer_components
         trainer._max_steps = 10
         trainer.train_epoch(epoch=0)
-        assert model.training, \
-            "Model should still be in training mode after train_epoch completes"
+        assert model.training, "Model should still be in training mode after train_epoch completes"
 
     def test_validate_model_in_eval_mode(self, trainer_components):
         trainer, model, _ = trainer_components
         model.train()
         trainer.validate()
-        assert not model.training, \
-            "Model should be in eval mode after validate() completes"
+        assert not model.training, "Model should be in eval mode after validate() completes"
 
 
 class TestJASPERTrainerCheckpoint:
@@ -237,7 +239,13 @@ class TestJASPERTrainerCheckpoint:
         ckpt_path = tmp_path / "test.pt"
         trainer.save_checkpoint(ckpt_path, epoch=3)
         ckpt = torch.load(ckpt_path, map_location="cpu")
-        for key in ("epoch", "global_step", "model_state_dict", "ema_state_dict", "optimizer_state_dict"):
+        for key in (
+            "epoch",
+            "global_step",
+            "model_state_dict",
+            "ema_state_dict",
+            "optimizer_state_dict",
+        ):
             assert key in ckpt, f"Missing key: {key}"
 
     def test_load_restores_epoch(self, trainer_components, tmp_path):
@@ -247,8 +255,9 @@ class TestJASPERTrainerCheckpoint:
         trainer.save_checkpoint(ckpt_path, epoch=5, metrics={"val/total": 0.42})
         epoch, metrics = trainer.load_checkpoint(ckpt_path)
         assert epoch == 5, "load_checkpoint should restore the saved epoch number"
-        assert abs(metrics.get("val/total", 0) - 0.42) < 1e-6, \
-            "load_checkpoint should restore the saved metrics"
+        assert (
+            abs(metrics.get("val/total", 0) - 0.42) < 1e-6
+        ), "load_checkpoint should restore the saved metrics"
 
     def test_load_restores_model_weights(self, trainer_components, tmp_path):
         trainer, model, _ = trainer_components
@@ -269,8 +278,9 @@ class TestJASPERTrainerCheckpoint:
         trainer.save_checkpoint(ckpt_path, epoch=0)
         trainer._global_step = 0
         trainer.load_checkpoint(ckpt_path)
-        assert trainer.global_step == 123, \
-            "load_checkpoint should restore global_step to the saved value"
+        assert (
+            trainer.global_step == 123
+        ), "load_checkpoint should restore global_step to the saved value"
 
     def test_checkpoint_rotation(self, trainer_components, tmp_path):
         trainer, *_ = trainer_components
@@ -281,8 +291,9 @@ class TestJASPERTrainerCheckpoint:
             trainer.save_checkpoint(p, epoch=i)
             paths.append(p)
         existing = [p for p in paths if p.exists()]
-        assert len(existing) == 2, \
-            f"With keep_last_n_checkpoints=2, only 2 files should remain; found {len(existing)}"
+        assert (
+            len(existing) == 2
+        ), f"With keep_last_n_checkpoints=2, only 2 files should remain; found {len(existing)}"
         assert paths[-1] in existing, "The most recent checkpoint should be kept"
         assert paths[-2] in existing, "The second most recent checkpoint should be kept"
 
@@ -398,14 +409,16 @@ class TestTrainingMonitorLogMetrics:
 class TestTrainingMonitorPlotLosses:
     def test_returns_none_when_history_empty(self, tmp_path: Path) -> None:
         monitor = TrainingMonitor(output_dir=str(tmp_path))
-        assert monitor.plot_losses() is None, \
-            "plot_losses should return None when no metrics have been logged"
+        assert (
+            monitor.plot_losses() is None
+        ), "plot_losses should return None when no metrics have been logged"
 
     def test_returns_none_when_no_recognised_loss_keys(self, tmp_path: Path) -> None:
         monitor = TrainingMonitor(output_dir=str(tmp_path))
         monitor.log_metrics(0, {"centroid_accuracy": 0.8, "lr": 1e-3})
-        assert monitor.plot_losses() is None, \
-            "plot_losses should return None when history has no recognised loss keys"
+        assert (
+            monitor.plot_losses() is None
+        ), "plot_losses should return None when history has no recognised loss keys"
 
     @requires_matplotlib
     def test_creates_png_file(self, tmp_path: Path) -> None:
@@ -443,13 +456,15 @@ class TestTrainingMonitorPlotSteering:
         monitor = TrainingMonitor(output_dir=str(tmp_path))
         for epoch in range(3):
             monitor.log_metrics(epoch, _make_monitor_metrics(epoch, with_steering=False))
-        assert monitor.plot_steering_distribution() is None, \
-            "plot_steering_distribution should return None when no steering_variant_*_frac keys exist"
+        assert (
+            monitor.plot_steering_distribution() is None
+        ), "plot_steering_distribution should return None when no steering_variant_*_frac keys exist"
 
     def test_returns_none_when_history_empty(self, tmp_path: Path) -> None:
         monitor = TrainingMonitor(output_dir=str(tmp_path))
-        assert monitor.plot_steering_distribution() is None, \
-            "plot_steering_distribution should return None on empty history"
+        assert (
+            monitor.plot_steering_distribution() is None
+        ), "plot_steering_distribution should return None on empty history"
 
     @requires_matplotlib
     def test_creates_png_when_steering_keys_present(self, tmp_path: Path) -> None:
@@ -471,8 +486,9 @@ class TestTrainingMonitorExportHistory:
         result = monitor.export_history(save_path=csv_path)
         assert result == csv_path, "export_history should return the CSV path"
         assert Path(csv_path).exists(), "CSV file must exist after export_history"
-        assert Path(csv_path).with_suffix(".json").exists(), \
-            "JSON sidecar must be created alongside the CSV"
+        assert (
+            Path(csv_path).with_suffix(".json").exists()
+        ), "JSON sidecar must be created alongside the CSV"
 
     def test_csv_has_correct_row_count(self, tmp_path: Path) -> None:
         monitor = TrainingMonitor(output_dir=str(tmp_path))
@@ -483,8 +499,9 @@ class TestTrainingMonitorExportHistory:
         monitor.export_history(save_path=csv_path)
         with open(csv_path) as f:
             rows = list(csv.reader(f))
-        assert len(rows[1:]) == n_epochs, \
-            f"CSV should have {n_epochs} data rows, got {len(rows[1:])}"
+        assert (
+            len(rows[1:]) == n_epochs
+        ), f"CSV should have {n_epochs} data rows, got {len(rows[1:])}"
 
     def test_json_sidecar_is_valid_json(self, tmp_path: Path) -> None:
         monitor = TrainingMonitor(output_dir=str(tmp_path))
@@ -544,9 +561,9 @@ class TestTrainingMonitorExportHistory:
         monitor.export_history(save_path=csv_path)
         json_path = Path(csv_path).with_suffix(".json")
         assert json_path.exists(), "JSON sidecar must be written regardless of pandas availability"
-        assert not Path(csv_path).exists(), (
-            "Regression: empty history without pandas does not write CSV (known limitation)"
-        )
+        assert not Path(
+            csv_path
+        ).exists(), "Regression: empty history without pandas does not write CSV (known limitation)"
 
 
 class TestTrainingMonitorGetSummaryTable:
@@ -557,17 +574,20 @@ class TestTrainingMonitorGetSummaryTable:
         table = monitor.get_summary_table()
         try:
             import pandas as pd
+
             assert isinstance(table, pd.DataFrame), "Should return DataFrame when pandas available"
             assert len(table) == 4, "DataFrame should have 4 rows for 4 logged epochs"
         except ImportError:
-            assert isinstance(table, list) and len(table) == 4, \
-                "Should return list of 4 entries when pandas unavailable"
+            assert (
+                isinstance(table, list) and len(table) == 4
+            ), "Should return list of 4 entries when pandas unavailable"
 
     def test_empty_history_returns_empty_structure(self, tmp_path: Path) -> None:
         monitor = TrainingMonitor(output_dir=str(tmp_path))
         table = monitor.get_summary_table()
         try:
             import pandas as pd
+
             assert isinstance(table, pd.DataFrame) and len(table) == 0
         except ImportError:
             assert table == [], "Empty history should produce empty list"
@@ -593,5 +613,6 @@ class TestTrainingMonitorFinish:
         monitor = TrainingMonitor(output_dir=str(tmp_path))
         monitor._wandb_run = mock_run
         monitor.finish()
-        assert monitor._wandb_run is None, \
-            "W&B run reference must be cleared in finally block even when finish() raises"
+        assert (
+            monitor._wandb_run is None
+        ), "W&B run reference must be cleared in finally block even when finish() raises"

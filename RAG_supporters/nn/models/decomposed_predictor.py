@@ -171,7 +171,10 @@ class DecomposedJASPERPredictor(nn.Module):
         self._init_weights()
         LOGGER.debug(
             "DecomposedJASPERPredictor initialised: D=%d H=%d K=%d mode=%s params=%d",
-            D, H, K, config.fine_input_mode,
+            D,
+            H,
+            K,
+            config.fine_input_mode,
             sum(p_.numel() for p_ in self.parameters()),
         )
 

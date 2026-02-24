@@ -13,8 +13,10 @@ LOGGER = logging.getLogger(__name__)
 # Optional dependencies
 try:
     import matplotlib
+
     matplotlib.use("Agg")  # Non-interactive backend — safe on servers
     import matplotlib.pyplot as plt
+
     _MATPLOTLIB_AVAILABLE = True
 except ImportError:
     _MATPLOTLIB_AVAILABLE = False
@@ -22,12 +24,14 @@ except ImportError:
 
 try:
     import pandas as pd
+
     _PANDAS_AVAILABLE = True
 except ImportError:
     _PANDAS_AVAILABLE = False
 
 try:
     import wandb
+
     _WANDB_AVAILABLE = True
 except ImportError:
     _WANDB_AVAILABLE = False
@@ -111,7 +115,8 @@ class TrainingMonitor:
             try:
                 # Filter non-serialisable values before sending
                 wandb_payload = {
-                    k: float(v) for k, v in metrics_dict.items()
+                    k: float(v)
+                    for k, v in metrics_dict.items()
                     if isinstance(v, (int, float)) and not isinstance(v, bool)
                 }
                 self._wandb_run.log(wandb_payload, step=epoch)
@@ -141,13 +146,14 @@ class TrainingMonitor:
 
         # Collect all loss keys that appear in the data (both train/ and val/ prefixes)
         prefixes = ("train/", "val/")
-        loss_components = sorted({
-            k.split("/", 1)[1]
-            for r in self.history
-            for k in r
-            if any(k.startswith(p) for p in prefixes)
-            and any(lk in k for lk in self._LOSS_KEYS)
-        })
+        loss_components = sorted(
+            {
+                k.split("/", 1)[1]
+                for r in self.history
+                for k in r
+                if any(k.startswith(p) for p in prefixes) and any(lk in k for lk in self._LOSS_KEYS)
+            }
+        )
 
         if not loss_components:
             LOGGER.warning("No recognised loss keys found; skipping plot_losses.")
@@ -210,15 +216,14 @@ class TrainingMonitor:
         epochs = [r["epoch"] for r in self.history]
 
         # Look for steering_variant_N_frac keys
-        variant_keys = sorted({
-            k
-            for r in self.history
-            for k in r
-            if "steering_variant" in k and "frac" in k
-        })
+        variant_keys = sorted(
+            {k for r in self.history for k in r if "steering_variant" in k and "frac" in k}
+        )
 
         if not variant_keys:
-            LOGGER.debug("No steering variant fraction keys found; skipping steering distribution plot.")
+            LOGGER.debug(
+                "No steering variant fraction keys found; skipping steering distribution plot."
+            )
             return None
 
         fig, ax = plt.subplots(figsize=(10, 5))
@@ -276,7 +281,9 @@ class TrainingMonitor:
                     f.write(",".join(all_keys) + "\n")
                     for row in self.history:
                         f.write(",".join(str(row.get(k, "")) for k in all_keys) + "\n")
-            LOGGER.info("History CSV saved to %s (pandas not available; basic CSV written)", save_path)
+            LOGGER.info(
+                "History CSV saved to %s (pandas not available; basic CSV written)", save_path
+            )
 
         return save_path
 
@@ -332,6 +339,7 @@ def _json_default(obj: Any) -> Any:
     """JSON serialiser for numpy/torch scalars."""
     try:
         import numpy as np
+
         if isinstance(obj, (np.integer, np.floating)):
             return obj.item()
         if isinstance(obj, np.ndarray):
@@ -340,6 +348,7 @@ def _json_default(obj: Any) -> Any:
         pass
     try:
         import torch
+
         if isinstance(obj, torch.Tensor):
             return obj.item() if obj.numel() == 1 else obj.tolist()
     except ImportError:

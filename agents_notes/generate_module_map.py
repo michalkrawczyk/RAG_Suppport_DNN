@@ -73,9 +73,7 @@ def _extract_signature(
         annotation = ast.unparse(arg.annotation) if arg.annotation else None
         params.append({"name": arg.arg, "annotation": annotation})
 
-    return_annotation = (
-        ast.unparse(func_node.returns) if func_node.returns else None
-    )
+    return_annotation = ast.unparse(func_node.returns) if func_node.returns else None
 
     decorators: list[str] = []
     for dec in func_node.decorator_list:
@@ -125,9 +123,7 @@ def _extract_methods(class_node: ast.ClassDef) -> dict[str, dict]:
 # (e.g. try/except for optional imports, if TYPE_CHECKING blocks, etc.)
 _WRAPPER_NODES = (ast.Try, ast.TryStar, ast.If, ast.With, ast.AsyncWith)
 # ast.TryStar is Python 3.11+; guard against older runtimes
-_WRAPPER_TYPES = tuple(
-    t for t in _WRAPPER_NODES if t is not None and isinstance(t, type)
-)
+_WRAPPER_TYPES = tuple(t for t in _WRAPPER_NODES if t is not None and isinstance(t, type))
 
 
 def _iter_module_level_defs(
@@ -245,12 +241,8 @@ def _extract_calls(tree: ast.AST) -> list[dict]:
         if isinstance(func, ast.Name):
             calls.append({"name": func.id, "receiver": None, "line": node.lineno})
         elif isinstance(func, ast.Attribute):
-            receiver = (
-                func.value.id if isinstance(func.value, ast.Name) else None
-            )
-            calls.append(
-                {"name": func.attr, "receiver": receiver, "line": node.lineno}
-            )
+            receiver = func.value.id if isinstance(func.value, ast.Name) else None
+            calls.append({"name": func.attr, "receiver": receiver, "line": node.lineno})
     return calls
 
 

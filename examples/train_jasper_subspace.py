@@ -177,9 +177,7 @@ class SubspaceJASPERTrainer(JASPERTrainer):
             self.scaler.step(self.optimizer)
             self.scaler.update()
         else:
-            prediction, xai = self.model(
-                question_emb, steering_emb, centroid_embs, training=True
-            )
+            prediction, xai = self.model(question_emb, steering_emb, centroid_embs, training=True)
             ema_target = self.ema_encoder.encode_target(target_source_emb)
             base_loss, loss_dict = self.loss_fn(
                 prediction, ema_target, negatives, centroid_embs, cluster_ids
@@ -227,13 +225,9 @@ class SubspaceJASPERTrainer(JASPERTrainer):
 
         centroid_embs = self._get_centroid_embs(target_source_emb)
 
-        prediction, xai = self.model(
-            question_emb, steering_emb, centroid_embs, training=False
-        )
+        prediction, xai = self.model(question_emb, steering_emb, centroid_embs, training=False)
         ema_target = self.ema_encoder.encode_target(target_source_emb)
-        _, loss_dict = self.loss_fn(
-            prediction, ema_target, negatives, centroid_embs, cluster_ids
-        )
+        _, loss_dict = self.loss_fn(prediction, ema_target, negatives, centroid_embs, cluster_ids)
         routing_dict = self.routing_loss_fn(xai["concept_logits"], cluster_ids)
         entropy_dict = self.entropy_reg_fn(xai["routing_weights"], self._current_epoch)
         residual_dict = self.residual_penalty_fn(xai["fine"])
@@ -281,6 +275,7 @@ class SubspaceJASPERTrainer(JASPERTrainer):
         """Override fit() to add XAI export after select epochs."""
         self._max_steps = num_epochs * len(self.train_loader)
         import time
+
         history: List[Dict[str, float]] = []
 
         LOGGER.info("Starting subspace training: %d epochs", num_epochs)
@@ -308,7 +303,10 @@ class SubspaceJASPERTrainer(JASPERTrainer):
             self._log_epoch(epoch, epoch_metrics)
 
             # Periodic checkpoint
-            if self.config.save_every_n_epochs > 0 and (epoch + 1) % self.config.save_every_n_epochs == 0:
+            if (
+                self.config.save_every_n_epochs > 0
+                and (epoch + 1) % self.config.save_every_n_epochs == 0
+            ):
                 self.save_checkpoint(
                     self.checkpoint_dir / f"epoch_{epoch:04d}.pt",
                     epoch=epoch,
@@ -353,6 +351,7 @@ def load_centroids(centroids_path: str) -> torch.Tensor:
     path = Path(centroids_path)
     if path.suffix == ".npy":
         import numpy as np
+
         arr = np.load(str(path))
         return torch.from_numpy(arr).float()
     return torch.load(str(path), map_location="cpu")
@@ -369,9 +368,7 @@ def load_cluster_names(names_file: Optional[str], K: int) -> List[str]:
     # Plain text: one name per line
     lines = path.read_text().strip().splitlines()
     if len(lines) != K:
-        LOGGER.warning(
-            "cluster_names_file has %d lines but K=%d; using defaults.", len(lines), K
-        )
+        LOGGER.warning("cluster_names_file has %d lines but K=%d; using defaults.", len(lines), K)
         return [f"subspace_{i}" for i in range(K)]
     return lines
 
@@ -407,9 +404,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", required=True, help="Path to YAML config file")
     parser.add_argument("--dataset-dir", required=True, help="Path to JASPER dataset directory")
     parser.add_argument("--output-dir", default="runs/subspace", help="Output directory")
-    parser.add_argument("--centroids-path", default=None,
-                        help="Path to centroid embeddings (.pt or .npy). "
-                             "Falls back to dataset.centroid_embs if not provided.")
+    parser.add_argument(
+        "--centroids-path",
+        default=None,
+        help="Path to centroid embeddings (.pt or .npy). "
+        "Falls back to dataset.centroid_embs if not provided.",
+    )
     parser.add_argument("--resume", default=None, help="Checkpoint path to resume from")
     parser.add_argument("--epochs", type=int, default=None, help="Override num_epochs")
     parser.add_argument("--device", default=None, help="Device (e.g. 'cuda:0', 'cpu')")
@@ -472,7 +472,9 @@ def main() -> None:
         num_workers=num_workers,
         pin_memory=train_cfg.get("pin_memory", True),
     )
-    LOGGER.info("Train: %d samples | Val: %d samples", len(train_loader.dataset), len(val_loader.dataset))
+    LOGGER.info(
+        "Train: %d samples | Val: %d samples", len(train_loader.dataset), len(val_loader.dataset)
+    )
 
     # ------------------------------------------------------------------
     # 3. Centroid embeddings
@@ -493,9 +495,7 @@ def main() -> None:
             centroid_embs = torch.as_tensor(centroid_embs, dtype=torch.float32)
         LOGGER.info("Centroids from dataset: shape=%s", centroid_embs.shape)
 
-    cluster_names = load_cluster_names(
-        xai_cfg.get("cluster_names_file"), K
-    )
+    cluster_names = load_cluster_names(xai_cfg.get("cluster_names_file"), K)
 
     # ------------------------------------------------------------------
     # 4. Model + EMA encoder
@@ -535,10 +535,9 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 5. Loss functions
     # ------------------------------------------------------------------
-    loss_fn = JASPERMultiObjectiveLoss(**{
-        k: float(v) if isinstance(v, (int, float)) else v
-        for k, v in loss_cfg.items()
-    })
+    loss_fn = JASPERMultiObjectiveLoss(
+        **{k: float(v) if isinstance(v, (int, float)) else v for k, v in loss_cfg.items()}
+    )
 
     routing_loss_fn = RoutingLoss(
         weight=float(routing_loss_cfg.get("lambda_routing", 1.0)),

@@ -194,8 +194,8 @@ class JASPERPredictor(nn.Module):
         Returns:
             Predicted source embedding of shape ``[B, D]``.
         """
-        q_latent = self.question_encoder(question_emb)   # [B, H]
-        s_latent = self.steering_encoder(steering_emb)   # [B, H]
+        q_latent = self.question_encoder(question_emb)  # [B, H]
+        s_latent = self.steering_encoder(steering_emb)  # [B, H]
 
         # Cache for introspection (detached to avoid holding the graph)
         self._latents = {
@@ -204,7 +204,7 @@ class JASPERPredictor(nn.Module):
         }
 
         combined = torch.cat([q_latent, s_latent], dim=-1)  # [B, 2H]
-        prediction = self.predictor_head(combined)           # [B, D]
+        prediction = self.predictor_head(combined)  # [B, D]
 
         if self._normalize_output:
             prediction = nn.functional.normalize(prediction, dim=-1)

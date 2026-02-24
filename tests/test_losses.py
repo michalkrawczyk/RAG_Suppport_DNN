@@ -89,8 +89,9 @@ class TestJASPERLoss:
         loss_fn = JASPERLoss()
         p = torch.ones(4, 16)
         result = loss_fn(p, p.clone())
-        assert result["jasper"].item() < 1e-6, \
-            "JASPERLoss for identical predicted and target should be ~0"
+        assert (
+            result["jasper"].item() < 1e-6
+        ), "JASPERLoss for identical predicted and target should be ~0"
 
     def test_gradients_flow(self):
         loss_fn = JASPERLoss()
@@ -121,16 +122,18 @@ class TestContrastiveLoss:
     def test_non_negative_loss(self):
         loss_fn = ContrastiveLoss()
         p, t, neg, *_ = _make_jasper_batch()
-        assert loss_fn(p, t, neg)["contrastive"].item() >= 0, \
-            "ContrastiveLoss should always be non-negative"
+        assert (
+            loss_fn(p, t, neg)["contrastive"].item() >= 0
+        ), "ContrastiveLoss should always be non-negative"
 
     def test_lower_temperature_gives_larger_loss_variance(self):
         """Lower temperature should generally sharpen predictions."""
         p, t, neg, *_ = _make_jasper_batch(B=16)
         loss_hi = ContrastiveLoss(temperature=1.0)(p, t, neg)["contrastive"]
         loss_lo = ContrastiveLoss(temperature=0.01)(p, t, neg)["contrastive"]
-        assert loss_lo.item() != loss_hi.item(), \
-            "ContrastiveLoss at different temperatures should yield different values"
+        assert (
+            loss_lo.item() != loss_hi.item()
+        ), "ContrastiveLoss at different temperatures should yield different values"
 
     def test_gradients_flow(self):
         loss_fn = ContrastiveLoss()
@@ -138,7 +141,9 @@ class TestContrastiveLoss:
         p = p.requires_grad_(True)
         result = loss_fn(p, t, neg)
         result["contrastive"].backward()
-        assert p.grad is not None, "Gradient must flow back to predicted embeddings in ContrastiveLoss"
+        assert (
+            p.grad is not None
+        ), "Gradient must flow back to predicted embeddings in ContrastiveLoss"
 
     def test_invalid_temperature_raises(self):
         with pytest.raises(ValueError):
@@ -150,8 +155,9 @@ class TestContrastiveLoss:
         t = _rand(4, 32)
         neg = torch.randn(4, 1, 32)
         result = loss_fn(p, t, neg)
-        assert result["contrastive"].shape == (), \
-            "ContrastiveLoss with single negative should still return a scalar"
+        assert (
+            result["contrastive"].shape == ()
+        ), "ContrastiveLoss with single negative should still return a scalar"
 
 
 class TestCentroidLoss:
@@ -181,8 +187,9 @@ class TestCentroidLoss:
         cluster_ids = torch.arange(C)
         loss_fn = CentroidLoss(temperature=0.01)
         result = loss_fn(centroids.clone(), centroids, cluster_ids)
-        assert result["centroid_acc"].item() > 0.9, \
-            "CentroidLoss accuracy should be near 1.0 when predicted == centroids"
+        assert (
+            result["centroid_acc"].item() > 0.9
+        ), "CentroidLoss accuracy should be near 1.0 when predicted == centroids"
 
     def test_gradients_flow(self):
         loss_fn = CentroidLoss()
@@ -197,8 +204,11 @@ class TestCentroidLoss:
         p, _, _, centroids, cluster_ids = _make_jasper_batch(B=4)
         p = p.requires_grad_(True)
         result = loss_fn(p, centroids, cluster_ids)
-        assert not result["centroid_acc"].requires_grad, \
+        assert not result[
+            "centroid_acc"
+        ].requires_grad, (
             "centroid_acc must be detached (no gradient) to avoid interfering with backprop"
+        )
 
 
 class TestVICRegLoss:
@@ -238,8 +248,9 @@ class TestVICRegLoss:
         result_collapsed = loss_fn(collapsed, collapsed)
         random = torch.randn(B, D)
         result_random = loss_fn(random, random)
-        assert result_collapsed["vicreg"].item() > result_random["vicreg"].item(), \
-            "Collapsed embeddings should produce higher VICReg variance loss than random embeddings"
+        assert (
+            result_collapsed["vicreg"].item() > result_random["vicreg"].item()
+        ), "Collapsed embeddings should produce higher VICReg variance loss than random embeddings"
 
     def test_sub_components_are_detached(self):
         loss_fn = VICRegLoss()
@@ -247,8 +258,9 @@ class TestVICRegLoss:
         t = _rand(8, 32)
         result = loss_fn(p, t)
         for key in ("vicreg_v", "vicreg_i", "vicreg_c"):
-            assert not result[key].requires_grad, \
-                f"VICReg component '{key}' must be detached from the computation graph"
+            assert not result[
+                key
+            ].requires_grad, f"VICReg component '{key}' must be detached from the computation graph"
 
 
 class TestJASPERMultiObjectiveLoss:
@@ -268,10 +280,12 @@ class TestJASPERMultiObjectiveLoss:
     def test_returns_total_and_dict(self, loss_fn, batch_inputs):
         p, t, neg, c, ids = batch_inputs
         total, loss_dict = loss_fn(p, t, neg, c, ids)
-        assert isinstance(total, torch.Tensor), \
-            "JASPERMultiObjectiveLoss should return a Tensor as first output"
-        assert isinstance(loss_dict, dict), \
-            "JASPERMultiObjectiveLoss should return a dict as second output"
+        assert isinstance(
+            total, torch.Tensor
+        ), "JASPERMultiObjectiveLoss should return a Tensor as first output"
+        assert isinstance(
+            loss_dict, dict
+        ), "JASPERMultiObjectiveLoss should return a dict as second output"
         assert "total" in loss_dict, "Loss dict must contain 'total' key"
 
     def test_total_is_scalar(self, loss_fn, batch_inputs):
@@ -290,8 +304,9 @@ class TestJASPERMultiObjectiveLoss:
         p = _rand(8, 32).requires_grad_(True)
         total, _ = loss_fn(p, t, neg, c, ids)
         total.backward()
-        assert p.grad is not None, \
-            "Gradient must flow back to predicted embeddings through combined JASPER loss"
+        assert (
+            p.grad is not None
+        ), "Gradient must flow back to predicted embeddings through combined JASPER loss"
 
     def test_sub_components_detached(self, loss_fn, batch_inputs):
         _, t, neg, c, ids = batch_inputs
@@ -310,8 +325,7 @@ class TestJASPERMultiObjectiveLoss:
         )
         p, t, neg, c, ids = batch_inputs
         total, _ = loss_fn(p, t, neg, c, ids)
-        assert abs(total.item()) < 1e-6, \
-            "All-zero lambda weights should produce ~0 total loss"
+        assert abs(total.item()) < 1e-6, "All-zero lambda weights should produce ~0 total loss"
 
     def test_repr(self, loss_fn):
         r = repr(loss_fn)
@@ -354,8 +368,11 @@ class TestRoutingLoss:
         loss_fn = RoutingLoss()
         logits, _, ids, _ = _make_routing_inputs()
         result = loss_fn(logits, ids)
-        assert not result["routing_acc"].requires_grad, \
+        assert not result[
+            "routing_acc"
+        ].requires_grad, (
             "routing_acc must be detached (no gradient) to avoid interfering with backprop"
+        )
 
     def test_gradients_flow(self):
         loss_fn = RoutingLoss()
@@ -363,8 +380,7 @@ class TestRoutingLoss:
         ids = torch.randint(0, _K, (_B,))
         result = loss_fn(logits, ids)
         result["routing"].backward()
-        assert logits.grad is not None, \
-            "Gradient must flow back to routing logits"
+        assert logits.grad is not None, "Gradient must flow back to routing logits"
 
     def test_perfect_logits_give_perfect_accuracy(self):
         loss_fn = RoutingLoss()
@@ -391,24 +407,28 @@ class TestEntropyRegularization:
         loss_fn = EntropyRegularization()
         _, weights, _, _ = _make_routing_inputs()
         result = loss_fn(weights, current_epoch=0)
-        assert "entropy_reg" in result, \
-            "EntropyRegularization result must contain 'entropy_reg' key"
-        assert "routing_entropy" in result, \
-            "EntropyRegularization result must contain 'routing_entropy' key"
+        assert (
+            "entropy_reg" in result
+        ), "EntropyRegularization result must contain 'entropy_reg' key"
+        assert (
+            "routing_entropy" in result
+        ), "EntropyRegularization result must contain 'routing_entropy' key"
 
     def test_loss_is_scalar(self):
         loss_fn = EntropyRegularization()
         _, weights, _, _ = _make_routing_inputs()
         result = loss_fn(weights, current_epoch=0)
-        assert result["entropy_reg"].shape == (), \
-            "EntropyRegularization should return a scalar tensor"
+        assert (
+            result["entropy_reg"].shape == ()
+        ), "EntropyRegularization should return a scalar tensor"
 
     def test_entropy_is_detached(self):
         loss_fn = EntropyRegularization()
         _, weights, _, _ = _make_routing_inputs()
         result = loss_fn(weights, current_epoch=0)
-        assert not result["routing_entropy"].requires_grad, \
-            "routing_entropy must be detached to avoid interfering with backprop"
+        assert not result[
+            "routing_entropy"
+        ].requires_grad, "routing_entropy must be detached to avoid interfering with backprop"
 
     def test_uniform_weights_give_max_entropy(self):
         """Uniform weights should give entropy ≈ log(K)."""
@@ -417,9 +437,9 @@ class TestEntropyRegularization:
         result = loss_fn(uniform, current_epoch=0)
         expected_entropy = math.log(_K)
         actual_entropy = result["routing_entropy"].item()
-        assert abs(actual_entropy - expected_entropy) < 0.01, (
-            f"Expected H≈{expected_entropy:.3f}, got {actual_entropy:.3f}"
-        )
+        assert (
+            abs(actual_entropy - expected_entropy) < 0.01
+        ), f"Expected H≈{expected_entropy:.3f}, got {actual_entropy:.3f}"
 
     def test_target_decreases_over_epochs(self):
         loss_fn = EntropyRegularization(entropy_high=2.0, entropy_low=0.1, anneal_epochs=10)
@@ -430,17 +450,20 @@ class TestEntropyRegularization:
 
     def test_target_after_anneal_epochs_stays_at_low(self):
         loss_fn = EntropyRegularization(entropy_high=2.0, entropy_low=0.1, anneal_epochs=5)
-        assert loss_fn.get_target_entropy(5) == pytest.approx(0.1, abs=1e-6), \
-            "After anneal_epochs the schedule should clamp at entropy_low"
-        assert loss_fn.get_target_entropy(100) == pytest.approx(0.1, abs=1e-6), \
-            "Well after anneal_epochs the schedule should stay clamped at entropy_low"
+        assert loss_fn.get_target_entropy(5) == pytest.approx(
+            0.1, abs=1e-6
+        ), "After anneal_epochs the schedule should clamp at entropy_low"
+        assert loss_fn.get_target_entropy(100) == pytest.approx(
+            0.1, abs=1e-6
+        ), "Well after anneal_epochs the schedule should stay clamped at entropy_low"
 
     def test_entropy_high_defaults_to_log_k(self):
         loss_fn = EntropyRegularization(entropy_high=None)
         uniform = torch.ones(_B, _K) / _K
         loss_fn(uniform, current_epoch=0)
-        assert abs(loss_fn._entropy_high - math.log(_K)) < 1e-5, \
-            f"_entropy_high should default to log(K)={math.log(_K):.4f} for K={_K} subspaces"
+        assert (
+            abs(loss_fn._entropy_high - math.log(_K)) < 1e-5
+        ), f"_entropy_high should default to log(K)={math.log(_K):.4f} for K={_K} subspaces"
 
     def test_gradients_flow(self):
         loss_fn = EntropyRegularization()
@@ -448,8 +471,9 @@ class TestEntropyRegularization:
         weights = F.softmax(logits, dim=-1)
         result = loss_fn(weights, current_epoch=0)
         result["entropy_reg"].backward()
-        assert logits.grad is not None, \
-            "Gradient must flow back through EntropyRegularization to routing logits"
+        assert (
+            logits.grad is not None
+        ), "Gradient must flow back through EntropyRegularization to routing logits"
 
     def test_invalid_entropy_low_raises(self):
         with pytest.raises(ValueError, match="entropy_low"):
@@ -465,17 +489,20 @@ class TestResidualPenalty:
         loss_fn = ResidualPenalty()
         _, _, _, fine = _make_routing_inputs()
         result = loss_fn(fine)
-        assert "residual_penalty" in result, \
-            "ResidualPenalty result must contain 'residual_penalty' key"
-        assert "residual_norm_mean" in result, \
-            "ResidualPenalty result must contain 'residual_norm_mean' key"
+        assert (
+            "residual_penalty" in result
+        ), "ResidualPenalty result must contain 'residual_penalty' key"
+        assert (
+            "residual_norm_mean" in result
+        ), "ResidualPenalty result must contain 'residual_norm_mean' key"
 
     def test_loss_is_scalar(self):
         loss_fn = ResidualPenalty()
         _, _, _, fine = _make_routing_inputs()
         result = loss_fn(fine)
-        assert result["residual_penalty"].shape == (), \
-            "ResidualPenalty should return a scalar tensor"
+        assert (
+            result["residual_penalty"].shape == ()
+        ), "ResidualPenalty should return a scalar tensor"
 
     def test_zero_loss_below_margin(self):
         """If all norms are below margin, penalty should be exactly 0."""
@@ -489,37 +516,42 @@ class TestResidualPenalty:
         loss_fn = ResidualPenalty(margin=0.1)
         fine = torch.ones(_B, _D) * 10.0
         result = loss_fn(fine)
-        assert result["residual_penalty"].item() > 0, \
-            "Residual penalty should be positive when fine-vector norms exceed the margin"
+        assert (
+            result["residual_penalty"].item() > 0
+        ), "Residual penalty should be positive when fine-vector norms exceed the margin"
 
     def test_hinge_behaviour(self):
         """Only samples exceeding margin should contribute to the loss."""
         margin = 1.0
         loss_fn = ResidualPenalty(margin=margin, weight=1.0)
         fine = torch.zeros(_B, _D)
-        fine[:_B // 2, 0] = 0.5
-        fine[_B // 2:, 0] = 5.0
+        fine[: _B // 2, 0] = 0.5
+        fine[_B // 2 :, 0] = 5.0
         result = loss_fn(fine)
-        assert result["residual_penalty"].item() > 0, \
-            "Hinge loss should be positive when half the batch exceeds the margin"
+        assert (
+            result["residual_penalty"].item() > 0
+        ), "Hinge loss should be positive when half the batch exceeds the margin"
         result_no_penalty = ResidualPenalty(margin=100.0)(fine)
-        assert result_no_penalty["residual_penalty"].item() == pytest.approx(0.0, abs=1e-6), \
-            "Penalty should be zero when margin is far above all norms"
+        assert result_no_penalty["residual_penalty"].item() == pytest.approx(
+            0.0, abs=1e-6
+        ), "Penalty should be zero when margin is far above all norms"
 
     def test_norm_mean_is_detached(self):
         loss_fn = ResidualPenalty()
         _, _, _, fine = _make_routing_inputs()
         result = loss_fn(fine)
-        assert not result["residual_norm_mean"].requires_grad, \
-            "residual_norm_mean must be detached (monitoring metric, not for backprop)"
+        assert not result[
+            "residual_norm_mean"
+        ].requires_grad, "residual_norm_mean must be detached (monitoring metric, not for backprop)"
 
     def test_gradients_flow(self):
         loss_fn = ResidualPenalty(margin=0.01)
         fine = torch.randn(_B, _D, requires_grad=True)
         result = loss_fn(fine)
         result["residual_penalty"].backward()
-        assert fine.grad is not None, \
-            "Gradient must flow back to fine residual vector through ResidualPenalty"
+        assert (
+            fine.grad is not None
+        ), "Gradient must flow back to fine residual vector through ResidualPenalty"
 
     def test_invalid_margin_raises(self):
         with pytest.raises(ValueError, match="margin"):
@@ -539,15 +571,17 @@ class TestDisentanglementLoss:
         loss_fn = DisentanglementLoss()
         _, weights, _, _ = _make_routing_inputs()
         result = loss_fn(weights)
-        assert "disentanglement" in result, \
-            "DisentanglementLoss result must contain 'disentanglement' key"
+        assert (
+            "disentanglement" in result
+        ), "DisentanglementLoss result must contain 'disentanglement' key"
 
     def test_loss_is_scalar(self):
         loss_fn = DisentanglementLoss()
         _, weights, _, _ = _make_routing_inputs()
         result = loss_fn(weights)
-        assert result["disentanglement"].shape == (), \
-            "DisentanglementLoss should return a scalar tensor"
+        assert (
+            result["disentanglement"].shape == ()
+        ), "DisentanglementLoss should return a scalar tensor"
 
     def test_correlated_inputs_give_higher_loss(self):
         """Identical rows (fully correlated) should give higher loss than random rows."""
@@ -567,8 +601,9 @@ class TestDisentanglementLoss:
         weights = F.softmax(logits, dim=-1)
         result = loss_fn(weights)
         result["disentanglement"].backward()
-        assert logits.grad is not None, \
-            "Gradient must flow back through DisentanglementLoss to routing logits"
+        assert (
+            logits.grad is not None
+        ), "Gradient must flow back through DisentanglementLoss to routing logits"
 
     def test_single_sample_returns_zero(self):
         """Covariance undefined for B=1; should return zero tensor."""

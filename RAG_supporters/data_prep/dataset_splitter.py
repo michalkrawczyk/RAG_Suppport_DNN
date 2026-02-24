@@ -121,9 +121,7 @@ class DatasetSplitter:
         if test_ratio < 0:
             raise ValueError(f"test_ratio must be >= 0, got {test_ratio}")
         if val_ratio + test_ratio >= 1.0:
-            raise ValueError(
-                f"val_ratio ({val_ratio}) + test_ratio ({test_ratio}) must be < 1.0"
-            )
+            raise ValueError(f"val_ratio ({val_ratio}) + test_ratio ({test_ratio}) must be < 1.0")
 
     def _init_stratified(
         self,
@@ -271,7 +269,9 @@ class DatasetSplitter:
 
         LOGGER.info(
             "Split complete: train=%d pairs, val=%d pairs, test=%d pairs",
-            len(train_idx), len(val_idx), len(test_idx),
+            len(train_idx),
+            len(val_idx),
+            len(test_idx),
         )
 
         result: Dict[str, torch.Tensor] = {"train_idx": train_idx, "val_idx": val_idx}
@@ -283,9 +283,7 @@ class DatasetSplitter:
         question_to_pairs: Dict[int, List[int]] = {}
         iterator = enumerate(self.pair_indices)
         if self.show_progress:
-            iterator = tqdm(
-                iterator, total=self.n_pairs, desc="Building question-to-pairs mapping"
-            )
+            iterator = tqdm(iterator, total=self.n_pairs, desc="Building question-to-pairs mapping")
         for pair_idx, (question_id, _) in iterator:
             qid = question_id.item()
             if qid not in question_to_pairs:
@@ -294,9 +292,7 @@ class DatasetSplitter:
         LOGGER.info("Built question-to-pairs mapping: %d questions", len(question_to_pairs))
         return question_to_pairs
 
-    def _assign_question_clusters(
-        self, question_to_pairs: Dict[int, List[int]]
-    ) -> Dict[int, int]:
+    def _assign_question_clusters(self, question_to_pairs: Dict[int, List[int]]) -> Dict[int, int]:
         question_clusters: Dict[int, int] = {}
         iterator = question_to_pairs.items()
         if self.show_progress:
@@ -355,12 +351,18 @@ class DatasetSplitter:
 
             LOGGER.debug(
                 "Cluster %d: %d questions -> train=%d, val=%d, test=%d",
-                cluster_id, n_q, n_train, n_val, n_test,
+                cluster_id,
+                n_q,
+                n_train,
+                n_val,
+                n_test,
             )
 
         LOGGER.info(
             "Split questions: train=%d, val=%d, test=%d",
-            len(train_questions), len(val_questions), len(test_questions),
+            len(train_questions),
+            len(val_questions),
+            len(test_questions),
         )
         return train_questions, val_questions, test_questions
 
@@ -394,9 +396,7 @@ class DatasetSplitter:
         if all_indices != expected:
             missing = expected - all_indices
             extra = all_indices - expected
-            raise ValueError(
-                f"Split indices mismatch: missing={len(missing)}, extra={len(extra)}"
-            )
+            raise ValueError(f"Split indices mismatch: missing={len(missing)}, extra={len(extra)}")
 
         if len(train_idx) == 0:
             raise ValueError("Training split is empty")
@@ -419,17 +419,11 @@ class DatasetSplitter:
         test_q = set(self.pair_indices[test_idx, 0].tolist())
 
         if train_q & val_q:
-            raise ValueError(
-                f"Question leakage train/val: {len(train_q & val_q)} questions"
-            )
+            raise ValueError(f"Question leakage train/val: {len(train_q & val_q)} questions")
         if train_q & test_q:
-            raise ValueError(
-                f"Question leakage train/test: {len(train_q & test_q)} questions"
-            )
+            raise ValueError(f"Question leakage train/test: {len(train_q & test_q)} questions")
         if val_q & test_q:
-            raise ValueError(
-                f"Question leakage val/test: {len(val_q & test_q)} questions"
-            )
+            raise ValueError(f"Question leakage val/test: {len(val_q & test_q)} questions")
         LOGGER.info("No question leakage detected")
 
     # ------------------------------------------------------------------
@@ -485,9 +479,7 @@ class DatasetSplitter:
             "mode": self.mode,
             "train_indices": self.train_indices.tolist(),
             "val_indices": self.val_indices.tolist(),
-            "test_indices": (
-                self.test_indices.tolist() if self.test_indices is not None else None
-            ),
+            "test_indices": (self.test_indices.tolist() if self.test_indices is not None else None),
             "dataset_size": self.dataset_size,
             "val_ratio": self.val_ratio,
             "test_ratio": self.test_ratio,
@@ -534,15 +526,15 @@ class DatasetSplitter:
         splitter.train_indices = np.array(data["train_indices"])
         splitter.val_indices = np.array(data["val_indices"])
         splitter.test_indices = (
-            np.array(data["test_indices"])
-            if data.get("test_indices") is not None
-            else None
+            np.array(data["test_indices"]) if data.get("test_indices") is not None else None
         )
         splitter.dataset_size = data["dataset_size"]
 
         LOGGER.info(
             "Loaded split from %s: train=%d, val=%d",
-            path, len(splitter.train_indices), len(splitter.val_indices),
+            path,
+            len(splitter.train_indices),
+            len(splitter.val_indices),
         )
         return splitter
 
@@ -599,7 +591,8 @@ class DatasetSplitter:
         if self.dataset_size is not None and self.dataset_size != dataset_size:
             LOGGER.warning(
                 "Dataset size mismatch: split created for %d, validating against %d",
-                self.dataset_size, dataset_size,
+                self.dataset_size,
+                dataset_size,
             )
 
         return True

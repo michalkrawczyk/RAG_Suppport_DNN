@@ -16,8 +16,10 @@ LOGGER = logging.getLogger(__name__)
 # Optional matplotlib
 try:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
     _MATPLOTLIB_AVAILABLE = True
 except ImportError:
     _MATPLOTLIB_AVAILABLE = False
@@ -27,6 +29,7 @@ def _json_default(obj: Any) -> Any:
     """JSON serialiser for numpy/torch scalars."""
     try:
         import numpy as np
+
         if isinstance(obj, (np.integer, np.floating)):
             return obj.item()
         if isinstance(obj, np.ndarray):
@@ -69,8 +72,7 @@ class XAIInterface:
         K = centroid_embs.shape[0]
         if len(cluster_names) != K:
             raise ValueError(
-                f"len(cluster_names)={len(cluster_names)} must equal "
-                f"centroid_embs.shape[0]={K}"
+                f"len(cluster_names)={len(cluster_names)} must equal " f"centroid_embs.shape[0]={K}"
             )
 
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -81,6 +83,7 @@ class XAIInterface:
         # Determine model type
         try:
             from RAG_supporters.nn.models.decomposed_predictor import DecomposedJASPERPredictor
+
             self._is_decomposed = isinstance(model, DecomposedJASPERPredictor)
         except ImportError:
             self._is_decomposed = False
@@ -258,7 +261,9 @@ class XAIInterface:
         ax.set_ylabel("Routing weight")
         ax.set_title("Routing Distribution")
         ax.set_ylim(0, 1)
-        ax.axhline(1.0 / max(len(names), 1), color="gray", linestyle="--", alpha=0.5, label="uniform")
+        ax.axhline(
+            1.0 / max(len(names), 1), color="gray", linestyle="--", alpha=0.5, label="uniform"
+        )
         ax.legend(fontsize=7)
         ax.grid(True, axis="y", alpha=0.3)
 
@@ -268,9 +273,13 @@ class XAIInterface:
         coarse_vec = xai_dict.get("coarse_vector")
         if coarse_vec is not None:
             import numpy as np
+
             coarse_norm = float(np.linalg.norm(coarse_vec))
-            ax.bar(["Coarse ‖c‖", "Fine ‖f‖ (atypicality)"], [coarse_norm, atypicality],
-                   color=["#5cc85c", "#e05c5c"])
+            ax.bar(
+                ["Coarse ‖c‖", "Fine ‖f‖ (atypicality)"],
+                [coarse_norm, atypicality],
+                color=["#5cc85c", "#e05c5c"],
+            )
             ax.set_ylabel("L2 norm")
         else:
             ax.bar(["Atypicality"], [atypicality], color=["#e05c5c"])
@@ -321,16 +330,13 @@ class XAIInterface:
     # Internal helpers — DecomposedJASPERPredictor path
     # ------------------------------------------------------------------
 
-    def _explain_decomposed(
-        self, q: torch.Tensor, s: torch.Tensor
-    ) -> Dict[str, Any]:
+    def _explain_decomposed(self, q: torch.Tensor, s: torch.Tensor) -> Dict[str, Any]:
         """Full XAI for DecomposedJASPERPredictor."""
         prediction, xai = self.model(q, s, self.centroid_embs, training=False)
 
         routing_weights = xai["routing_weights"].squeeze(0)  # [K]
         routing_dist = {
-            name: float(w)
-            for name, w in zip(self.cluster_names, routing_weights.tolist())
+            name: float(w) for name, w in zip(self.cluster_names, routing_weights.tolist())
         }
         primary_idx = routing_weights.argmax().item()
         entropy = -(routing_weights * (routing_weights + 1e-8).log()).sum().item()
@@ -350,13 +356,11 @@ class XAIInterface:
             "steering_influence": steering_influence,
         }
 
-    def _compute_steering_influence_decomposed(
-        self, q: torch.Tensor, s: torch.Tensor
-    ) -> float:
+    def _compute_steering_influence_decomposed(self, q: torch.Tensor, s: torch.Tensor) -> float:
         """KL divergence measuring how much the steering changes the routing."""
         s_zero = torch.zeros_like(s)
         # router.forward returns (routing_weights, concept_logits)
-        p_with, _ = self.model.router(q, s, training=False)       # [1, K]
+        p_with, _ = self.model.router(q, s, training=False)  # [1, K]
         p_without, _ = self.model.router(q, s_zero, training=False)  # [1, K]
         p_with = p_with.squeeze(0)
         p_without = p_without.squeeze(0)
@@ -371,22 +375,19 @@ class XAIInterface:
     # Internal helpers — JASPERPredictor path (limited XAI)
     # ------------------------------------------------------------------
 
-    def _explain_jasper(
-        self, q: torch.Tensor, s: torch.Tensor
-    ) -> Dict[str, Any]:
+    def _explain_jasper(self, q: torch.Tensor, s: torch.Tensor) -> Dict[str, Any]:
         """Limited XAI for base JASPERPredictor via proxy routing."""
         prediction = self.model(q, s)  # [1, D]
-        pred = prediction.squeeze(0)   # [D]
+        pred = prediction.squeeze(0)  # [D]
 
         # Proxy routing: cosine similarity between prediction and each centroid
         pred_norm = F.normalize(pred.unsqueeze(0), dim=-1)  # [1, D]
         cent_norm = F.normalize(self.centroid_embs, dim=-1)  # [K, D]
-        sims = (pred_norm @ cent_norm.T).squeeze(0)          # [K]
-        routing_weights = F.softmax(sims, dim=-1)            # [K] proxy
+        sims = (pred_norm @ cent_norm.T).squeeze(0)  # [K]
+        routing_weights = F.softmax(sims, dim=-1)  # [K] proxy
 
         routing_dist = {
-            name: float(w)
-            for name, w in zip(self.cluster_names, routing_weights.tolist())
+            name: float(w) for name, w in zip(self.cluster_names, routing_weights.tolist())
         }
         primary_idx = routing_weights.argmax().item()
         entropy = -(routing_weights * (routing_weights + 1e-8).log()).sum().item()
@@ -410,9 +411,7 @@ class XAIInterface:
             "steering_influence": steering_influence,
         }
 
-    def _compute_steering_influence_jasper(
-        self, q: torch.Tensor, s: torch.Tensor
-    ) -> float:
+    def _compute_steering_influence_jasper(self, q: torch.Tensor, s: torch.Tensor) -> float:
         """Proxy steering influence for JASPERPredictor."""
         s_zero = torch.zeros_like(s)
         pred_with = self.model(q, s).squeeze(0)
@@ -456,10 +455,12 @@ class XAIInterface:
 
         results = []
         for sim_val, idx in zip(topk_vals.tolist(), topk_idx.tolist()):
-            results.append({
-                "similarity": round(sim_val, 4),
-                "index": idx,
-            })
+            results.append(
+                {
+                    "similarity": round(sim_val, 4),
+                    "index": idx,
+                }
+            )
         return results
 
     # ------------------------------------------------------------------

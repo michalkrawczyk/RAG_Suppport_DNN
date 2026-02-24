@@ -52,11 +52,14 @@ class RoutingLoss(nn.Module):
                 - ``"routing"``: scalar loss (gradient-bearing).
                 - ``"routing_acc"``: top-1 accuracy (detached, no grad).
         """
-        loss = F.cross_entropy(
-            routing_logits,
-            true_cluster_ids,
-            label_smoothing=self.label_smoothing,
-        ) * self.weight
+        loss = (
+            F.cross_entropy(
+                routing_logits,
+                true_cluster_ids,
+                label_smoothing=self.label_smoothing,
+            )
+            * self.weight
+        )
 
         with torch.no_grad():
             preds = routing_logits.argmax(dim=-1)
@@ -210,8 +213,8 @@ class ResidualPenalty(nn.Module):
                 - ``"residual_penalty"``: scalar hinge loss (gradient-bearing).
                 - ``"residual_norm_mean"``: mean residual norm (detached, for monitoring).
         """
-        residual_norms = fine_vector.norm(dim=-1)          # [B]
-        hinge = F.relu(residual_norms - self.margin)       # [B]
+        residual_norms = fine_vector.norm(dim=-1)  # [B]
+        hinge = F.relu(residual_norms - self.margin)  # [B]
         loss = self.weight * hinge.mean()
 
         return {
@@ -269,7 +272,7 @@ class DisentanglementLoss(nn.Module):
     def _covariance_loss(self, z: torch.Tensor) -> torch.Tensor:
         """Off-diagonal covariance penalty (same formula as VICRegLoss._covariance_loss)."""
         B, K = z.shape
-        z_centered = z - z.mean(dim=0)                      # [B, K]
-        cov = (z_centered.T @ z_centered) / (B - 1)        # [K, K]
+        z_centered = z - z.mean(dim=0)  # [B, K]
+        cov = (z_centered.T @ z_centered) / (B - 1)  # [K, K]
         off_diag = cov.pow(2).sum() - cov.diagonal().pow(2).sum()
         return off_diag / K

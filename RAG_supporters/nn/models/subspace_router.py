@@ -123,7 +123,10 @@ class SubspaceRouter(nn.Module):
         self._init_weights()
         LOGGER.debug(
             "SubspaceRouter initialised: D=%d H=%d K=%d layers=%d params=%d",
-            D, H, K, config.num_layers,
+            D,
+            H,
+            K,
+            config.num_layers,
             sum(p.numel() for p in self.parameters()),
         )
 

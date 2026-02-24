@@ -189,7 +189,11 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Resolve embedding_dim — prefer CLI arg, else dataset config.json
     # ------------------------------------------------------------------
-    D = args.embedding_dim or read_dataset_embedding_dim(args.dataset_dir) or DEFAULTS["embedding_dim"]
+    D = (
+        args.embedding_dim
+        or read_dataset_embedding_dim(args.dataset_dir)
+        or DEFAULTS["embedding_dim"]
+    )
     LOGGER.info("embedding_dim = %d", D)
 
     # ------------------------------------------------------------------

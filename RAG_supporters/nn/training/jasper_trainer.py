@@ -17,11 +17,14 @@ from torch.utils.data import DataLoader
 from RAG_supporters.nn.models.ema_encoder import EMAEncoder
 from RAG_supporters.nn.losses.jasper_losses import JASPERMultiObjectiveLoss
 
+
 # Lazy import to avoid pulling in the heavy dataset/sklearn chain at module level.
 # set_epoch is only needed during actual training, not at import time.
 def _set_epoch(loader: DataLoader, epoch: int) -> None:  # noqa: E302
     from RAG_supporters.pytorch_datasets.loader import set_epoch as _se
+
     _se(loader, epoch)
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -173,7 +176,9 @@ class JASPERTrainer:
         self._max_steps = num_epochs * len(self.train_loader)
         history: List[Dict[str, float]] = []
 
-        LOGGER.info("Starting training: %d epochs, %d steps/epoch", num_epochs, len(self.train_loader))
+        LOGGER.info(
+            "Starting training: %d epochs, %d steps/epoch", num_epochs, len(self.train_loader)
+        )
 
         for epoch in range(num_epochs):
             t0 = time.time()
@@ -199,7 +204,10 @@ class JASPERTrainer:
             self._log_epoch(epoch, epoch_metrics)
 
             # Save periodic checkpoint
-            if self.config.save_every_n_epochs > 0 and (epoch + 1) % self.config.save_every_n_epochs == 0:
+            if (
+                self.config.save_every_n_epochs > 0
+                and (epoch + 1) % self.config.save_every_n_epochs == 0
+            ):
                 self.save_checkpoint(
                     self.checkpoint_dir / f"epoch_{epoch:04d}.pt",
                     epoch=epoch,
@@ -409,14 +417,14 @@ class JASPERTrainer:
 
         predicted = self.model(question_emb, steering_emb)
         ema_target = self.ema_encoder.encode_target(target_source_emb)
-        _, loss_dict = self.loss_fn(
-            predicted, ema_target, negatives, centroid_embs, cluster_ids
-        )
+        _, loss_dict = self.loss_fn(predicted, ema_target, negatives, centroid_embs, cluster_ids)
 
         return {k: v.item() for k, v in loss_dict.items()}
 
     def _to_device(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        return {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+        return {
+            k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()
+        }
 
     def _get_centroid_embs(self, source_emb: torch.Tensor) -> torch.Tensor:
         """Return cached centroid embeddings (or fall back to source mean)."""

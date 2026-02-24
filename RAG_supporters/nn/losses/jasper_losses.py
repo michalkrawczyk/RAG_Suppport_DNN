@@ -101,15 +101,17 @@ class ContrastiveLoss(nn.Module):
         K = negatives.shape[1]
 
         # Normalise to unit sphere for cosine similarity
-        pred_norm = F.normalize(predicted, dim=-1)          # [B, D]
-        tgt_norm = F.normalize(target, dim=-1)              # [B, D]
-        neg_norm = F.normalize(negatives, dim=-1)           # [B, K, D]
+        pred_norm = F.normalize(predicted, dim=-1)  # [B, D]
+        tgt_norm = F.normalize(target, dim=-1)  # [B, D]
+        neg_norm = F.normalize(negatives, dim=-1)  # [B, K, D]
 
         # Positive similarity: [B]
         pos_sim = (pred_norm * tgt_norm).sum(dim=-1, keepdim=True) / self.temperature  # [B, 1]
 
         # Negative similarities: [B, K]
-        neg_sim = torch.bmm(neg_norm, pred_norm.unsqueeze(-1)).squeeze(-1) / self.temperature  # [B, K]
+        neg_sim = (
+            torch.bmm(neg_norm, pred_norm.unsqueeze(-1)).squeeze(-1) / self.temperature
+        )  # [B, K]
 
         # Concatenate: [B, 1+K] — positive is always the 0th column
         logits = torch.cat([pos_sim, neg_sim], dim=-1)  # [B, 1+K]
@@ -160,8 +162,8 @@ class CentroidLoss(nn.Module):
             ``"centroid_acc"`` (top-1 accuracy scalar, no grad).
         """
         # Normalise
-        pred_norm = F.normalize(predicted_emb, dim=-1)        # [B, D]
-        cent_norm = F.normalize(centroid_embs, dim=-1)        # [C, D]
+        pred_norm = F.normalize(predicted_emb, dim=-1)  # [B, D]
+        cent_norm = F.normalize(centroid_embs, dim=-1)  # [C, D]
 
         # Cosine similarity → logits: [B, C]
         logits = (pred_norm @ cent_norm.T) / self.temperature
@@ -255,15 +257,15 @@ class VICRegLoss(nn.Module):
 
     def _variance_loss(self, z: torch.Tensor) -> torch.Tensor:
         """Hinge loss on per-dimension standard deviation."""
-        std = torch.sqrt(z.var(dim=0) + self.eps)             # [D]
+        std = torch.sqrt(z.var(dim=0) + self.eps)  # [D]
         loss = F.relu(self.gamma - std).mean()
         return loss
 
     def _covariance_loss(self, z: torch.Tensor) -> torch.Tensor:
         """Off-diagonal covariance penalty."""
         B, D = z.shape
-        z_centered = z - z.mean(dim=0)                         # [B, D]
-        cov = (z_centered.T @ z_centered) / (B - 1)           # [D, D]
+        z_centered = z - z.mean(dim=0)  # [B, D]
+        cov = (z_centered.T @ z_centered) / (B - 1)  # [D, D]
         # Zero out diagonal, penalise squared off-diagonal entries
         off_diag = cov.pow(2).sum() - cov.diagonal().pow(2).sum()
         loss = off_diag / D

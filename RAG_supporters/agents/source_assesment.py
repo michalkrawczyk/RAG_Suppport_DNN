@@ -610,9 +610,9 @@ try:
                     or is_empty_text(row[question_col])
                     or is_empty_text(row[source_col])
                 ):
-                    result_df.at[idx, "evaluation_error"] = (
-                        "Missing or empty question or source content"
-                    )
+                    result_df.at[
+                        idx, "evaluation_error"
+                    ] = "Missing or empty question or source content"
                     continue
 
                 # Skip rows with missing data
@@ -835,9 +835,9 @@ try:
                         or is_empty_text(row[question_col])
                         or is_empty_text(row[source_col])
                     ):
-                        result_df.at[idx, "evaluation_error"] = (
-                            "Missing or empty question or source content"
-                        )
+                        result_df.at[
+                            idx, "evaluation_error"
+                        ] = "Missing or empty question or source content"
 
                         LOGGER.warning(
                             f"Skipping row {idx} due to missing question or source content"
