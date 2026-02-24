@@ -5,7 +5,7 @@ Usage
 -----
 Basic::
 
-    python examples/train_subspace_jasper.py \
+    python examples/train_jasper_subspace.py \
         --config configs/subspace_jasper.yaml \
         --dataset-dir /path/to/jasper_dataset \
         --output-dir runs/subspace_run_01 \
@@ -13,7 +13,7 @@ Basic::
 
 Resume from checkpoint::
 
-    python examples/train_subspace_jasper.py \
+    python examples/train_jasper_subspace.py \
         --config configs/subspace_jasper.yaml \
         --dataset-dir /path/to/jasper_dataset \
         --output-dir runs/subspace_run_01 \
