@@ -58,27 +58,53 @@ def load_map(map_path: Path) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _contains(text: str | None, query: str) -> bool:
-    """Case-insensitive substring check."""
+def _matches(text: str | None, query: str, exact: bool = False) -> bool:
+    """Case-insensitive matching (substring or exact).
+    
+    Parameters
+    ----------
+    text:
+        The text to search in.
+    query:
+        The search query (already lowercased).
+    exact:
+        If True, perform exact match; otherwise substring match.
+    """
     if text is None:
         return False
-    return query in text.lower()
+    text_lower = text.lower()
+    if exact:
+        return text_lower == query
+    return query in text_lower
 
 
 def _match_record(
     record: dict,
     query: str,
     search_type: str,
+    exact: bool = False,
 ) -> list[MatchResult]:
-    """Return all MatchResults from *record* matching *query* and *search_type*."""
+    """Return all MatchResults from *record* matching *query* and *search_type*.
+    
+    Parameters
+    ----------
+    record:
+        A module record from module_map.json.
+    query:
+        The search query (already lowercased).
+    search_type:
+        Type of search to perform.
+    exact:
+        If True, perform exact match; otherwise substring match.
+    """
     results: list[MatchResult] = []
     path = record.get("path", "")
 
     # -- module level -------------------------------------------------------
     if search_type in ("all", "module"):
-        hit_module = _contains(record.get("module"), query)
-        hit_file = _contains(record.get("file"), query)
-        hit_doc = _contains(record.get("module_docstring"), query)
+        hit_module = _matches(record.get("module"), query, exact)
+        hit_file = _matches(record.get("file"), query, exact)
+        hit_doc = _matches(record.get("module_docstring"), query, exact)
         if hit_module or hit_file or hit_doc:
             results.append(
                 MatchResult(
@@ -95,7 +121,7 @@ def _match_record(
             if not isinstance(cls_info, dict):
                 continue
             cls_doc = cls_info.get("docstring")
-            if _contains(cls_name, query) or _contains(cls_doc, query):
+            if _matches(cls_name, query, exact) or _matches(cls_doc, query, exact):
                 results.append(
                     MatchResult(
                         path=path,
@@ -119,7 +145,7 @@ def _match_record(
                 else:
                     method_doc = method_info
                     method_line = None
-                if _contains(method_name, query) or _contains(method_doc, query):
+                if _matches(method_name, query, exact) or _matches(method_doc, query, exact):
                     results.append(
                         MatchResult(
                             path=path,
@@ -141,7 +167,7 @@ def _match_record(
             else:
                 fn_doc = fn_info
                 fn_line = None
-            if _contains(fn_name, query) or _contains(fn_doc, query):
+            if _matches(fn_name, query, exact) or _matches(fn_doc, query, exact):
                 results.append(
                     MatchResult(
                         path=path,
@@ -155,7 +181,7 @@ def _match_record(
     # -- call-site usages ---------------------------------------------------
     if search_type in ("usage", "all"):
         for call in record.get("calls", []):
-            if _contains(call.get("name"), query):
+            if _matches(call.get("name"), query, exact):
                 results.append(
                     MatchResult(
                         path=path,
@@ -183,8 +209,8 @@ def _match_record(
 
         for func_label, sig in func_items:
             for param in sig.get("params", []):
-                if _contains(param.get("name"), query) or _contains(
-                    param.get("annotation"), query
+                if _matches(param.get("name"), query, exact) or _matches(
+                    param.get("annotation"), query, exact
                 ):
                     results.append(
                         MatchResult(
@@ -205,6 +231,7 @@ def search(
     search_type: str = "all",
     package_filter: str | None = None,
     parent_filter: str | None = None,
+    exact: bool = False,
 ) -> list[MatchResult]:
     """Search *module_map* for *query*.
 
@@ -213,13 +240,15 @@ def search(
     module_map:
         Loaded list of module records.
     query:
-        Case-insensitive substring to look for.
+        Case-insensitive string to look for.
     search_type:
         One of ``'all'``, ``'module'``, ``'class'``, ``'method'``, ``'function'``.
     package_filter:
         If set, only records whose ``package`` field matches (case-insensitive).
     parent_filter:
         If set, only records whose ``parent_module`` field matches (case-insensitive).
+    exact:
+        If True, perform exact match; otherwise substring match.
 
     Returns
     -------
@@ -237,7 +266,7 @@ def search(
             continue
         if parent_filter and record.get("parent_module", "").lower() != parent_filter:
             continue
-        results.extend(_match_record(record, query, search_type))
+        results.extend(_match_record(record, query, search_type, exact))
 
     return results
 
@@ -427,6 +456,11 @@ Examples:
         help="Hide module-level function results.",
     )
     parser.add_argument(
+        "--exact",
+        action="store_true",
+        help="Perform exact match instead of substring search.",
+    )
+    parser.add_argument(
         "--json",
         dest="output_json",
         action="store_true",
@@ -453,6 +487,7 @@ def main(argv: list[str] | None = None) -> None:
         search_type=args.search_type,
         package_filter=args.package,
         parent_filter=args.parent,
+        exact=args.exact,
     )
 
     if args.output_json:
