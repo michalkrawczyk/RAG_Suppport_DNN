@@ -160,6 +160,7 @@ cython_debug/
 #.idea/
 plan/
 .claude/
+CLAUDE.md
 
 # Generated tool artifacts – hidden from Copilot agents
 agent_ignore/*
