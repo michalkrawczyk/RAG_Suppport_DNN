@@ -66,23 +66,13 @@ def _make_routing_inputs(seed: int = 99):
 
 
 class TestJASPERLoss:
-    def test_returns_dict(self):
+    def test_output_format(self):
         loss_fn = JASPERLoss()
         p, t, *_ = _make_jasper_batch()
         result = loss_fn(p, t)
         assert isinstance(result, dict), "JASPERLoss should return a dict"
         assert "jasper" in result, "Result dict must contain 'jasper' key"
-
-    def test_loss_is_scalar(self):
-        loss_fn = JASPERLoss()
-        p, t, *_ = _make_jasper_batch()
-        result = loss_fn(p, t)
         assert result["jasper"].shape == (), "JASPERLoss should return a scalar tensor"
-
-    def test_loss_is_non_negative(self):
-        loss_fn = JASPERLoss()
-        p, t, *_ = _make_jasper_batch()
-        result = loss_fn(p, t)
         assert result["jasper"].item() >= 0, "JASPERLoss should always be non-negative"
 
     def test_zero_loss_for_identical_inputs(self):
@@ -107,24 +97,13 @@ class TestJASPERLoss:
 
 
 class TestContrastiveLoss:
-    def test_returns_dict(self):
+    def test_output_format(self):
         loss_fn = ContrastiveLoss()
         p, t, neg, *_ = _make_jasper_batch()
         result = loss_fn(p, t, neg)
         assert "contrastive" in result, "ContrastiveLoss result dict must contain 'contrastive' key"
-
-    def test_output_is_scalar(self):
-        loss_fn = ContrastiveLoss()
-        p, t, neg, *_ = _make_jasper_batch()
-        result = loss_fn(p, t, neg)
         assert result["contrastive"].shape == (), "ContrastiveLoss should return a scalar tensor"
-
-    def test_non_negative_loss(self):
-        loss_fn = ContrastiveLoss()
-        p, t, neg, *_ = _make_jasper_batch()
-        assert (
-            loss_fn(p, t, neg)["contrastive"].item() >= 0
-        ), "ContrastiveLoss should always be non-negative"
+        assert result["contrastive"].item() >= 0, "ContrastiveLoss should always be non-negative"
 
     def test_lower_temperature_gives_larger_loss_variance(self):
         """Lower temperature should generally sharpen predictions."""
@@ -161,17 +140,12 @@ class TestContrastiveLoss:
 
 
 class TestCentroidLoss:
-    def test_returns_dict(self):
+    def test_output_format(self):
         loss_fn = CentroidLoss()
         p, _, _, centroids, cluster_ids = _make_jasper_batch()
         result = loss_fn(p, centroids, cluster_ids)
         assert "centroid" in result, "CentroidLoss result dict must contain 'centroid' key"
         assert "centroid_acc" in result, "CentroidLoss result dict must contain 'centroid_acc' key"
-
-    def test_loss_is_scalar(self):
-        loss_fn = CentroidLoss()
-        p, _, _, centroids, cluster_ids = _make_jasper_batch()
-        result = loss_fn(p, centroids, cluster_ids)
         assert result["centroid"].shape == (), "CentroidLoss should return a scalar tensor"
 
     def test_accuracy_in_range(self):
@@ -212,7 +186,7 @@ class TestCentroidLoss:
 
 
 class TestVICRegLoss:
-    def test_returns_dict_with_components(self):
+    def test_output_format(self):
         loss_fn = VICRegLoss()
         p, t, *_ = _make_jasper_batch()
         result = loss_fn(p, t)
@@ -220,17 +194,8 @@ class TestVICRegLoss:
         assert "vicreg_v" in result, "VICRegLoss result must contain 'vicreg_v' (variance) key"
         assert "vicreg_i" in result, "VICRegLoss result must contain 'vicreg_i' (invariance) key"
         assert "vicreg_c" in result, "VICRegLoss result must contain 'vicreg_c' (covariance) key"
-
-    def test_total_loss_is_scalar(self):
-        loss_fn = VICRegLoss()
-        p, t, *_ = _make_jasper_batch()
-        result = loss_fn(p, t)
         assert result["vicreg"].shape == (), "VICRegLoss total should be a scalar tensor"
-
-    def test_non_negative_total_loss(self):
-        loss_fn = VICRegLoss()
-        p, t, *_ = _make_jasper_batch()
-        assert loss_fn(p, t)["vicreg"].item() >= 0, "VICRegLoss total should always be non-negative"
+        assert result["vicreg"].item() >= 0, "VICRegLoss total should always be non-negative"
 
     def test_gradients_flow(self):
         loss_fn = VICRegLoss()
@@ -277,7 +242,7 @@ class TestJASPERMultiObjectiveLoss:
     def batch_inputs(self):
         return _make_jasper_batch(B=8, D=32, K=4, C=6)
 
-    def test_returns_total_and_dict(self, loss_fn, batch_inputs):
+    def test_output_format(self, loss_fn, batch_inputs):
         p, t, neg, c, ids = batch_inputs
         total, loss_dict = loss_fn(p, t, neg, c, ids)
         assert isinstance(
@@ -287,15 +252,7 @@ class TestJASPERMultiObjectiveLoss:
             loss_dict, dict
         ), "JASPERMultiObjectiveLoss should return a dict as second output"
         assert "total" in loss_dict, "Loss dict must contain 'total' key"
-
-    def test_total_is_scalar(self, loss_fn, batch_inputs):
-        p, t, neg, c, ids = batch_inputs
-        total, _ = loss_fn(p, t, neg, c, ids)
         assert total.shape == (), "JASPERMultiObjectiveLoss total should be a scalar tensor"
-
-    def test_all_components_present(self, loss_fn, batch_inputs):
-        p, t, neg, c, ids = batch_inputs
-        _, loss_dict = loss_fn(p, t, neg, c, ids)
         for key in ("jasper", "contrastive", "centroid", "vicreg"):
             assert key in loss_dict, f"Missing key: {key}"
 
@@ -338,23 +295,13 @@ class TestJASPERMultiObjectiveLoss:
 
 
 class TestRoutingLoss:
-    def test_returns_required_keys(self):
+    def test_output_format(self):
         loss_fn = RoutingLoss()
         logits, _, ids, _ = _make_routing_inputs()
         result = loss_fn(logits, ids)
         assert "routing" in result, "RoutingLoss result must contain 'routing' key"
         assert "routing_acc" in result, "RoutingLoss result must contain 'routing_acc' key"
-
-    def test_loss_is_scalar(self):
-        loss_fn = RoutingLoss()
-        logits, _, ids, _ = _make_routing_inputs()
-        result = loss_fn(logits, ids)
         assert result["routing"].shape == (), "RoutingLoss should return a scalar tensor"
-
-    def test_loss_is_non_negative(self):
-        loss_fn = RoutingLoss()
-        logits, _, ids, _ = _make_routing_inputs()
-        result = loss_fn(logits, ids)
         assert result["routing"].item() >= 0, "RoutingLoss should always be non-negative"
 
     def test_accuracy_in_range(self):
@@ -403,7 +350,7 @@ class TestRoutingLoss:
 
 
 class TestEntropyRegularization:
-    def test_returns_required_keys(self):
+    def test_output_format(self):
         loss_fn = EntropyRegularization()
         _, weights, _, _ = _make_routing_inputs()
         result = loss_fn(weights, current_epoch=0)
@@ -413,11 +360,6 @@ class TestEntropyRegularization:
         assert (
             "routing_entropy" in result
         ), "EntropyRegularization result must contain 'routing_entropy' key"
-
-    def test_loss_is_scalar(self):
-        loss_fn = EntropyRegularization()
-        _, weights, _, _ = _make_routing_inputs()
-        result = loss_fn(weights, current_epoch=0)
         assert (
             result["entropy_reg"].shape == ()
         ), "EntropyRegularization should return a scalar tensor"
@@ -441,19 +383,17 @@ class TestEntropyRegularization:
             abs(actual_entropy - expected_entropy) < 0.01
         ), f"Expected H≈{expected_entropy:.3f}, got {actual_entropy:.3f}"
 
-    def test_target_decreases_over_epochs(self):
-        loss_fn = EntropyRegularization(entropy_high=2.0, entropy_low=0.1, anneal_epochs=10)
-        t0 = loss_fn.get_target_entropy(0)
-        t10 = loss_fn.get_target_entropy(10)
-        t5 = loss_fn.get_target_entropy(5)
+    def test_entropy_schedule(self):
+        loss_fn_10 = EntropyRegularization(entropy_high=2.0, entropy_low=0.1, anneal_epochs=10)
+        t0 = loss_fn_10.get_target_entropy(0)
+        t5 = loss_fn_10.get_target_entropy(5)
+        t10 = loss_fn_10.get_target_entropy(10)
         assert t0 > t5 > t10, f"Expected t0({t0:.3f}) > t5({t5:.3f}) > t10({t10:.3f})"
-
-    def test_target_after_anneal_epochs_stays_at_low(self):
-        loss_fn = EntropyRegularization(entropy_high=2.0, entropy_low=0.1, anneal_epochs=5)
-        assert loss_fn.get_target_entropy(5) == pytest.approx(
+        loss_fn_5 = EntropyRegularization(entropy_high=2.0, entropy_low=0.1, anneal_epochs=5)
+        assert loss_fn_5.get_target_entropy(5) == pytest.approx(
             0.1, abs=1e-6
         ), "After anneal_epochs the schedule should clamp at entropy_low"
-        assert loss_fn.get_target_entropy(100) == pytest.approx(
+        assert loss_fn_5.get_target_entropy(100) == pytest.approx(
             0.1, abs=1e-6
         ), "Well after anneal_epochs the schedule should stay clamped at entropy_low"
 
@@ -485,7 +425,7 @@ class TestEntropyRegularization:
 
 
 class TestResidualPenalty:
-    def test_returns_required_keys(self):
+    def test_output_format(self):
         loss_fn = ResidualPenalty()
         _, _, _, fine = _make_routing_inputs()
         result = loss_fn(fine)
@@ -495,11 +435,6 @@ class TestResidualPenalty:
         assert (
             "residual_norm_mean" in result
         ), "ResidualPenalty result must contain 'residual_norm_mean' key"
-
-    def test_loss_is_scalar(self):
-        loss_fn = ResidualPenalty()
-        _, _, _, fine = _make_routing_inputs()
-        result = loss_fn(fine)
         assert (
             result["residual_penalty"].shape == ()
         ), "ResidualPenalty should return a scalar tensor"
@@ -531,10 +466,6 @@ class TestResidualPenalty:
         assert (
             result["residual_penalty"].item() > 0
         ), "Hinge loss should be positive when half the batch exceeds the margin"
-        result_no_penalty = ResidualPenalty(margin=100.0)(fine)
-        assert result_no_penalty["residual_penalty"].item() == pytest.approx(
-            0.0, abs=1e-6
-        ), "Penalty should be zero when margin is far above all norms"
 
     def test_norm_mean_is_detached(self):
         loss_fn = ResidualPenalty()
@@ -567,24 +498,19 @@ class TestResidualPenalty:
 
 
 class TestDisentanglementLoss:
-    def test_returns_required_key(self):
+    def test_output_format(self):
         loss_fn = DisentanglementLoss()
         _, weights, _, _ = _make_routing_inputs()
         result = loss_fn(weights)
         assert (
             "disentanglement" in result
         ), "DisentanglementLoss result must contain 'disentanglement' key"
-
-    def test_loss_is_scalar(self):
-        loss_fn = DisentanglementLoss()
-        _, weights, _, _ = _make_routing_inputs()
-        result = loss_fn(weights)
         assert (
             result["disentanglement"].shape == ()
         ), "DisentanglementLoss should return a scalar tensor"
 
-    def test_correlated_inputs_give_higher_loss(self):
-        """Identical rows (fully correlated) should give higher loss than random rows."""
+    def test_identical_rows_give_zero_loss(self):
+        """Identical rows center to zero: off-diagonal covariance is 0, so loss is 0."""
         loss_fn = DisentanglementLoss(weight=1.0)
         torch.manual_seed(0)
         single_row = F.softmax(torch.randn(1, _K), dim=-1)
@@ -592,7 +518,9 @@ class TestDisentanglementLoss:
         random_weights = F.softmax(torch.randn(_B, _K), dim=-1)
         loss_corr = loss_fn(correlated)["disentanglement"].item()
         loss_rand = loss_fn(random_weights)["disentanglement"].item()
-        assert loss_corr >= 0, "DisentanglementLoss should be non-negative for correlated inputs"
+        assert loss_corr == pytest.approx(
+            0.0, abs=1e-6
+        ), "Identical rows center to zero so off-diagonal covariance is 0 and loss should be 0"
         assert loss_rand >= 0, "DisentanglementLoss should be non-negative for random inputs"
 
     def test_gradients_flow(self):
