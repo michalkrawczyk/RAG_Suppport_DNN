@@ -245,8 +245,12 @@ class TestJASPERMultiObjectiveLoss:
     def test_output_format(self, loss_fn, batch_inputs):
         p, t, neg, c, ids = batch_inputs
         total, loss_dict = loss_fn(p, t, neg, c, ids)
-        assert isinstance(total, torch.Tensor), "JASPERMultiObjectiveLoss should return a Tensor as first output"
-        assert isinstance(loss_dict, dict), "JASPERMultiObjectiveLoss should return a dict as second output"
+        assert isinstance(
+            total, torch.Tensor
+        ), "JASPERMultiObjectiveLoss should return a Tensor as first output"
+        assert isinstance(
+            loss_dict, dict
+        ), "JASPERMultiObjectiveLoss should return a dict as second output"
         assert "total" in loss_dict, "Loss dict must contain 'total' key"
         assert total.shape == (), "JASPERMultiObjectiveLoss total should be a scalar tensor"
         for key in ("jasper", "contrastive", "centroid", "vicreg"):
@@ -350,9 +354,15 @@ class TestEntropyRegularization:
         loss_fn = EntropyRegularization()
         _, weights, _, _ = _make_routing_inputs()
         result = loss_fn(weights, current_epoch=0)
-        assert "entropy_reg" in result, "EntropyRegularization result must contain 'entropy_reg' key"
-        assert "routing_entropy" in result, "EntropyRegularization result must contain 'routing_entropy' key"
-        assert result["entropy_reg"].shape == (), "EntropyRegularization should return a scalar tensor"
+        assert (
+            "entropy_reg" in result
+        ), "EntropyRegularization result must contain 'entropy_reg' key"
+        assert (
+            "routing_entropy" in result
+        ), "EntropyRegularization result must contain 'routing_entropy' key"
+        assert (
+            result["entropy_reg"].shape == ()
+        ), "EntropyRegularization should return a scalar tensor"
 
     def test_entropy_is_detached(self):
         loss_fn = EntropyRegularization()
@@ -419,9 +429,15 @@ class TestResidualPenalty:
         loss_fn = ResidualPenalty()
         _, _, _, fine = _make_routing_inputs()
         result = loss_fn(fine)
-        assert "residual_penalty" in result, "ResidualPenalty result must contain 'residual_penalty' key"
-        assert "residual_norm_mean" in result, "ResidualPenalty result must contain 'residual_norm_mean' key"
-        assert result["residual_penalty"].shape == (), "ResidualPenalty should return a scalar tensor"
+        assert (
+            "residual_penalty" in result
+        ), "ResidualPenalty result must contain 'residual_penalty' key"
+        assert (
+            "residual_norm_mean" in result
+        ), "ResidualPenalty result must contain 'residual_norm_mean' key"
+        assert (
+            result["residual_penalty"].shape == ()
+        ), "ResidualPenalty should return a scalar tensor"
 
     def test_zero_loss_below_margin(self):
         """If all norms are below margin, penalty should be exactly 0."""
@@ -486,8 +502,12 @@ class TestDisentanglementLoss:
         loss_fn = DisentanglementLoss()
         _, weights, _, _ = _make_routing_inputs()
         result = loss_fn(weights)
-        assert "disentanglement" in result, "DisentanglementLoss result must contain 'disentanglement' key"
-        assert result["disentanglement"].shape == (), "DisentanglementLoss should return a scalar tensor"
+        assert (
+            "disentanglement" in result
+        ), "DisentanglementLoss result must contain 'disentanglement' key"
+        assert (
+            result["disentanglement"].shape == ()
+        ), "DisentanglementLoss should return a scalar tensor"
 
     def test_identical_rows_give_zero_loss(self):
         """Identical rows center to zero: off-diagonal covariance is 0, so loss is 0."""
@@ -498,9 +518,9 @@ class TestDisentanglementLoss:
         random_weights = F.softmax(torch.randn(_B, _K), dim=-1)
         loss_corr = loss_fn(correlated)["disentanglement"].item()
         loss_rand = loss_fn(random_weights)["disentanglement"].item()
-        assert loss_corr == pytest.approx(0.0, abs=1e-6), (
-            "Identical rows center to zero so off-diagonal covariance is 0 and loss should be 0"
-        )
+        assert loss_corr == pytest.approx(
+            0.0, abs=1e-6
+        ), "Identical rows center to zero so off-diagonal covariance is 0 and loss should be 0"
         assert loss_rand >= 0, "DisentanglementLoss should be non-negative for random inputs"
 
     def test_gradients_flow(self):

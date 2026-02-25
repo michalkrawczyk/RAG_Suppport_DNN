@@ -276,9 +276,11 @@ def _extract_constants(tree: ast.Module) -> dict:
             name = target.id
             if name == "__all__" and isinstance(node.value, ast.List):
                 all_list = [
-                    elt.value
-                    if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
-                    else ast.unparse(elt)
+                    (
+                        elt.value
+                        if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+                        else ast.unparse(elt)
+                    )
                     for elt in node.value.elts
                 ]
             elif name.isupper() and name != "__all__":
