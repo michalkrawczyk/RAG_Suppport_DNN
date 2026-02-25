@@ -11,6 +11,16 @@ Basic::
         --output-dir runs/subspace_run_01 \
         --centroids-path /path/to/centroids.pt
 
+With dataset build step (Tasks 1-8 run automatically before training)::
+
+    python examples/train_jasper_subspace.py \
+        --config configs/subspace_jasper.yaml \
+        --dataset-dir /path/to/jasper_dataset \
+        --centroids-path /path/to/centroids.pt \
+        --build-csv-paths data/train.csv data/val.csv \
+        --build-cluster-json data/clusters.json \
+        --build-embedding-model sentence-transformers/all-MiniLM-L6-v2
+
 Resume from checkpoint::
 
     python examples/train_jasper_subspace.py \
@@ -38,6 +48,7 @@ import yaml
 # Allow running from repo root without installing the package
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from RAG_supporters.jasper import build_dataset
 from RAG_supporters.nn.models.decomposed_predictor import (
     DecomposedJASPERPredictor,
     DecomposedJASPERConfig,
@@ -435,6 +446,47 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, default=None, help="Override num_epochs")
     parser.add_argument("--device", default=None, help="Device (e.g. 'cuda:0', 'cpu')")
     parser.add_argument("--debug", action="store_true", help="Enable DEBUG logging")
+
+    # ------------------------------------------------------------------
+    # Dataset build arguments (optional — run Tasks 1-8 before training)
+    # ------------------------------------------------------------------
+    build = parser.add_argument_group(
+        "dataset build",
+        "When --build-csv-paths is provided the dataset is built from raw CSV files "
+        "before training.  The result is written to --dataset-dir.",
+    )
+    build.add_argument(
+        "--build-csv-paths",
+        nargs="+",
+        default=None,
+        metavar="CSV",
+        help="One or more raw CSV files to merge and process (triggers build step).",
+    )
+    build.add_argument(
+        "--build-cluster-json",
+        default=None,
+        metavar="JSON",
+        help="Path to KeywordClusterer JSON (required when --build-csv-paths is set).",
+    )
+    build.add_argument(
+        "--build-embedding-model",
+        default=None,
+        metavar="MODEL",
+        help="SentenceTransformer model name or path used to generate embeddings.",
+    )
+    build.add_argument(
+        "--build-n-neg",
+        type=int,
+        default=12,
+        metavar="N",
+        help="Number of hard negatives per sample (default: 12).",
+    )
+    build.add_argument(
+        "--build-normalize-embeddings",
+        action="store_true",
+        default=False,
+        help="L2-normalise embeddings during the build step.",
+    )
     return parser.parse_args()
 
 
@@ -443,6 +495,40 @@ def main() -> None:
 
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    # ------------------------------------------------------------------
+    # 0. Dataset build  (Tasks 1-8, skipped when --build-csv-paths is absent)
+    # ------------------------------------------------------------------
+    if args.build_csv_paths:
+        if not args.build_cluster_json:
+            raise ValueError("--build-cluster-json is required when --build-csv-paths is set.")
+        if not args.build_embedding_model:
+            raise ValueError("--build-embedding-model is required when --build-csv-paths is set.")
+
+        LOGGER.info(
+            "Step 0: Building JASPER dataset from %d CSV file(s) → %s",
+            len(args.build_csv_paths),
+            args.dataset_dir,
+        )
+        try:
+            from sentence_transformers import SentenceTransformer
+
+            embedding_model = SentenceTransformer(args.build_embedding_model)
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError(
+                "sentence-transformers is required for the build step. "
+                "Install it with: pip install sentence-transformers"
+            ) from exc
+
+        build_dataset(
+            csv_paths=args.build_csv_paths,
+            cluster_json_path=args.build_cluster_json,
+            embedding_model=embedding_model,
+            output_dir=args.dataset_dir,
+            n_neg=args.build_n_neg,
+            normalize_embeddings=args.build_normalize_embeddings,
+        )
+        LOGGER.info("Step 0: Dataset build complete.")
 
     # ------------------------------------------------------------------
     # 1. Load config

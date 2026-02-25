@@ -11,6 +11,14 @@ Minimal::
     python examples/train_jasper.py \\
         --dataset-dir /path/to/jasper_dataset
 
+With dataset build step (Tasks 1-8 run automatically before training)::
+
+    python examples/train_jasper.py \\
+        --dataset-dir /path/to/jasper_dataset \\
+        --build-csv-paths data/train.csv data/val.csv \\
+        --build-cluster-json data/clusters.json \\
+        --build-embedding-model sentence-transformers/all-MiniLM-L6-v2
+
 Full overrides::
 
     python examples/train_jasper.py \\
@@ -45,6 +53,7 @@ import torch.optim as optim
 # Allow running from repo root without installing the package
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from RAG_supporters.jasper import build_dataset
 from RAG_supporters.nn.models.jasper_predictor import JASPERPredictor, JASPERPredictorConfig
 from RAG_supporters.nn.models.ema_encoder import EMAEncoder
 from RAG_supporters.nn.losses.jasper_losses import JASPERMultiObjectiveLoss
@@ -217,6 +226,47 @@ def parse_args() -> argparse.Namespace:
         help="Reload hard negatives from disk every N epochs (0 = disabled)",
     )
     p.add_argument("--debug", action="store_true")
+
+    # ------------------------------------------------------------------
+    # Dataset build arguments (optional — run Tasks 1-8 before training)
+    # ------------------------------------------------------------------
+    build = p.add_argument_group(
+        "dataset build",
+        "When --build-csv-paths is provided the dataset is built from raw CSV files "
+        "before training.  The result is written to --dataset-dir.",
+    )
+    build.add_argument(
+        "--build-csv-paths",
+        nargs="+",
+        default=None,
+        metavar="CSV",
+        help="One or more raw CSV files to merge and process (triggers build step).",
+    )
+    build.add_argument(
+        "--build-cluster-json",
+        default=None,
+        metavar="JSON",
+        help="Path to KeywordClusterer JSON (required when --build-csv-paths is set).",
+    )
+    build.add_argument(
+        "--build-embedding-model",
+        default=None,
+        metavar="MODEL",
+        help="SentenceTransformer model name or path used to generate embeddings.",
+    )
+    build.add_argument(
+        "--build-n-neg",
+        type=int,
+        default=12,
+        metavar="N",
+        help="Number of hard negatives per sample (default: 12).",
+    )
+    build.add_argument(
+        "--build-normalize-embeddings",
+        action="store_true",
+        default=False,
+        help="L2-normalise embeddings during the build step.",
+    )
     return p.parse_args()
 
 
@@ -234,6 +284,40 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_dir = output_dir / "checkpoints"
+
+    # ------------------------------------------------------------------
+    # 0. Dataset build  (Tasks 1-8, skipped when --build-csv-paths is absent)
+    # ------------------------------------------------------------------
+    if args.build_csv_paths:
+        if not args.build_cluster_json:
+            raise ValueError("--build-cluster-json is required when --build-csv-paths is set.")
+        if not args.build_embedding_model:
+            raise ValueError("--build-embedding-model is required when --build-csv-paths is set.")
+
+        LOGGER.info(
+            "Step 0: Building JASPER dataset from %d CSV file(s) → %s",
+            len(args.build_csv_paths),
+            args.dataset_dir,
+        )
+        try:
+            from sentence_transformers import SentenceTransformer
+
+            embedding_model = SentenceTransformer(args.build_embedding_model)
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError(
+                "sentence-transformers is required for the build step. "
+                "Install it with: pip install sentence-transformers"
+            ) from exc
+
+        build_dataset(
+            csv_paths=args.build_csv_paths,
+            cluster_json_path=args.build_cluster_json,
+            embedding_model=embedding_model,
+            output_dir=args.dataset_dir,
+            n_neg=args.build_n_neg,
+            normalize_embeddings=args.build_normalize_embeddings,
+        )
+        LOGGER.info("Step 0: Dataset build complete.")
 
     # ------------------------------------------------------------------
     # 1. Data loaders
