@@ -2,25 +2,26 @@
 
 ## Overview
 
-The `DomainAnalysisAgent` is a unified LangGraph-based agent for comprehensive domain analysis tasks. It provides four distinct operation modes for extracting domains from text, guessing required domains for questions, assessing question relevance to available domain terms, and calculating topic relevance probabilities. This agent is essential for domain classification, knowledge base organization, and question-domain matching in RAG applications.
+The `DomainAnalysisAgent` is a unified LangGraph-based agent for comprehensive domain analysis tasks. It provides five distinct operation modes for extracting domains from text, guessing required domains for questions, assessing question relevance to available domain terms, calculating topic relevance probabilities, and assessing relevance to grouped topic clusters. This agent is essential for domain classification, knowledge base organization, and question-domain matching in RAG applications.
 
 ### What It Does
 
-The agent provides four powerful operation modes:
+The agent provides five powerful operation modes:
 - **EXTRACT Mode**: Extract domains, subdomains, and keywords from source text
 - **GUESS Mode**: Identify domains needed to answer a given question
 - **ASSESS Mode**: Evaluate which available domain terms are most relevant to a question
-- **TOPIC_RELEVANCE_PROB Mode**: Assess relevance probabilities between a question and topic descriptors
+- **TOPIC_RELEVANCE_PROB Mode**: Assess relevance probabilities between a question and individual topic descriptors
+- **GROUP_TOPIC_RELEVANCE_PROB Mode**: Assess relevance probabilities between a question and grouped topic clusters
 
 ### Key Features
 
-- **Four Operation Modes**: Extract, Guess, Assess, and Topic Relevance Probability assessment
+- **Five Operation Modes**: Extract, Guess, Assess, Topic Relevance Probability, and Grouped Topic Relevance Probability assessment
 - **Structured Output**: Returns validated Pydantic models with scores and reasoning
 - **Batch Processing**: Efficiently process multiple texts or questions
 - **LangGraph Architecture**: Robust workflow with automatic retry logic
 - **Flexible Input**: Works with text, DataFrames, and CSV files
 - **OpenAI Batch Support**: Optimized batch processing for OpenAI models
-- **Configurable Reasoning**: Optional reasoning explanations (via `include_reason` parameter, applies only to TOPIC_RELEVANCE_PROB mode)
+- **Configurable Reasoning**: Optional reasoning explanations (via `include_reason` parameter, applies to TOPIC_RELEVANCE_PROB and GROUP_TOPIC_RELEVANCE_PROB modes)
 
 ## Installation
 
@@ -214,6 +215,106 @@ result = agent.assess_topic_relevance_prob(question, topic_descriptors)
 }
 ```
 
+### GROUP_TOPIC_RELEVANCE_PROB Mode - Grouped Topic Relevance
+
+Assess relevance probabilities for groups/clusters of topic descriptors. Unlike TOPIC_RELEVANCE_PROB which assigns probabilities to individual descriptors, this mode groups descriptors by their cluster assignments and assigns a probability to each cluster.
+
+**Use Cases:**
+- Matching questions to topic clusters (not individual topics)
+- Cluster-based question routing
+- Understanding which topic group a question belongs to
+- Simplified topic classification with grouped descriptors
+
+**Key Difference from TOPIC_RELEVANCE_PROB:**
+- **TOPIC_RELEVANCE_PROB**: Assigns probability to each individual topic descriptor
+- **GROUP_TOPIC_RELEVANCE_PROB**: Groups descriptors by cluster and assigns probability to each cluster/group
+
+**Example:**
+```python
+question = "How does gradient descent optimize neural networks?"
+
+# Cluster data with grouped descriptors
+cluster_data = {
+    "cluster_stats": {
+        "0": {"topic_descriptors": ["machine learning", "algorithms", "optimization"], "size": 50},
+        "1": {"topic_descriptors": ["database", "SQL", "storage"], "size": 30},
+        "2": {"topic_descriptors": ["web development", "frontend"], "size": 25}
+    }
+}
+
+result = agent.assess_group_topic_relevance_prob(question, cluster_data)
+print(f"Question: {result['question_text']}")
+for group in result['group_probs']:
+    print(f"Cluster {group['cluster_id']}: {group['probability']} - {group['descriptors']}")
+```
+
+**Output:**
+```python
+{
+    'question_text': 'How does gradient descent optimize neural networks?',
+    'group_probs': [
+        {
+            'cluster_id': 0,
+            'descriptors': ['machine learning', 'algorithms', 'optimization'],
+            'probability': 0.95
+        },
+        {
+            'cluster_id': 1,
+            'descriptors': ['database', 'SQL', 'storage'],
+            'probability': 0.05
+        },
+        {
+            'cluster_id': 2,
+            'descriptors': ['web development', 'frontend'],
+            'probability': 0.10
+        }
+    ],
+    'total_groups': 3,
+    'question_summary': 'Question about optimization in neural networks'
+}
+```
+
+**With Reasoning (using `include_reason=True`):**
+```python
+# Initialize agent with reasoning enabled
+agent = DomainAnalysisAgent(llm=llm, include_reason=True)
+
+result = agent.assess_group_topic_relevance_prob(question, cluster_data)
+```
+
+**Output with reasoning:**
+```python
+{
+    'question_text': 'How does gradient descent optimize neural networks?',
+    'group_probs': [
+        {
+            'cluster_id': 0,
+            'descriptors': ['machine learning', 'algorithms', 'optimization'],
+            'probability': 0.95,
+            'reason': 'This cluster covers ML optimization algorithms, highly relevant to gradient descent'
+        },
+        {
+            'cluster_id': 1,
+            'descriptors': ['database', 'SQL', 'storage'],
+            'probability': 0.05,
+            'reason': 'Database concepts are not directly related to neural network optimization'
+        },
+        # ...
+    ],
+    'total_groups': 3,
+    'question_summary': 'Question about optimization in neural networks'
+}
+```
+
+**Loading from File:**
+```python
+# Load cluster data from KeywordClusterer JSON file
+result = agent.assess_group_topic_relevance_prob(
+    question,
+    "path/to/keyword_clusters.json"
+)
+```
+
 ## Basic Usage
 
 ### Initialize the Agent
@@ -231,7 +332,7 @@ agent_with_reasoning = DomainAnalysisAgent(
     llm=llm, 
     max_retries=3, 
     batch_size=10,
-    include_reason=True  # Enable reasoning explanations in TOPIC_RELEVANCE_PROB mode
+    include_reason=True  # Enable reasoning explanations in topic relevance modes
 )
 ```
 
@@ -246,6 +347,19 @@ result = agent.guess_domains("Your question here?")
 
 # Assess question against available terms
 result = agent.assess_domains("Your question?", ["term1", "term2", "term3"])
+
+# Assess topic relevance probabilities (individual descriptors)
+topic_descriptors = ["ml", "databases", "web dev"]
+result = agent.assess_topic_relevance_prob("Your question?", topic_descriptors)
+
+# Assess grouped topic relevance probabilities (cluster-based)
+cluster_data = {
+    "cluster_stats": {
+        "0": {"topic_descriptors": ["ml", "ai"], "size": 50},
+        "1": {"topic_descriptors": ["db", "sql"], "size": 30}
+    }
+}
+result = agent.assess_group_topic_relevance_prob("Your question?", cluster_data)
 ```
 
 ### Batch Processing
@@ -263,6 +377,21 @@ results = agent.guess_domains_batch(questions)
 questions = ["Q1?", "Q2?"]
 available_terms = ["physics", "chemistry", "biology"]
 results = agent.assess_domains_batch(questions, available_terms)
+
+# Batch assess topic relevance (individual descriptors)
+questions = ["Q1?", "Q2?", "Q3?"]
+topic_descriptors = ["ml", "databases", "web dev"]
+results = agent.assess_topic_relevance_prob_batch(questions, topic_descriptors)
+
+# Batch assess grouped topic relevance (clusters)
+questions = ["Q1?", "Q2?", "Q3?"]
+cluster_data = {
+    "cluster_stats": {
+        "0": {"topic_descriptors": ["ml", "ai"], "size": 50},
+        "1": {"topic_descriptors": ["db", "sql"], "size": 30}
+    }
+}
+results = agent.assess_group_topic_relevance_prob_batch(questions, cluster_data)
 ```
 
 ## DataFrame/CSV Processing
@@ -325,6 +454,38 @@ result_df = agent.process_dataframe(
 )
 
 print(result_df[['question_text', 'primary_topics', 'total_selected']].head())
+```
+
+### Process DataFrame - GROUP_TOPIC_RELEVANCE_PROB Mode
+
+```python
+# Your DataFrame with questions
+df = pd.read_csv("questions.csv")
+
+# Cluster data with grouped descriptors
+cluster_data = {
+    "cluster_stats": {
+        "0": {"topic_descriptors": ["machine learning", "neural networks", "AI"], "size": 50},
+        "1": {"topic_descriptors": ["database", "SQL", "storage"], "size": 30},
+        "2": {"topic_descriptors": ["web development", "frontend", "JavaScript"], "size": 25}
+    }
+}
+
+# Assess each question's relevance to topic clusters
+result_df = agent.process_dataframe(
+    df,
+    mode=OperationMode.GROUP_TOPIC_RELEVANCE_PROB,
+    question_col="question_text",
+    cluster_data=cluster_data,
+    save_path="questions_with_cluster_probs.csv"
+)
+
+# Access simplified cluster probability mapping
+print(result_df[['question_text', 'question_cluster_probs']].head())
+# question_cluster_probs column contains: {"0": 0.95, "1": 0.05, "2": 0.10}
+
+# Access full group details with descriptors
+print(result_df[['question_text', 'group_topic_relevance_prob_group_probs']].head())
 ```
 
 ## Advanced Usage
