@@ -118,7 +118,7 @@ PyTorch Dataset classes for training. Specific implementations but patterns are 
 
 - **__init__.py** - Exports JASPERSteeringDataset, RAG datasets, ClusterLabeledDataset, DataLoader utilities
 - **jasper_steering_dataset.py** - JASPERSteeringDataset: PyTorch dataset for JASPER - pre-computed embedding triplets with hard negatives, curriculum learning, device placement, context manager, referential integrity validation, HDF5 storage format support, memory-mapped loading for large datasets (>10GB)
-- **rag_dataset.py** - RAGDataset: Core PyTorch dataset class for RAG question-answer-source triples
+- **rag_dataset.py** - RAGDataset: Core PyTorch dataset class for RAG question-answer-source triples (lives in `dataset/`, re-exported from `pytorch_datasets/`)
 - **cluster_labeled_dataset.py** - ClusterLabeledDataset: PyTorch dataset with cluster assignments and labels
 - **loader.py** - DataLoader factory and validation utilities for JASPER Steering Dataset (create_loader, validate_first_batch, set_epoch)
 

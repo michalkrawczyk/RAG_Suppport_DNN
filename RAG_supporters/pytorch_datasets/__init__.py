@@ -6,6 +6,10 @@ This module provides PyTorch Dataset classes for different training scenarios:
 - Cluster-labeled datasets
 - DataLoader factories with validation
 
+Note: RAG dataset classes (BaseRAGDatasetGenerator, SamplePairingType,
+SampleTripletRAGChroma) live in RAG_supporters.dataset; they are re-exported
+here for backwards compatibility.
+
 Key Features:
 - Pre-loaded embeddings (zero I/O during training)
 - Curriculum learning support
@@ -42,7 +46,7 @@ Examples
 """
 
 from .jasper_steering_dataset import JASPERSteeringDataset
-from .rag_dataset import (
+from RAG_supporters.dataset.rag_dataset import (
     BaseRAGDatasetGenerator,
     SamplePairingType,
     SampleTripletRAGChroma,

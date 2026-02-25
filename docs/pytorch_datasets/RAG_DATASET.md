@@ -6,7 +6,7 @@ Abstract base class for generating and managing RAG (Retrieval-Augmented Generat
 
 `BaseRAGDatasetGenerator` provides framework for creating question-answer triplet samples for training and evaluating RAG systems. Not a PyTorch Dataset - used for dataset preparation and labeling.
 
-**Module**: [RAG_supporters/pytorch_datasets/rag_dataset.py](../../RAG_supporters/pytorch_datasets/rag_dataset.py)
+**Module**: [RAG_supporters/dataset/rag_dataset.py](../../RAG_supporters/dataset/rag_dataset.py)
 
 ## Architecture
 
