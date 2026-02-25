@@ -40,15 +40,7 @@ dependencies/            # Modular requirements files
 
 ## Agents (`RAG_supporters/agents/`)
 
-| Agent | Purpose |
-|---|---|
-| `QuestionAugmentationAgent` | Question generation/rephrasing with source context |
-| `TextAugmentationAgent` | Text augmentation preserving semantic meaning |
-| `DatasetCheckAgent` | Source comparison via LangGraph `StateGraph` |
-| `DomainAnalysisAgent` | Domain extraction/guessing/assessment (3 modes) |
-| `SourceEvaluationAgent` | 6-dimensional source quality scoring |
-
-**Agent rules:** See [architecture.md](agents_notes/coding_guidelines/architecture.md) and [agent_workflow.md](agents_notes/coding_guidelines/agent_workflow.md).
+See [agents_notes/module_notes/agents_overview.md](agents_notes/module_notes/agents_overview.md) — read only when working with agents (agent list, purposes, and agent rules).
 
 ## Guidelines — Read Only When Needed
 
@@ -63,6 +55,10 @@ dependencies/            # Modular requirements files
 | [coding_guidelines/pr_and_conventions.md](agents_notes/coding_guidelines/pr_and_conventions.md) | Preparing a PR, naming a branch/commit, processing `#@agent` flags |
 | [documentation_guidelines/documentation_guidelines.md](agents_notes/documentation_guidelines/documentation_guidelines.md) | Adding/modifying agents or modules, or PRs that change file structure |
 | [module_reference.md](agents_notes/module_reference.md) | Working on `nn/`, `pytorch_datasets/`, `jasper/`, or `contrastive/` code |
+| [module_notes/agents_overview.md](agents_notes/module_notes/agents_overview.md) | Looking up agent names, purposes, or agent rules |
+
+
+- **Backward compatibility code is not added by default** — ask the user before implementing it.
 
 ## Testing
 
