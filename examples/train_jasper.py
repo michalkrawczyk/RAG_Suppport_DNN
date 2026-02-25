@@ -51,6 +51,7 @@ from RAG_supporters.nn.losses.jasper_losses import JASPERMultiObjectiveLoss
 from RAG_supporters.nn.training.jasper_trainer import JASPERTrainer, JASPERTrainerConfig
 from RAG_supporters.nn.training.monitoring import TrainingMonitor
 from RAG_supporters.pytorch_datasets.loader import create_loader, set_epoch
+from RAG_supporters.pytorch_datasets.jasper_steering_dataset import JASPERSteeringDataset
 
 logging.basicConfig(
     level=logging.INFO,
@@ -99,6 +100,7 @@ DEFAULTS = dict(
     save_every_n_epochs=5,
     log_every_n_steps=50,
     mixed_precision=False,
+    reload_negatives_every_n_epochs=10,
 )
 
 
@@ -139,6 +141,47 @@ def build_warmup_scheduler(
 
 
 # ---------------------------------------------------------------------------
+# Trainer with hard-negative reload + curriculum resume
+# ---------------------------------------------------------------------------
+
+
+class JASPERTrainerWithReload(JASPERTrainer):
+    """JASPERTrainer that supports periodic hard-negative reload and correct
+    curriculum epoch offsets when resuming from a checkpoint.
+
+    Args:
+        reload_negatives_every_n_epochs: Call ``dataset.reload_negatives()``
+            every this many *absolute* epochs (0 = disabled).
+        epoch_offset: Added to the loop counter before calling ``_set_epoch``
+            and counting reload intervals.  Set to ``start_epoch`` after
+            resuming so the steering curriculum continues correctly.
+        **kwargs: Forwarded to :class:`JASPERTrainer`.
+    """
+
+    def __init__(
+        self,
+        reload_negatives_every_n_epochs: int = 0,
+        epoch_offset: int = 0,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.reload_negatives_every_n_epochs = reload_negatives_every_n_epochs
+        self.epoch_offset = epoch_offset
+
+    def train_epoch(self, epoch: int) -> dict:
+        abs_epoch = epoch + self.epoch_offset
+        if (
+            self.reload_negatives_every_n_epochs > 0
+            and abs_epoch > 0
+            and abs_epoch % self.reload_negatives_every_n_epochs == 0
+        ):
+            dataset: JASPERSteeringDataset = self.train_loader.dataset_obj
+            LOGGER.info("Epoch %d: reloading hard negatives from disk.", abs_epoch)
+            dataset.reload_negatives()
+        return super().train_epoch(abs_epoch)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -167,6 +210,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--num-layers", type=int, default=DEFAULTS["num_layers"])
     p.add_argument("--mixed-precision", action="store_true", default=DEFAULTS["mixed_precision"])
     p.add_argument("--device", default=None, help="Device override, e.g. 'cuda:0'")
+    p.add_argument(
+        "--reload-negatives-every-n-epochs",
+        type=int,
+        default=DEFAULTS["reload_negatives_every_n_epochs"],
+        help="Reload hard negatives from disk every N epochs (0 = disabled)",
+    )
     p.add_argument("--debug", action="store_true")
     return p.parse_args()
 
@@ -187,16 +236,6 @@ def main() -> None:
     checkpoint_dir = output_dir / "checkpoints"
 
     # ------------------------------------------------------------------
-    # Resolve embedding_dim — prefer CLI arg, else dataset config.json
-    # ------------------------------------------------------------------
-    D = (
-        args.embedding_dim
-        or read_dataset_embedding_dim(args.dataset_dir)
-        or DEFAULTS["embedding_dim"]
-    )
-    LOGGER.info("embedding_dim = %d", D)
-
-    # ------------------------------------------------------------------
     # 1. Data loaders
     # ------------------------------------------------------------------
     LOGGER.info("Loading dataset from %s", args.dataset_dir)
@@ -214,11 +253,20 @@ def main() -> None:
         num_workers=args.num_workers,
         pin_memory=True,
     )
+    train_dataset: JASPERSteeringDataset = train_loader.dataset_obj
+    val_dataset: JASPERSteeringDataset = val_loader.dataset_obj  # noqa: F841
     LOGGER.info(
-        "Train: %d samples | Val: %d samples",
+        "Train: %d samples | Val: %d samples | n_neg: %d",
         len(train_loader.dataset),
         len(val_loader.dataset),
+        train_dataset.n_neg,
     )
+
+    # ------------------------------------------------------------------
+    # Resolve embedding_dim — prefer CLI arg, else dataset attribute
+    # ------------------------------------------------------------------
+    D = args.embedding_dim or train_dataset.embedding_dim or DEFAULTS["embedding_dim"]
+    LOGGER.info("embedding_dim = %d  (n_neg = %d)", D, train_dataset.n_neg)
 
     # ------------------------------------------------------------------
     # 2. Model + EMA encoder
@@ -294,7 +342,7 @@ def main() -> None:
         device=args.device,
         mixed_precision=args.mixed_precision,
     )
-    trainer = JASPERTrainer(
+    trainer = JASPERTrainerWithReload(
         config=trainer_config,
         model=model,
         ema_encoder=ema_encoder,
@@ -304,6 +352,7 @@ def main() -> None:
         val_loader=val_loader,
         scheduler=scheduler,
         monitor=monitor,
+        reload_negatives_every_n_epochs=args.reload_negatives_every_n_epochs,
     )
 
     # ------------------------------------------------------------------
@@ -313,6 +362,7 @@ def main() -> None:
     if args.resume:
         start_epoch, _ = trainer.load_checkpoint(args.resume)
         start_epoch += 1
+        trainer.epoch_offset = start_epoch  # restore steering curriculum position
         LOGGER.info("Resumed from epoch %d", start_epoch)
         remaining = args.epochs - start_epoch
         if remaining <= 0:

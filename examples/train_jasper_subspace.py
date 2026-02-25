@@ -53,7 +53,8 @@ from RAG_supporters.nn.losses.routing_losses import (
 from RAG_supporters.nn.training.jasper_trainer import JASPERTrainer, JASPERTrainerConfig
 from RAG_supporters.nn.training.monitoring import TrainingMonitor
 from RAG_supporters.nn.inference.xai_interface import XAIInterface
-from RAG_supporters.pytorch_datasets.loader import create_loader
+from RAG_supporters.pytorch_datasets.loader import create_loader, set_epoch  # noqa: F401
+from RAG_supporters.pytorch_datasets.jasper_steering_dataset import JASPERSteeringDataset
 
 logging.basicConfig(
     level=logging.INFO,
@@ -89,6 +90,8 @@ class SubspaceJASPERTrainer(JASPERTrainer):
         xai_interface: Optional :class:`XAIInterface` for validation-set XAI export.
         xai_every_n_epochs: How often to run val-set XAI output.
         xai_output_dir: Directory for XAI JSON files.
+        reload_negatives_every_n_epochs: Reload hard negatives from disk every
+            N *absolute* epochs (0 = disabled).
         All other args forwarded to :class:`JASPERTrainer`.
     """
 
@@ -105,6 +108,7 @@ class SubspaceJASPERTrainer(JASPERTrainer):
         xai_interface: Optional[XAIInterface] = None,
         xai_every_n_epochs: int = 5,
         xai_output_dir: Optional[str] = None,
+        reload_negatives_every_n_epochs: int = 0,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -124,6 +128,7 @@ class SubspaceJASPERTrainer(JASPERTrainer):
         self.xai_output_dir = Path(xai_output_dir) if xai_output_dir else None
 
         self._current_epoch: int = 0
+        self.reload_negatives_every_n_epochs = reload_negatives_every_n_epochs
 
     # ------------------------------------------------------------------
     # Overrides
@@ -271,17 +276,33 @@ class SubspaceJASPERTrainer(JASPERTrainer):
         self.xai_interface.save_xai_outputs(xai_results, str(out_path))
         return str(out_path)
 
-    def fit(self, num_epochs: int) -> List[Dict[str, float]]:
-        """Override fit() to add XAI export after select epochs."""
+    def fit(self, num_epochs: int, start_epoch: int = 0) -> List[Dict[str, float]]:
+        """Override fit() to add XAI export after select epochs.
+
+        Args:
+            num_epochs: Number of epochs to train.
+            start_epoch: Absolute epoch offset for curriculum and negative-reload
+                scheduling.  Pass ``start_epoch`` from the resume block so the
+                steering curriculum continues from the correct position.
+        """
         self._max_steps = num_epochs * len(self.train_loader)
         import time
 
         history: List[Dict[str, float]] = []
 
-        LOGGER.info("Starting subspace training: %d epochs", num_epochs)
+        LOGGER.info("Starting subspace training: %d epochs (offset=%d)", num_epochs, start_epoch)
 
-        for epoch in range(num_epochs):
+        for epoch in range(start_epoch, start_epoch + num_epochs):
             t0 = time.time()
+            # Reload hard negatives periodically (skip the very first epoch)
+            if (
+                self.reload_negatives_every_n_epochs > 0
+                and epoch > start_epoch
+                and epoch % self.reload_negatives_every_n_epochs == 0
+            ):
+                dataset: JASPERSteeringDataset = self.train_loader.dataset_obj
+                LOGGER.info("Epoch %d: reloading hard negatives from disk.", epoch)
+                dataset.reload_negatives()
             train_metrics = self.train_epoch(epoch)
             val_metrics = self.validate()
 
@@ -472,9 +493,15 @@ def main() -> None:
         num_workers=num_workers,
         pin_memory=train_cfg.get("pin_memory", True),
     )
+    train_dataset: JASPERSteeringDataset = train_loader.dataset_obj
+    val_dataset: JASPERSteeringDataset = val_loader.dataset_obj  # noqa: F841
     LOGGER.info(
-        "Train: %d samples | Val: %d samples", len(train_loader.dataset), len(val_loader.dataset)
+        "Train: %d samples | Val: %d samples | n_neg: %d",
+        len(train_loader.dataset),
+        len(val_loader.dataset),
+        train_dataset.n_neg,
     )
+    assert train_dataset.n_neg >= 1, f"Dataset n_neg={train_dataset.n_neg} must be \u2265 1"
 
     # ------------------------------------------------------------------
     # 3. Centroid embeddings
@@ -483,17 +510,14 @@ def main() -> None:
         centroid_embs = load_centroids(args.centroids_path)
         LOGGER.info("Centroids loaded from %s: shape=%s", args.centroids_path, centroid_embs.shape)
     else:
-        # Try to get from dataset
-        dataset = getattr(train_loader, "dataset_obj", None) or train_loader.dataset
-        centroid_embs = getattr(dataset, "centroid_embs", None)
-        if centroid_embs is None:
-            raise RuntimeError(
-                "No centroids found. Provide --centroids-path or ensure the dataset "
-                "exposes a 'centroid_embs' attribute."
-            )
+        centroid_embs = train_dataset.centroid_embs
         if not isinstance(centroid_embs, torch.Tensor):
             centroid_embs = torch.as_tensor(centroid_embs, dtype=torch.float32)
         LOGGER.info("Centroids from dataset: shape=%s", centroid_embs.shape)
+    assert centroid_embs.shape[0] == K, (
+        f"centroid_embs has {centroid_embs.shape[0]} rows but router.num_subspaces K={K}. "
+        "Ensure --centroids-path or the dataset centroid_embs.pt matches your config."
+    )
 
     cluster_names = load_cluster_names(xai_cfg.get("cluster_names_file"), K)
 
@@ -501,6 +525,13 @@ def main() -> None:
     # 4. Model + EMA encoder
     # ------------------------------------------------------------------
     D = model_cfg.get("embedding_dim", 768)
+    if train_dataset.embedding_dim != D:
+        LOGGER.warning(
+            "Config embedding_dim=%d differs from dataset embedding_dim=%d; using dataset value.",
+            D,
+            train_dataset.embedding_dim,
+        )
+        D = train_dataset.embedding_dim
 
     decomposed_cfg = DecomposedJASPERConfig(
         embedding_dim=D,
@@ -627,6 +658,7 @@ def main() -> None:
         xai_interface=xai_interface,
         xai_every_n_epochs=xai_cfg.get("xai_every_n_epochs", 5),
         xai_output_dir=xai_output_dir,
+        reload_negatives_every_n_epochs=int(train_cfg.get("reload_negatives_every_n_epochs", 0)),
     )
 
     # Move centroids to trainer device
@@ -650,7 +682,7 @@ def main() -> None:
     # 11. Train
     # ------------------------------------------------------------------
     LOGGER.info("Starting subspace training for %d epochs → %s", num_epochs, output_dir)
-    history = trainer.fit(num_epochs)
+    history = trainer.fit(num_epochs, start_epoch=start_epoch)
 
     # ------------------------------------------------------------------
     # 12. Finalise
