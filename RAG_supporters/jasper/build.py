@@ -202,12 +202,73 @@ def _timed_task(
     return result
 
 
+def _csv_origin_split(
+    linked_df: pd.DataFrame,
+    output_dir: Path,
+    show_progress: bool = True,
+) -> Dict[str, torch.Tensor]:
+    """Build and save split index tensors from the ``_split_tag`` column.
+
+    Each row of *linked_df* maps 1-to-1 with a pair (insertion order from the
+    tagged CSV merge).  Rows are grouped by their ``_split_tag`` value and
+    saved as ``{tag}_idx.pt`` files inside *output_dir*.
+
+    Parameters
+    ----------
+    linked_df : pd.DataFrame
+        DataFrame produced by Task 3 that must contain a ``_split_tag`` column
+        added during the CSV-tagged merge (Task 1).
+    output_dir : Path
+        Directory where ``{tag}_idx.pt`` files are written.
+    show_progress : bool, optional
+        Unused; present for a consistent signature with :func:`split_dataset`.
+
+    Returns
+    -------
+    Dict[str, torch.Tensor]
+        Mapping from ``"{tag}_idx"`` to a 1-D ``torch.long`` tensor of pair
+        indices belonging to that split.
+
+    Raises
+    ------
+    ValueError
+        If the ``_split_tag`` column is missing or the DataFrame is empty.
+    """
+    if "_split_tag" not in linked_df.columns:
+        raise ValueError(
+            "linked_df must contain a '_split_tag' column for CSV-origin splitting. "
+            "Pass csv_splits to build_dataset to enable tagged merging."
+        )
+    if linked_df.empty:
+        raise ValueError("linked_df is empty; cannot build split indices.")
+
+    split_to_indices: Dict[str, List[int]] = {}
+    for i, tag in enumerate(linked_df["_split_tag"].tolist()):
+        split_to_indices.setdefault(str(tag), []).append(i)
+
+    result: Dict[str, torch.Tensor] = {}
+    for split_name in sorted(split_to_indices):
+        indices = split_to_indices[split_name]
+        tensor = torch.tensor(indices, dtype=torch.long)
+        result[f"{split_name}_idx"] = tensor
+        torch.save(tensor, output_dir / f"{split_name}_idx.pt")
+        LOGGER.info(
+            "CSV-origin split '%s': %d pairs → %s_idx.pt",
+            split_name,
+            len(tensor),
+            split_name,
+        )
+
+    return result
+
+
 def build_dataset(
     csv_paths: List[Union[str, Path]],
     cluster_json_path: Union[str, Path],
     embedding_model: Any,
     output_dir: Union[str, Path],
     config: Optional[Union[BuildConfig, Dict[str, Any]]] = None,
+    csv_splits: Optional[Dict[str, List[Union[str, Path]]]] = None,
     storage_format: str = "pt",
     include_inspection_file: bool = False,
     column_aliases: Optional[Dict[str, List[str]]] = None,
@@ -233,7 +294,8 @@ def build_dataset(
     Parameters
     ----------
     csv_paths : List[str or Path]
-        Input CSV files with question-source pairs.
+        Input CSV files with question-source pairs.  Ignored when
+        *csv_splits* is provided.
     cluster_json_path : str or Path
         Path to KeywordClusterer JSON output.
     embedding_model : Any
@@ -242,6 +304,17 @@ def build_dataset(
         Target directory for built dataset artifacts.
     config : BuildConfig or Dict[str, Any], optional
         Optional preconfigured BuildConfig or dict payload.
+    csv_splits : Dict[str, List[str or Path]], optional
+        When provided, defines which CSV files belong to each split instead
+        of using random stratified splitting.  Keys are split names
+        (``"train"``, ``"val"``, ``"test"``); values are lists of CSV paths.
+        Example::
+
+            csv_splits={"train": ["train.csv"], "val": ["val.csv"]}
+
+        When this argument is set, ``split_ratios`` is stored as metadata
+        only; the actual train/val/test assignment is driven entirely by
+        which CSV file each row originated from.
     storage_format : str, optional
         Storage format (currently only ``pt`` is supported end-to-end).
     include_inspection_file : bool, optional
@@ -256,6 +329,24 @@ def build_dataset(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
+    # ------------------------------------------------------------------
+    # Guard: exactly one of csv_paths / csv_splits must be provided
+    # ------------------------------------------------------------------
+    if csv_splits is not None:
+        if csv_paths:
+            LOGGER.warning(
+                "Both csv_splits and csv_paths were provided; csv_paths will be ignored. "
+                "All CSV files should be declared via csv_splits."
+            )
+        required_keys = {"train", "val"}
+        missing = required_keys - set(csv_splits.keys())
+        if missing:
+            raise ValueError(
+                f"csv_splits must contain at least 'train' and 'val' keys; missing: {missing}"
+            )
+    elif not csv_paths:
+        raise ValueError("Either csv_paths or csv_splits must be provided.")
+
     resolved_config = _build_config_from_input(
         cluster_json_path=cluster_json_path,
         storage_format=storage_format,
@@ -268,6 +359,12 @@ def build_dataset(
         config=config,
     )
 
+    # Store normalised csv_splits paths on the config for persistence in config.json
+    if csv_splits is not None:
+        resolved_config.csv_splits = {
+            k: [str(p) for p in v] for k, v in csv_splits.items()
+        }
+
     if resolved_config.storage_format != "pt":
         raise NotImplementedError(
             "Task 9 build orchestrator currently supports storage_format='pt' only"
@@ -278,14 +375,35 @@ def build_dataset(
     LOGGER.info("Starting JASPER dataset build pipeline")
 
     # Task 1: CSV merge
-    merged_df = _timed_task(
-        "task_1_merge_csv",
-        merge_csv_files,
-        timings,
-        csv_paths=csv_paths,
-        output_path=None,
-        column_aliases=column_aliases,
-    )
+    if csv_splits is not None:
+        def _tagged_merge() -> pd.DataFrame:
+            tagged_dfs: List[pd.DataFrame] = []
+            for split_name, paths in csv_splits.items():
+                split_df = merge_csv_files(
+                    csv_paths=list(paths), column_aliases=column_aliases
+                )
+                split_df = split_df.copy()
+                split_df["_split_tag"] = split_name
+                tagged_dfs.append(split_df)
+            merged = pd.concat(tagged_dfs, ignore_index=True)
+            LOGGER.info(
+                "CSV-split merge: %d total pairs from %d split groups (%s)",
+                len(merged),
+                len(csv_splits),
+                ", ".join(f"{k}={len(v)}csv" for k, v in csv_splits.items()),
+            )
+            return merged
+
+        merged_df = _timed_task("task_1_merge_csv", _tagged_merge, timings)
+    else:
+        merged_df = _timed_task(
+            "task_1_merge_csv",
+            merge_csv_files,
+            timings,
+            csv_paths=csv_paths,
+            output_path=None,
+            column_aliases=column_aliases,
+        )
 
     # Optional inspection metadata
     if resolved_config.include_inspection_file:
@@ -390,19 +508,29 @@ def build_dataset(
     )
 
     # Task 7: Split
-    _timed_task(
-        "task_7_split",
-        split_dataset,
-        timings,
-        pair_indices=pair_artifacts["pair_index"],
-        pair_cluster_ids=pair_artifacts["pair_cluster_id"],
-        output_dir=output_path,
-        train_ratio=resolved_config.split_ratios[0],
-        val_ratio=resolved_config.split_ratios[1],
-        test_ratio=resolved_config.split_ratios[2],
-        random_seed=resolved_config.random_seed,
-        show_progress=show_progress,
-    )
+    if csv_splits is not None:
+        _timed_task(
+            "task_7_split",
+            _csv_origin_split,
+            timings,
+            linked_df=linked_df,
+            output_dir=output_path,
+            show_progress=show_progress,
+        )
+    else:
+        _timed_task(
+            "task_7_split",
+            split_dataset,
+            timings,
+            pair_indices=pair_artifacts["pair_index"],
+            pair_cluster_ids=pair_artifacts["pair_cluster_id"],
+            output_dir=output_path,
+            train_ratio=resolved_config.split_ratios[0],
+            val_ratio=resolved_config.split_ratios[1],
+            test_ratio=resolved_config.split_ratios[2],
+            random_seed=resolved_config.random_seed,
+            show_progress=show_progress,
+        )
 
     # Task 8: Finalize
     final_config = _timed_task(
