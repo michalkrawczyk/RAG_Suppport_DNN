@@ -1,0 +1,25 @@
+[MASTER]
+# Add RAG_supporters directory to Python path so pylint can resolve local imports
+# This allows pylint to find local modules like prompts_templates, dataset, agents, etc.
+init-hook='import sys; import os; repo_root = os.getcwd(); rag_path = os.path.join(repo_root, "RAG_supporters"); sys.path.insert(0, rag_path) if os.path.isdir(rag_path) else None'
+
+[MESSAGES CONTROL]
+# Disable some overly pedantic checks that are not critical
+disable=
+    too-few-public-methods,
+    too-many-instance-attributes,
+    too-many-arguments,
+    too-many-positional-arguments,
+    too-many-branches,
+    too-many-statements,
+    too-many-lines,
+    fixme,
+    logging-fstring-interpolation,
+    broad-exception-caught,
+    import-outside-toplevel,
+    no-else-return,
+    unused-import
+
+[FORMAT]
+# Maximum number of characters on a single line
+max-line-length=100
