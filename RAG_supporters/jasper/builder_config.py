@@ -57,6 +57,16 @@ class BuildConfig:
         Whether to generate optional inspection.json for debugging
     random_seed : int
         Random seed for deterministic splitting and sampling
+    csv_splits : Dict[str, List[str]], optional
+        When provided, defines CSV files per split instead of using random
+        stratified splitting.  Keys are split names (``"train"``, ``"val"``,
+        ``"test"``) and values are lists of CSV file paths.
+        When set, ``split_ratios`` is stored as metadata only and does not
+        affect the actual split.
+
+        Example::
+
+            {"train": ["data/train.csv"], "val": ["data/val.csv"]}
 
     Examples
     --------
@@ -97,21 +107,23 @@ class BuildConfig:
     storage_format: str = "pt"
     include_inspection_file: bool = False
     random_seed: int = 42
+    csv_splits: Optional[Dict[str, List[str]]] = None
 
     def __post_init__(self):
         """Validate configuration values."""
-        # Validate split ratios
-        if not abs(sum(self.split_ratios) - 1.0) < 1e-6:
-            raise ValueError(f"split_ratios must sum to 1.0, got {sum(self.split_ratios)}")
+        # Validate split ratios — skipped when csv_splits defines the split
+        if self.csv_splits is None:
+            if not abs(sum(self.split_ratios) - 1.0) < 1e-6:
+                raise ValueError(f"split_ratios must sum to 1.0, got {sum(self.split_ratios)}")
 
-        if len(self.split_ratios) != 3:
-            raise ValueError(
-                f"split_ratios must have exactly 3 values (train/val/test), "
-                f"got {len(self.split_ratios)}"
-            )
+            if len(self.split_ratios) != 3:
+                raise ValueError(
+                    f"split_ratios must have exactly 3 values (train/val/test), "
+                    f"got {len(self.split_ratios)}"
+                )
 
-        if any(r < 0 or r > 1 for r in self.split_ratios):
-            raise ValueError(f"split_ratios must be in range [0, 1], got {self.split_ratios}")
+            if any(r < 0 or r > 1 for r in self.split_ratios):
+                raise ValueError(f"split_ratios must be in range [0, 1], got {self.split_ratios}")
 
         # Validate steering probabilities
         if not abs(sum(self.steering_probabilities.values()) - 1.0) < 1e-6:
