@@ -41,7 +41,12 @@ def _make_build_config(csv_splits: dict | None = None, **kwargs) -> BuildConfig:
             "keyword": 0.25,
             "residual": 0.25,
         },
-        curriculum={"mode": "fixed", "start_distance": 0.3, "end_distance": 0.7, "warmup_epochs": 5},
+        curriculum={
+            "mode": "fixed",
+            "start_distance": 0.3,
+            "end_distance": 0.7,
+            "warmup_epochs": 5,
+        },
         csv_splits=csv_splits,
     )
     defaults.update(kwargs)
@@ -66,9 +71,7 @@ def _make_linked_df(tags: List[str]) -> pd.DataFrame:
 
 class TestBuildConfigCsvSplits:
     def test_accepts_csv_splits_field(self):
-        cfg = _make_build_config(
-            csv_splits={"train": ["train.csv"], "val": ["val.csv"]}
-        )
+        cfg = _make_build_config(csv_splits={"train": ["train.csv"], "val": ["val.csv"]})
         assert cfg.csv_splits == {"train": ["train.csv"], "val": ["val.csv"]}
 
     def test_csv_splits_defaults_to_none(self):
@@ -91,9 +94,17 @@ class TestBuildConfigCsvSplits:
                 clustering_source="clusters.json",
                 split_ratios=[0.5, 0.5, 0.5],  # sums to 1.5 — invalid
                 steering_probabilities={
-                    "zero": 0.25, "centroid": 0.25, "keyword": 0.25, "residual": 0.25
+                    "zero": 0.25,
+                    "centroid": 0.25,
+                    "keyword": 0.25,
+                    "residual": 0.25,
                 },
-                curriculum={"mode": "fixed", "start_distance": 0.3, "end_distance": 0.7, "warmup_epochs": 5},
+                curriculum={
+                    "mode": "fixed",
+                    "start_distance": 0.3,
+                    "end_distance": 0.7,
+                    "warmup_epochs": 5,
+                },
             )
 
     def test_serialise_and_deserialise_csv_splits(self, tmp_path):
@@ -113,9 +124,17 @@ class TestBuildConfigCsvSplits:
             "clustering_source": "clusters.json",
             "split_ratios": [0.8, 0.1, 0.1],
             "steering_probabilities": {
-                "zero": 0.25, "centroid": 0.25, "keyword": 0.25, "residual": 0.25
+                "zero": 0.25,
+                "centroid": 0.25,
+                "keyword": 0.25,
+                "residual": 0.25,
             },
-            "curriculum": {"mode": "fixed", "start_distance": 0.3, "end_distance": 0.7, "warmup_epochs": 5},
+            "curriculum": {
+                "mode": "fixed",
+                "start_distance": 0.3,
+                "end_distance": 0.7,
+                "warmup_epochs": 5,
+            },
             # Note: no "csv_splits" key — simulates legacy config.json
         }
         cfg_path = tmp_path / "config.json"
@@ -200,6 +219,7 @@ class TestCsvOriginSplit:
 def _noop_build_dataset_check(csv_paths, csv_splits, **kwargs):
     """Partially invoke build_dataset only far enough to trigger arg validation."""
     from RAG_supporters.jasper.build import build_dataset
+
     # build_dataset will raise ValueError before touching the model / FS
     build_dataset(
         csv_paths=csv_paths,
@@ -214,6 +234,7 @@ def _noop_build_dataset_check(csv_paths, csv_splits, **kwargs):
 class TestBuildDatasetArgValidation:
     def test_raises_when_neither_csv_paths_nor_csv_splits(self):
         from RAG_supporters.jasper.build import build_dataset
+
         with pytest.raises(ValueError, match="Either csv_paths or csv_splits"):
             build_dataset(
                 csv_paths=[],
@@ -225,6 +246,7 @@ class TestBuildDatasetArgValidation:
 
     def test_raises_when_csv_splits_missing_required_keys(self):
         from RAG_supporters.jasper.build import build_dataset
+
         with pytest.raises(ValueError, match="missing"):
             build_dataset(
                 csv_paths=[],
@@ -237,6 +259,7 @@ class TestBuildDatasetArgValidation:
     def test_warns_when_both_csv_paths_and_csv_splits_provided(self, caplog):
         import logging
         from RAG_supporters.jasper.build import build_dataset
+
         # Will fail further down (no real model/CSV), but warning must appear first
         with caplog.at_level(logging.WARNING, logger="RAG_supporters.jasper.build"):
             try:

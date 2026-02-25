@@ -361,9 +361,7 @@ def build_dataset(
 
     # Store normalised csv_splits paths on the config for persistence in config.json
     if csv_splits is not None:
-        resolved_config.csv_splits = {
-            k: [str(p) for p in v] for k, v in csv_splits.items()
-        }
+        resolved_config.csv_splits = {k: [str(p) for p in v] for k, v in csv_splits.items()}
 
     if resolved_config.storage_format != "pt":
         raise NotImplementedError(
@@ -376,12 +374,11 @@ def build_dataset(
 
     # Task 1: CSV merge
     if csv_splits is not None:
+
         def _tagged_merge() -> pd.DataFrame:
             tagged_dfs: List[pd.DataFrame] = []
             for split_name, paths in csv_splits.items():
-                split_df = merge_csv_files(
-                    csv_paths=list(paths), column_aliases=column_aliases
-                )
+                split_df = merge_csv_files(csv_paths=list(paths), column_aliases=column_aliases)
                 split_df = split_df.copy()
                 split_df["_split_tag"] = split_name
                 tagged_dfs.append(split_df)
