@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
 from RAG_supporters.pytorch_datasets import JASPERSteeringDataset
+from RAG_supporters.DEFAULT_CONSTS import DEFAULT_COL_KEYS
 
 LOGGER = logging.getLogger(__name__)
 
@@ -180,7 +181,7 @@ def validate_first_batch(loader: DataLoader) -> bool:
         "target_source_emb",
         "steering",
         "negative_embs",
-        "cluster_id",
+        DEFAULT_COL_KEYS.cluster_id,
         "relevance",
         "centroid_distance",
         "steering_variant",
@@ -217,9 +218,9 @@ def validate_first_batch(loader: DataLoader) -> bool:
         N_neg,
         D,
     ), f"negative_embs shape mismatch: {batch['negative_embs'].shape} != ({B}, {N_neg}, {D})"
-    assert batch["cluster_id"].shape == (
+    assert batch[DEFAULT_COL_KEYS.cluster_id].shape == (
         B,
-    ), f"cluster_id shape mismatch: {batch['cluster_id'].shape} != ({B},)"
+    ), f"cluster_id shape mismatch: {batch[DEFAULT_COL_KEYS.cluster_id].shape} != ({B},)"
     assert batch["relevance"].shape == (
         B,
     ), f"relevance shape mismatch: {batch['relevance'].shape} != ({B},)"
@@ -244,10 +245,10 @@ def validate_first_batch(loader: DataLoader) -> bool:
     dataset = loader.dataset
     if isinstance(dataset, JASPERSteeringDataset):
         n_clusters = len(dataset.centroid_embs)
-        assert (batch["cluster_id"] >= 0).all(), "cluster_id must be non-negative"
+        assert (batch[DEFAULT_COL_KEYS.cluster_id] >= 0).all(), "cluster_id must be non-negative"
         assert (
-            batch["cluster_id"] < n_clusters
-        ).all(), f"cluster_id must be < {n_clusters}, got max {batch['cluster_id'].max()}"
+            batch[DEFAULT_COL_KEYS.cluster_id] < n_clusters
+        ).all(), f"cluster_id must be < {n_clusters}, got max {batch[DEFAULT_COL_KEYS.cluster_id].max()}"
 
     # Check relevance range [0, 1]
     assert (batch["relevance"] >= 0).all(), "relevance must be >= 0"
@@ -268,7 +269,7 @@ def validate_first_batch(loader: DataLoader) -> bool:
     LOGGER.info(f"  target_source_emb:   {batch['target_source_emb'].shape}")
     LOGGER.info(f"  steering:            {batch['steering'].shape}")
     LOGGER.info(f"  negative_embs:       {batch['negative_embs'].shape}")
-    LOGGER.info(f"  cluster_id:          {batch['cluster_id'].shape}")
+    LOGGER.info(f"  cluster_id:          {batch[DEFAULT_COL_KEYS.cluster_id].shape}")
     LOGGER.info(f"  relevance:           {batch['relevance'].shape}")
     LOGGER.info(f"  centroid_distance:   {batch['centroid_distance'].shape}")
     LOGGER.info(f"  steering_variant:    {batch['steering_variant'].shape}")

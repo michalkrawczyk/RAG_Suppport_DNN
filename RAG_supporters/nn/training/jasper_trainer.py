@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader
 
 from RAG_supporters.nn.models.ema_encoder import EMAEncoder
 from RAG_supporters.nn.losses.jasper_losses import JASPERMultiObjectiveLoss
+from RAG_supporters.DEFAULT_CONSTS import DEFAULT_COL_KEYS
 
 
 # Lazy import to avoid pulling in the heavy dataset/sklearn chain at module level.
@@ -368,7 +369,7 @@ class JASPERTrainer:
         target_source_emb = batch["target_source_emb"]
         steering_emb = batch["steering"]
         negatives = batch["negative_embs"]
-        cluster_ids = batch["cluster_id"]
+        cluster_ids = batch[DEFAULT_COL_KEYS.cluster_id]
 
         centroid_embs = self._get_centroid_embs(target_source_emb)
 
@@ -411,7 +412,7 @@ class JASPERTrainer:
         target_source_emb = batch["target_source_emb"]
         steering_emb = batch["steering"]
         negatives = batch["negative_embs"]
-        cluster_ids = batch["cluster_id"]
+        cluster_ids = batch[DEFAULT_COL_KEYS.cluster_id]
 
         centroid_embs = self._get_centroid_embs(target_source_emb)
 

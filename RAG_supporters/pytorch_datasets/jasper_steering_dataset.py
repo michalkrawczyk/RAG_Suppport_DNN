@@ -21,6 +21,7 @@ import torch
 from torch.utils.data import Dataset, Subset
 
 from RAG_supporters.data_validation import load_tensor_artifact
+from RAG_supporters.DEFAULT_CONSTS import DEFAULT_COL_KEYS
 
 LOGGER = logging.getLogger(__name__)
 
@@ -660,7 +661,7 @@ class JASPERSteeringDataset(Dataset):
             "target_source_emb": target_source_emb,
             "steering": steering,
             "negative_embs": negative_embs,
-            "cluster_id": cluster_id,
+            DEFAULT_COL_KEYS.cluster_id: cluster_id,
             "relevance": relevance,
             "centroid_distance": centroid_distance,
             "steering_variant": torch.tensor(variant_id, dtype=torch.long),

@@ -23,6 +23,7 @@ from RAG_supporters.nn.models.decomposed_predictor import (
     DecomposedJASPERConfig,
 )
 from RAG_supporters.nn.models.subspace_router import SubspaceRouter, SubspaceRouterConfig
+from RAG_supporters.DEFAULT_CONSTS import DEFAULT_EMB_KEYS
 from RAG_supporters.nn.models.ema_encoder import EMAEncoder
 
 
@@ -389,7 +390,7 @@ class TestDecomposedPredictorForward:
     def test_wrong_centroid_K_raises(self):
         model = _make_decomposed()
         q, s, _ = _make_decomposed_inputs()
-        with pytest.raises(ValueError, match="centroid_embs"):
+        with pytest.raises(ValueError, match=DEFAULT_EMB_KEYS.centroid):
             model(q, s, torch.randn(_K_D + 1, _D_D))
 
     @pytest.mark.parametrize("batch_size", [1, 4, 16])

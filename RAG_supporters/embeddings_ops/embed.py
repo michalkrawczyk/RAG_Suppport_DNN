@@ -25,8 +25,14 @@ from tqdm import tqdm
 
 from RAG_supporters.embeddings import KeywordEmbedder
 from RAG_supporters.clustering_ops import ClusterParser
+from RAG_supporters.DEFAULT_CONSTS import DEFAULT_COL_KEYS
 
 LOGGER = logging.getLogger(__name__)
+
+# Module-level aliases so frozen-dataclass values can be used as function defaults
+_DEFAULT_QUESTION_COL: str = DEFAULT_COL_KEYS.question
+_DEFAULT_SOURCE_COL: str = DEFAULT_COL_KEYS.source
+_DEFAULT_KEYWORDS_COL: str = DEFAULT_COL_KEYS.keywords
 
 
 class EmbeddingGenerator:
@@ -403,9 +409,9 @@ class EmbeddingGenerator:
     def generate_all_embeddings(
         self,
         df: pd.DataFrame,
-        question_col: str = "question",
-        source_col: str = "source",
-        keywords_col: str = "keywords",
+        question_col: str = _DEFAULT_QUESTION_COL,
+        source_col: str = _DEFAULT_SOURCE_COL,
+        keywords_col: str = _DEFAULT_KEYWORDS_COL,
         validate: bool = True,
         on_empty_keywords: str = "none",
     ) -> Dict[str, Optional[torch.Tensor]]:

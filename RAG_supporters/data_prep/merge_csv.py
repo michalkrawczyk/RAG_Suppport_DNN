@@ -16,6 +16,14 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 
 import pandas as pd
 
+from RAG_supporters.DEFAULT_CONSTS import DEFAULT_COL_KEYS
+
+# Module-level aliases for use in class body (evaluated at definition time)
+_COL_QUESTION = DEFAULT_COL_KEYS.question
+_COL_SOURCE = DEFAULT_COL_KEYS.source
+_COL_KEYWORDS = DEFAULT_COL_KEYS.keywords
+_COL_RELEVANCE_SCORE = DEFAULT_COL_KEYS.relevance_score
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -52,11 +60,11 @@ class CSVMerger:
     """
 
     DEFAULT_ALIASES = {
-        "question": ["question", "question_text", "query"],
-        "source": ["source", "source_text", "context", "passage"],
+        _COL_QUESTION: ["question", "question_text", "query"],
+        _COL_SOURCE: ["source", "source_text", "context", "passage"],
         "answer": ["answer", "answer_text", "response"],
-        "keywords": ["keywords", "keyword", "topics", "tags"],
-        "relevance_score": ["relevance_score", "score", "relevance", "label"],
+        _COL_KEYWORDS: ["keywords", "keyword", "topics", "tags"],
+        _COL_RELEVANCE_SCORE: ["relevance_score", "score", "relevance", "label"],
     }
 
     def __init__(self, column_aliases: Optional[Dict[str, List[str]]] = None):
@@ -147,16 +155,16 @@ class CSVMerger:
             )
             normalized["keywords"] = [[] for _ in range(len(df))]
 
-        score_col = self._find_column(df, "relevance_score")
+        score_col = self._find_column(df, _COL_RELEVANCE_SCORE)
         if score_col is not None:
-            normalized["relevance_score"] = pd.to_numeric(df[score_col], errors="coerce").fillna(
+            normalized[_COL_RELEVANCE_SCORE] = pd.to_numeric(df[score_col], errors="coerce").fillna(
                 1.0
             )
         else:
-            normalized["relevance_score"] = 1.0
+            normalized[_COL_RELEVANCE_SCORE] = 1.0
 
         # Clip scores to [0, 1]
-        normalized["relevance_score"] = normalized["relevance_score"].clip(0.0, 1.0)
+        normalized[_COL_RELEVANCE_SCORE] = normalized[_COL_RELEVANCE_SCORE].clip(0.0, 1.0)
 
         return normalized
 
@@ -244,7 +252,7 @@ class CSVMerger:
                 )
 
                 # Max relevance score
-                max_score = group["relevance_score"].max()
+                max_score = group[_COL_RELEVANCE_SCORE].max()
 
                 # Union of keywords
                 all_keywords: Set[str] = set()
@@ -257,11 +265,11 @@ class CSVMerger:
 
                 merged_rows.append(
                     {
-                        "question": question,
-                        "source": source,
+                        _COL_QUESTION: question,
+                        _COL_SOURCE: source,
                         "answer": longest_answer,
-                        "keywords": sorted(list(all_keywords)),
-                        "relevance_score": max_score,
+                        _COL_KEYWORDS: sorted(list(all_keywords)),
+                        _COL_RELEVANCE_SCORE: max_score,
                     }
                 )
 
