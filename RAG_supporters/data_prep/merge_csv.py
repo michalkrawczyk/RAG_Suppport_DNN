@@ -139,6 +139,12 @@ class CSVMerger:
             # Parse keywords (handle JSON list or comma-separated string)
             normalized["keywords"] = df[keywords_col].apply(self._parse_keywords)
         else:
+            LOGGER.warning(
+                "No keywords column found in CSV "
+                "(checked 'keywords', 'keyword', 'topics', 'tags'). "
+                "All rows will have empty keyword lists. "
+                "Downstream keyword-weighted steering will use the fallback strategy."
+            )
             normalized["keywords"] = [[] for _ in range(len(df))]
 
         score_col = self._find_column(df, "relevance_score")

@@ -407,7 +407,8 @@ class EmbeddingGenerator:
         source_col: str = "source",
         keywords_col: str = "keywords",
         validate: bool = True,
-    ) -> Dict[str, torch.Tensor]:
+        on_empty_keywords: str = "none",
+    ) -> Dict[str, Optional[torch.Tensor]]:
         """Generate embeddings for all dataset components.
 
         Generates embeddings for:
@@ -428,15 +429,21 @@ class EmbeddingGenerator:
             Column name for keywords (default: "keywords")
         validate : bool, optional
             Perform sanity checks (default: True)
+        on_empty_keywords : str, optional
+            Behaviour when the dataset contains no keywords.
+            - ``"none"`` (default): set ``keyword_embs`` to ``None`` and
+              ``keyword_to_id`` to ``{}``; log a warning.
+            - ``"error"``: raise ``ValueError``.
 
         Returns
         -------
-        Dict[str, torch.Tensor]
+        Dict[str, Optional[torch.Tensor]]
             Dictionary with keys:
             - "question_embs": [n_questions, dim]
             - "source_embs": [n_sources, dim]
-            - "keyword_embs": [n_keywords, dim]
-            - "centroid_embs": [n_clusters, dim] (if cluster_parser provided)
+            - "keyword_embs": [n_keywords, dim], or ``None`` when absent
+            - "centroid_embs": [n_clusters, dim] (if cluster_parser provided
+              and keywords present)
             - "question_to_id": Dict[str, int]
             - "source_to_id": Dict[str, int]
             - "keyword_to_id": Dict[str, int]
@@ -489,14 +496,36 @@ class EmbeddingGenerator:
         result["source_to_id"] = {s: i for i, s in enumerate(unique_sources)}
 
         # Keywords
-        keyword_embs, keyword_to_id = self.generate_keyword_embeddings(
-            unique_keywords, validate=validate
-        )
-        result["keyword_embs"] = keyword_embs
-        result["keyword_to_id"] = keyword_to_id
+        if unique_keywords:
+            keyword_embs, keyword_to_id = self.generate_keyword_embeddings(
+                unique_keywords, validate=validate
+            )
+            result["keyword_embs"] = keyword_embs
+            result["keyword_to_id"] = keyword_to_id
+        else:
+            valid_modes = {"none", "error"}
+            if on_empty_keywords not in valid_modes:
+                raise ValueError(
+                    f"on_empty_keywords must be one of {valid_modes!r}, "
+                    f"got {on_empty_keywords!r}"
+                )
+            if on_empty_keywords == "error":
+                raise ValueError(
+                    "Dataset contains no keywords. "
+                    "Set on_empty_keywords='none' to proceed without keyword embeddings."
+                )
+            LOGGER.warning(
+                "No keywords found in the dataset; keyword_embs will be None and "
+                "keyword_to_id will be {}. Downstream keyword-weighted steering will "
+                "use the fallback strategy for every row."
+            )
+            result["keyword_embs"] = None
+            result["keyword_to_id"] = {}
+            keyword_embs = None
+            keyword_to_id: Dict[str, int] = {}
 
-        # Centroids (if cluster parser provided)
-        if self.cluster_parser is not None:
+        # Centroids (if cluster parser provided and keywords are present)
+        if self.cluster_parser is not None and keyword_embs is not None:
             # Create keyword embeddings dict for validation
             keyword_embs_dict = {kw: keyword_embs[idx].numpy() for kw, idx in keyword_to_id.items()}
 
@@ -538,14 +567,36 @@ class EmbeddingGenerator:
         # Define file names (skip non-tensor items like mappings)
         tensor_keys = ["question_embs", "source_embs", "keyword_embs", "centroid_embs"]
 
-        for key in tensor_keys:
-            if key in embeddings_dict:
-                tensor = embeddings_dict[key]
-                file_name = f"{prefix}{key}.pt" if prefix else f"{key}.pt"
-                file_path = output_dir / file_name
+        # Infer embedding dimension from any present tensor for None fallbacks
+        embed_dim: Optional[int] = None
+        for _k in ("question_embs", "source_embs"):
+            _t = embeddings_dict.get(_k)
+            if isinstance(_t, torch.Tensor) and _t.ndim == 2:
+                embed_dim = _t.shape[1]
+                break
 
-                torch.save(tensor, file_path)
-                LOGGER.info(f"Saved {key}: shape={tensor.shape} to {file_path}")
+        for key in tensor_keys:
+            if key not in embeddings_dict:
+                continue
+            tensor = embeddings_dict[key]
+            if tensor is None:
+                # Save a zero-row placeholder so loaders can always find the file
+                if embed_dim is not None:
+                    tensor = torch.zeros(0, embed_dim, dtype=torch.float32)
+                    LOGGER.info(
+                        f"Saving placeholder for absent {key} "
+                        f"(shape={tensor.shape}) to {output_dir}"
+                    )
+                else:
+                    LOGGER.warning(
+                        f"Cannot infer embedding dim; skipping {key}.pt"
+                    )
+                    continue
+            file_name = f"{prefix}{key}.pt" if prefix else f"{key}.pt"
+            file_path = output_dir / file_name
+
+            torch.save(tensor, file_path)
+            LOGGER.info(f"Saved {key}: shape={tensor.shape} to {file_path}")
 
 
 def generate_embeddings(
@@ -559,7 +610,8 @@ def generate_embeddings(
     batch_size: int = 32,
     normalize_embeddings: bool = False,
     validate: bool = True,
-) -> Dict[str, torch.Tensor]:
+    on_empty_keywords: str = "none",
+) -> Dict[str, Optional[torch.Tensor]]:
     """Convenience function to generate and optionally save embeddings.
 
     Parameters
@@ -584,11 +636,16 @@ def generate_embeddings(
         L2-normalize embeddings (default: False)
     validate : bool, optional
         Perform sanity checks (default: True)
+    on_empty_keywords : str, optional
+        Behaviour when the dataset contains no keywords.
+        ``"none"`` (default) sets ``keyword_embs=None`` and warns;
+        ``"error"`` raises ``ValueError``.
 
     Returns
     -------
-    Dict[str, torch.Tensor]
-        Dictionary of embeddings and mappings
+    Dict[str, Optional[torch.Tensor]]
+        Dictionary of embeddings and mappings. ``keyword_embs`` may be
+        ``None`` when no keywords are present and ``on_empty_keywords='none'``.
 
     Examples
     --------
@@ -620,6 +677,7 @@ def generate_embeddings(
         source_col=source_col,
         keywords_col=keywords_col,
         validate=validate,
+        on_empty_keywords=on_empty_keywords,
     )
 
     # Save if output directory provided

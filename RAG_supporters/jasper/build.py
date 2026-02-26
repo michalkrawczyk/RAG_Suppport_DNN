@@ -288,6 +288,8 @@ def build_dataset(
     adjacent_k: int = 3,
     random_seed: int = 42,
     show_progress: bool = True,
+    skip_rows_without_keywords: bool = False,
+    on_empty_keywords: str = "none",
 ) -> BuildConfig:
     """Build JASPER steering dataset by orchestrating Tasks 1-8.
 
@@ -440,6 +442,26 @@ def build_dataset(
         show_progress=show_progress,
     )
 
+    # Optional: drop rows that have no keywords before embedding
+    if skip_rows_without_keywords:
+        before = len(linked_df)
+        linked_df = linked_df[
+            linked_df["keywords"].apply(
+                lambda kws: bool(kws) if isinstance(kws, list) else bool(str(kws).strip())
+            )
+        ].reset_index(drop=True)
+        dropped = before - len(linked_df)
+        if dropped:
+            LOGGER.warning(
+                "skip_rows_without_keywords=True: dropped %d/%d rows with empty keywords "
+                "(%d remain).",
+                dropped,
+                before,
+                len(linked_df),
+            )
+        else:
+            LOGGER.info("skip_rows_without_keywords=True: no rows had empty keywords.")
+
     # Task 4: Embeddings
     embeddings = _timed_task(
         "task_4_generate_embeddings",
@@ -455,6 +477,7 @@ def build_dataset(
         batch_size=embedding_batch_size,
         normalize_embeddings=normalize_embeddings,
         validate=validate_embeddings,
+        on_empty_keywords=on_empty_keywords,
     )
 
     pair_artifacts = _timed_task(
