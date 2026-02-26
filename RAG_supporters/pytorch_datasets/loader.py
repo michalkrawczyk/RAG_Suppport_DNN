@@ -248,7 +248,9 @@ def validate_first_batch(loader: DataLoader) -> bool:
         assert (batch[DEFAULT_COL_KEYS.cluster_id] >= 0).all(), "cluster_id must be non-negative"
         assert (
             batch[DEFAULT_COL_KEYS.cluster_id] < n_clusters
-        ).all(), f"cluster_id must be < {n_clusters}, got max {batch[DEFAULT_COL_KEYS.cluster_id].max()}"
+        ).all(), (
+            f"cluster_id must be < {n_clusters}, got max {batch[DEFAULT_COL_KEYS.cluster_id].max()}"
+        )
 
     # Check relevance range [0, 1]
     assert (batch["relevance"] >= 0).all(), "relevance must be >= 0"
