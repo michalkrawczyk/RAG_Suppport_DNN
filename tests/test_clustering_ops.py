@@ -972,7 +972,7 @@ class TestEmbeddingGeneratorInit:
         """Test initialization without cluster parser."""
         generator = EmbeddingGenerator(mock_model)
 
-        assert generator.embedder is not None, "Should wrap model in KeywordEmbedder"
+        assert generator.embedder is not None, "Should wrap model in TextEmbedder"
         assert generator.cluster_parser is None, "Should have no cluster parser"
         assert generator.batch_size == 32, "Should have default batch size"
         assert generator.show_progress is True, "Should show progress by default"

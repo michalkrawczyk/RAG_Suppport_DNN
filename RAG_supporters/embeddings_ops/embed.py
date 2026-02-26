@@ -23,7 +23,7 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
-from RAG_supporters.embeddings import KeywordEmbedder
+from RAG_supporters.embeddings import TextEmbedder
 from RAG_supporters.clustering_ops import ClusterParser
 from RAG_supporters.DEFAULT_CONSTS import DEFAULT_COL_KEYS
 
@@ -57,7 +57,7 @@ class EmbeddingGenerator:
 
     Attributes
     ----------
-    embedder : KeywordEmbedder
+    embedder : TextEmbedder
         Unified embedding interface
     cluster_parser : ClusterParser, optional
         Cluster metadata parser
@@ -93,8 +93,8 @@ class EmbeddingGenerator:
         normalize_embeddings: bool = False,
     ):
         """Initialize embedding generator."""
-        # Wrap model in KeywordEmbedder for unified interface
-        self.embedder = KeywordEmbedder(embedding_model=embedding_model)
+        # Wrap model in TextEmbedder for unified interface
+        self.embedder = TextEmbedder(embedding_model=embedding_model)
         self.cluster_parser = cluster_parser
         self.batch_size = batch_size
         self.show_progress = show_progress
@@ -252,7 +252,7 @@ class EmbeddingGenerator:
 
         LOGGER.info(f"Generating embeddings for {len(texts)} {text_type}(s)")
 
-        # Generate embeddings using KeywordEmbedder
+        # Generate embeddings using TextEmbedder
         embeddings = self.embedder._generate_embeddings(
             texts=texts,
             batch_size=self.batch_size,

@@ -6,7 +6,7 @@ from typing import Any, List, Optional, Union
 
 import numpy as np
 from RAG_supporters.clustering.clustering_data import ClusteringData
-from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+from RAG_supporters.embeddings.text_embedder import TextEmbedder
 from RAG_supporters.data_validation import LabelCalculator, LabelNormalizationMethod
 from RAG_supporters.jasper.sqlite_storage import SQLiteStorageManager
 from RAG_supporters.embeddings_ops import SteeringConfig, SteeringEmbeddingGenerator, SteeringMode
@@ -29,8 +29,8 @@ class DomainAssessmentDatasetBuilder:
         clustering_json_path: Union[str, Path],
         output_dir: Union[str, Path],
         embedding_model: Union[
-            str, Any, KeywordEmbedder
-        ],  # Model name, KeywordEmbedder, or raw model
+            str, Any, TextEmbedder
+        ],  # Model name, TextEmbedder, or raw model
         steering_config: Optional[SteeringConfig] = None,
         label_normalizer: str = "softmax",
         label_temp: float = 1.0,
@@ -49,8 +49,8 @@ class DomainAssessmentDatasetBuilder:
             csv_paths: Path(s) to CSV files from domain_assessment.py
             clustering_json_path: Path to clustering JSON from keyword_clustering.py
             output_dir: Output directory for dataset
-            embedding_model: Model name (str), KeywordEmbedder instance, or raw model.
-                           If string: creates KeywordEmbedder with model_name.
+            embedding_model: Model name (str), TextEmbedder instance, or raw model.
+                           If string: creates TextEmbedder with model_name.
                            Supports both sentence-transformers and LangChain models.
             steering_config: Steering configuration (defaults to ZERO mode)
             label_normalizer: Normalization method ('softmax', 'l1')
@@ -71,14 +71,14 @@ class DomainAssessmentDatasetBuilder:
         self.source_suggestions_col = source_suggestions_col
         self.question_suggestions_col = question_suggestions_col
 
-        # Initialize KeywordEmbedder (supports both sentence-transformers and LangChain)
-        if isinstance(embedding_model, KeywordEmbedder):
+        # Initialize TextEmbedder (supports both sentence-transformers and LangChain)
+        if isinstance(embedding_model, TextEmbedder):
             self.embedder = embedding_model
         elif isinstance(embedding_model, str):
-            # Create KeywordEmbedder from model name
-            self.embedder = KeywordEmbedder(model_name=embedding_model)
+            # Create TextEmbedder from model name
+            self.embedder = TextEmbedder(model_name=embedding_model)
         else:
-            self.embedder = KeywordEmbedder(embedding_model=embedding_model)
+            self.embedder = TextEmbedder(embedding_model=embedding_model)
 
         self.chunk_size = chunk_size
 

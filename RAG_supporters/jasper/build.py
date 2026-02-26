@@ -321,7 +321,7 @@ def build_dataset(
     cluster_json_path : str or Path
         Path to KeywordClusterer JSON output.
     embedding_model : Any
-        Embedding model accepted by ``KeywordEmbedder``.
+        Embedding model accepted by ``TextEmbedder``.
     output_dir : str or Path
         Target directory for built dataset artifacts.
     config : BuildConfig or Dict[str, Any], optional

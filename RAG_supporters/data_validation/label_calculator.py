@@ -168,7 +168,7 @@ class LabelCalculator:
         for sugg in suggestions:
             term = sugg.get("term", "")
             # Normalize term to match the keys in suggestion_embeddings
-            # (KeywordEmbedder normalizes all keys during embedding creation)
+            # (TextEmbedder normalizes all keys during embedding creation)
             normalized_term = normalize_string(term)
             if normalized_term in suggestion_embeddings:
                 valid_embeddings.append(suggestion_embeddings[normalized_term])
