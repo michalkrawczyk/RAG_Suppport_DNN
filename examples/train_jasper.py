@@ -16,8 +16,15 @@ With dataset build step (Tasks 1-8 run automatically before training)::
     python examples/train_jasper.py \\
         --dataset-dir /path/to/jasper_dataset \\
         --build-csv-paths data/train.csv data/val.csv \\
-        --build-cluster-json data/clusters.json \\
-        --build-embedding-model sentence-transformers/all-MiniLM-L6-v2
+        --build-cluster-json data/clusters.json
+
+    Override the embedding model (uses LangChain OpenAI text-embedding-3-small by default)::
+
+        python examples/train_jasper.py \\
+            --dataset-dir /path/to/jasper_dataset \\
+            --build-csv-paths data/train.csv data/val.csv \\
+            --build-cluster-json data/clusters.json \\
+            --build-embedding-model sentence-transformers/all-MiniLM-L6-v2
 
 Full overrides::
 
@@ -250,9 +257,14 @@ def parse_args() -> argparse.Namespace:
     )
     build.add_argument(
         "--build-embedding-model",
-        default=None,
+        default="text-embedding-3-small",
         metavar="MODEL",
-        help="SentenceTransformer model name or path used to generate embeddings.",
+        help=(
+            "Embedding model to use during the build step. "
+            "Defaults to 'text-embedding-3-small' (LangChain OpenAI). "
+            "Pass a HuggingFace/SentenceTransformer path (e.g. "
+            "'sentence-transformers/all-MiniLM-L6-v2') to use a local model instead."
+        ),
     )
     build.add_argument(
         "--build-n-neg",
@@ -291,23 +303,34 @@ def main() -> None:
     if args.build_csv_paths:
         if not args.build_cluster_json:
             raise ValueError("--build-cluster-json is required when --build-csv-paths is set.")
-        if not args.build_embedding_model:
-            raise ValueError("--build-embedding-model is required when --build-csv-paths is set.")
 
         LOGGER.info(
             "Step 0: Building JASPER dataset from %d CSV file(s) → %s",
             len(args.build_csv_paths),
             args.dataset_dir,
         )
-        try:
-            from sentence_transformers import SentenceTransformer
+        if "/" in args.build_embedding_model:
+            # HuggingFace / SentenceTransformer model path
+            try:
+                from sentence_transformers import SentenceTransformer
 
-            embedding_model = SentenceTransformer(args.build_embedding_model)
-        except ImportError as exc:  # pragma: no cover
-            raise ImportError(
-                "sentence-transformers is required for the build step. "
-                "Install it with: pip install sentence-transformers"
-            ) from exc
+                embedding_model = SentenceTransformer(args.build_embedding_model)
+            except ImportError as exc:  # pragma: no cover
+                raise ImportError(
+                    "sentence-transformers is required for this embedding model. "
+                    "Install it with: pip install sentence-transformers"
+                ) from exc
+        else:
+            # OpenAI model via LangChain (default: text-embedding-3-small)
+            try:
+                from langchain_openai import OpenAIEmbeddings
+
+                embedding_model = OpenAIEmbeddings(model=args.build_embedding_model)
+            except ImportError as exc:  # pragma: no cover
+                raise ImportError(
+                    "langchain-openai is required for the default embedding model. "
+                    "Install it with: pip install langchain-openai"
+                ) from exc
 
         build_dataset(
             csv_paths=args.build_csv_paths,
