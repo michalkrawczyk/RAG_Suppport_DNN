@@ -1216,10 +1216,19 @@ class TestEmbeddingGeneratorAllEmbeddings:
 
         embeddings = generator.generate_all_embeddings(df)
 
-        assert embeddings[DEFAULT_EMB_KEYS.question].shape == (2, 384), "Should have 2 unique questions"
+        assert embeddings[DEFAULT_EMB_KEYS.question].shape == (
+            2,
+            384,
+        ), "Should have 2 unique questions"
         assert embeddings[DEFAULT_EMB_KEYS.source].shape == (3, 384), "Should have 3 unique sources"
-        assert embeddings[DEFAULT_EMB_KEYS.keyword].shape == (3, 384), "Should have 3 unique keywords"
-        assert embeddings[DEFAULT_EMB_KEYS.centroid].shape == (3, 384), "Should have 3 cluster centroids"
+        assert embeddings[DEFAULT_EMB_KEYS.keyword].shape == (
+            3,
+            384,
+        ), "Should have 3 unique keywords"
+        assert embeddings[DEFAULT_EMB_KEYS.centroid].shape == (
+            3,
+            384,
+        ), "Should have 3 cluster centroids"
 
     def test_generate_all_embeddings_string_keywords(self, mock_model, embed_cluster_parser):
         """Test handling keywords as comma-separated strings."""
@@ -1250,20 +1259,33 @@ class TestEmbeddingGeneratorSaveEmbeddings:
 
         generator.save_embeddings(embeddings, tmp_path)
 
-        assert (tmp_path / f"{DEFAULT_EMB_KEYS.question}.pt").exists(), "Should save question embeddings"
-        assert (tmp_path / f"{DEFAULT_EMB_KEYS.source}.pt").exists(), "Should save source embeddings"
-        assert (tmp_path / f"{DEFAULT_EMB_KEYS.keyword}.pt").exists(), "Should save keyword embeddings"
-        assert not (tmp_path / f"{DEFAULT_EMB_KEYS.question_to_id}.pt").exists(), "Should skip non-tensor items"
+        assert (
+            tmp_path / f"{DEFAULT_EMB_KEYS.question}.pt"
+        ).exists(), "Should save question embeddings"
+        assert (
+            tmp_path / f"{DEFAULT_EMB_KEYS.source}.pt"
+        ).exists(), "Should save source embeddings"
+        assert (
+            tmp_path / f"{DEFAULT_EMB_KEYS.keyword}.pt"
+        ).exists(), "Should save keyword embeddings"
+        assert not (
+            tmp_path / f"{DEFAULT_EMB_KEYS.question_to_id}.pt"
+        ).exists(), "Should skip non-tensor items"
 
     def test_save_embeddings_with_prefix(self, mock_model, tmp_path):
         """Test saving embeddings with filename prefix."""
         generator = EmbeddingGenerator(mock_model)
 
-        embeddings = {DEFAULT_EMB_KEYS.question: torch.randn(10, 384), DEFAULT_EMB_KEYS.source: torch.randn(20, 384)}
+        embeddings = {
+            DEFAULT_EMB_KEYS.question: torch.randn(10, 384),
+            DEFAULT_EMB_KEYS.source: torch.randn(20, 384),
+        }
 
         generator.save_embeddings(embeddings, tmp_path, prefix="test_")
 
-        assert (tmp_path / f"test_{DEFAULT_EMB_KEYS.question}.pt").exists(), "Should save with prefix"
+        assert (
+            tmp_path / f"test_{DEFAULT_EMB_KEYS.question}.pt"
+        ).exists(), "Should save with prefix"
         assert (tmp_path / f"test_{DEFAULT_EMB_KEYS.source}.pt").exists(), "Should save with prefix"
 
     def test_save_embeddings_creates_directory(self, mock_model, tmp_path):
@@ -1276,7 +1298,9 @@ class TestEmbeddingGeneratorSaveEmbeddings:
         generator.save_embeddings(embeddings, output_dir)
 
         assert output_dir.exists(), "Should create output directory"
-        assert (output_dir / f"{DEFAULT_EMB_KEYS.question}.pt").exists(), "Should save embedding file"
+        assert (
+            output_dir / f"{DEFAULT_EMB_KEYS.question}.pt"
+        ).exists(), "Should save embedding file"
 
     def test_save_and_load_embeddings(self, mock_model, tmp_path):
         """Test saved embeddings can be loaded back."""
@@ -1319,7 +1343,9 @@ class TestGenerateEmbeddingsConvenience:
 
         assert DEFAULT_EMB_KEYS.question in embeddings, "Should have question embeddings"
         assert DEFAULT_EMB_KEYS.source in embeddings, "Should have source embeddings"
-        assert embeddings[DEFAULT_EMB_KEYS.question].shape[0] == 2, "Should have 2 question embeddings"
+        assert (
+            embeddings[DEFAULT_EMB_KEYS.question].shape[0] == 2
+        ), "Should have 2 question embeddings"
 
     def test_generate_embeddings_with_save(self, mock_model, embed_cluster_parser, tmp_path):
         """Test convenience function saves embeddings to directory."""
@@ -1332,10 +1358,18 @@ class TestGenerateEmbeddingsConvenience:
             output_dir=tmp_path,
         )
 
-        assert (tmp_path / f"{DEFAULT_EMB_KEYS.question}.pt").exists(), "Should save question embeddings"
-        assert (tmp_path / f"{DEFAULT_EMB_KEYS.source}.pt").exists(), "Should save source embeddings"
-        assert (tmp_path / f"{DEFAULT_EMB_KEYS.keyword}.pt").exists(), "Should save keyword embeddings"
-        assert (tmp_path / f"{DEFAULT_EMB_KEYS.centroid}.pt").exists(), "Should save centroid embeddings"
+        assert (
+            tmp_path / f"{DEFAULT_EMB_KEYS.question}.pt"
+        ).exists(), "Should save question embeddings"
+        assert (
+            tmp_path / f"{DEFAULT_EMB_KEYS.source}.pt"
+        ).exists(), "Should save source embeddings"
+        assert (
+            tmp_path / f"{DEFAULT_EMB_KEYS.keyword}.pt"
+        ).exists(), "Should save keyword embeddings"
+        assert (
+            tmp_path / f"{DEFAULT_EMB_KEYS.centroid}.pt"
+        ).exists(), "Should save centroid embeddings"
 
     def test_generate_embeddings_custom_columns(self, mock_model, embed_cluster_parser):
         """Test convenience function with custom column names."""
@@ -1350,7 +1384,9 @@ class TestGenerateEmbeddingsConvenience:
             keywords_col="kw",
         )
 
-        assert DEFAULT_EMB_KEYS.question in embeddings, "Should generate embeddings with custom columns"
+        assert (
+            DEFAULT_EMB_KEYS.question in embeddings
+        ), "Should generate embeddings with custom columns"
 
 
 class TestEmbeddingGeneratorEdgeCases:

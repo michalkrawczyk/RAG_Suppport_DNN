@@ -594,9 +594,7 @@ class EmbeddingGenerator:
                         f"(shape={tensor.shape}) to {output_dir}"
                     )
                 else:
-                    LOGGER.warning(
-                        f"Cannot infer embedding dim; skipping {key}.pt"
-                    )
+                    LOGGER.warning(f"Cannot infer embedding dim; skipping {key}.pt")
                     continue
             file_name = f"{prefix}{key}.pt" if prefix else f"{key}.pt"
             file_path = output_dir / file_name
