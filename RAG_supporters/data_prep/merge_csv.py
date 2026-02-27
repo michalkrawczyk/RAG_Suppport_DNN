@@ -16,7 +16,12 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 
 import pandas as pd
 
-from RAG_supporters.DEFAULT_CONSTS import DEFAULT_COL_KEYS
+from RAG_supporters.DEFAULT_CONSTS import (
+    COLUMN_ALIASES,
+    DEFAULT_COL_KEYS,
+    DEFAULT_SUGGESTION_MIN_CONFIDENCE,
+    DEFAULT_TOPIC_MIN_PROBABILITY,
+)
 
 # Module-level aliases for use in class body (evaluated at definition time)
 _COL_QUESTION = DEFAULT_COL_KEYS.question
@@ -59,17 +64,20 @@ class CSVMerger:
     >>> print(f"Sources: {merged_df['source_id'].nunique()}")
     """
 
-    DEFAULT_ALIASES = {
-        _COL_QUESTION: ["question", "question_text", "query"],
-        _COL_SOURCE: ["source", "source_text", "context", "passage"],
-        "answer": ["answer", "answer_text", "response"],
-        _COL_KEYWORDS: ["keywords", "keyword", "topics", "tags"],
-        _COL_RELEVANCE_SCORE: ["relevance_score", "score", "relevance", "label"],
-    }
+    DEFAULT_ALIASES = COLUMN_ALIASES
 
-    def __init__(self, column_aliases: Optional[Dict[str, List[str]]] = None):
+    def __init__(
+        self,
+        column_aliases: Optional[Dict[str, List[str]]] = None,
+        suggestion_min_confidence: float = DEFAULT_SUGGESTION_MIN_CONFIDENCE,
+        suggestion_types: Optional[List[str]] = None,
+        topic_min_probability: float = DEFAULT_TOPIC_MIN_PROBABILITY,
+    ) -> None:
         """Initialize CSV merger."""
-        self.column_aliases = column_aliases or self.DEFAULT_ALIASES
+        self.column_aliases = column_aliases or COLUMN_ALIASES
+        self.suggestion_min_confidence = suggestion_min_confidence
+        self.suggestion_types = suggestion_types
+        self.topic_min_probability = topic_min_probability
 
     def _find_column(self, df: pd.DataFrame, standard_name: str) -> Optional[str]:
         """Find column in DataFrame using aliases.
@@ -173,6 +181,8 @@ class CSVMerger:
 
         Handles:
         - JSON list: '["keyword1", "keyword2"]'
+        - List of dicts from extract_suggestions (key: ``term``)
+        - List of dicts from topic_relevance_prob_topic_scores (key: ``topic_descriptor``)
         - Comma-separated: "keyword1, keyword2"
         - Single string: "keyword1"
         - NaN/empty: []
@@ -189,28 +199,69 @@ class CSVMerger:
         """
         # Handle list/tuple type first (before isna check)
         if isinstance(value, (list, tuple)):
-            return [str(k).strip() for k in value if k]
-
-        # Check for None/NaN/empty string
-        if pd.isna(value) or value == "":
+            items = list(value)
+        elif pd.isna(value) or value == "":
             return []
-
-        # Try to parse as JSON list
-        if isinstance(value, str) and value.startswith("["):
+        elif isinstance(value, str) and value.startswith("["):
+            # Try to parse as JSON list
             try:
                 import json
 
-                parsed = json.loads(value)
-                return [str(k).strip() for k in parsed if k]
+                items = json.loads(value)
             except json.JSONDecodeError:
-                pass
-
-        # Parse as comma-separated
-        if isinstance(value, str):
+                # Fall through to comma-separated
+                return [k.strip() for k in value.split(",") if k.strip()]
+        elif isinstance(value, str):
+            # Parse as comma-separated
             return [k.strip() for k in value.split(",") if k.strip()]
+        else:
+            # Single value
+            return [str(value).strip()]
 
-        # Single value
-        return [str(value).strip()]
+        # --- list-of-dicts dispatch ---
+        if items and isinstance(items[0], dict):
+            from RAG_supporters.utils.suggestion_processing import (
+                aggregate_unique_terms,
+                filter_by_field_value,
+            )
+
+            first = items[0]
+            if "term" in first:
+                # extract_suggestions schema (text_source rows)
+                if self.suggestion_min_confidence > 0.0:
+                    items = filter_by_field_value(
+                        items,
+                        min_value=self.suggestion_min_confidence,
+                        field_name="confidence",
+                    )
+                if self.suggestion_types is not None:
+                    items = [s for s in items if s.get("type") in self.suggestion_types]
+                terms, _ = aggregate_unique_terms(items, term_key="term", normalize=True)
+                return terms
+
+            elif "topic_descriptor" in first:
+                # topic_relevance_prob_topic_scores schema (question rows)
+                # May be incomplete — filters only; distance keywords are the authoritative source.
+                items = filter_by_field_value(
+                    items,
+                    min_value=self.topic_min_probability,
+                    field_name="probability",
+                )
+                terms, _ = aggregate_unique_terms(
+                    items, term_key="topic_descriptor", normalize=True
+                )
+                return terms
+
+            else:
+                # Unknown dict schema
+                LOGGER.warning(
+                    "_parse_keywords: unknown dict schema (neither 'term' nor "
+                    "'topic_descriptor' key found). Returning empty list."
+                )
+                return []
+
+        # Plain list of strings
+        return [str(k).strip() for k in items if k]
 
     def _merge_duplicates(self, df: pd.DataFrame) -> pd.DataFrame:
         """Merge duplicate question-source pairs.
@@ -481,6 +532,9 @@ def merge_csv_files(
     csv_paths: List[Union[str, Path]],
     output_path: Optional[Union[str, Path]] = None,
     column_aliases: Optional[Dict[str, List[str]]] = None,
+    suggestion_min_confidence: float = DEFAULT_SUGGESTION_MIN_CONFIDENCE,
+    suggestion_types: Optional[List[str]] = None,
+    topic_min_probability: float = DEFAULT_TOPIC_MIN_PROBABILITY,
 ) -> pd.DataFrame:
     """Convenience function to merge CSV files.
 
@@ -495,6 +549,15 @@ def merge_csv_files(
         If provided, save merged DataFrame to this path
     column_aliases : Dict[str, List[str]], optional
         Custom column name aliases
+    suggestion_min_confidence : float, optional
+        Minimum ``confidence`` to include a term from ``extract_suggestions``.
+        ``0.0`` means no filtering (default).
+    suggestion_types : List[str], optional
+        Whitelist of ``type`` values for ``extract_suggestions``.
+        ``None`` means include all types (default).
+    topic_min_probability : float, optional
+        Minimum ``probability`` to include a topic from
+        ``topic_relevance_prob_topic_scores`` (default 0.5).
 
     Returns
     -------
@@ -510,5 +573,10 @@ def merge_csv_files(
     >>> # Verify many-to-many relationship
     >>> print(f"Avg sources per question: {len(df) / df['question_id'].nunique():.2f}")
     """
-    merger = CSVMerger(column_aliases=column_aliases)
+    merger = CSVMerger(
+        column_aliases=column_aliases,
+        suggestion_min_confidence=suggestion_min_confidence,
+        suggestion_types=suggestion_types,
+        topic_min_probability=topic_min_probability,
+    )
     return merger.merge_csv_files(csv_paths=csv_paths, output_path=output_path)

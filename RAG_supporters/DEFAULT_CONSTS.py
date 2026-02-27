@@ -29,6 +29,7 @@ automatically.
 """
 
 from dataclasses import dataclass
+from typing import Dict, List
 
 __all__ = [
     "ColKeys",
@@ -37,6 +38,9 @@ __all__ = [
     "DEFAULT_COL_KEYS",
     "DEFAULT_EMB_KEYS",
     "DEFAULT_PA_KEYS",
+    "COLUMN_ALIASES",
+    "DEFAULT_SUGGESTION_MIN_CONFIDENCE",
+    "DEFAULT_TOPIC_MIN_PROBABILITY",
 ]
 
 
@@ -150,3 +154,33 @@ class PairArtifactKeys:
 DEFAULT_COL_KEYS = ColKeys()
 DEFAULT_EMB_KEYS = EmbKeys()
 DEFAULT_PA_KEYS = PairArtifactKeys()
+
+# ---------------------------------------------------------------------------
+# Column alias map for CSVMerger
+# ---------------------------------------------------------------------------
+
+COLUMN_ALIASES: Dict[str, List[str]] = {
+    "question": ["question", "question_text", "query"],
+    "source": ["source_text", "source", "context", "passage"],
+    "answer": ["answer", "answer_text", "response"],
+    # text_source rows: structured LLM keyword extraction (extract_suggestions)
+    # question rows: topic-relevance probability scores
+    "keywords": [
+        "extract_suggestions",
+        "topic_relevance_prob_topic_scores",
+        "keywords",
+        "topics",
+        "tags",
+    ],
+    "relevance_score": ["relevance_score", "score", "relevance", "label"],
+}
+
+# Default minimum confidence for extract_suggestions filtering
+# (0.0 = include all terms)
+DEFAULT_SUGGESTION_MIN_CONFIDENCE: float = 0.0
+
+# Default minimum probability for topic_relevance_prob_topic_scores filtering.
+# Topics below this threshold are excluded when building question keywords.
+# Set conservatively (0.5) so only moderately relevant topics are kept;
+# callers can lower this if topic coverage is too sparse.
+DEFAULT_TOPIC_MIN_PROBABILITY: float = 0.5
