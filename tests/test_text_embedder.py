@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 def _mock_sentence_transformer(dim: int = 8):
     """Return a minimal SentenceTransformer-compatible mock."""
-    mock = MagicMock()
+    mock = MagicMock(spec=["encode"])
     mock.encode.side_effect = lambda texts, **kw: np.random.rand(len(texts), dim).astype(
         np.float32
     )
