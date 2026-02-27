@@ -1203,13 +1203,19 @@ class TestEmbeddingGeneratorAllEmbeddings:
         assert DEFAULT_EMB_KEYS.keyword_to_id in embeddings, "Should have keyword mapping"
 
     def test_generate_all_embeddings_shapes(self, mock_model, embed_cluster_parser):
-        """Test embeddings have correct shapes."""
+        """Test embeddings have correct shapes.
+
+        With a cluster_parser present, keywords come from the cluster JSON
+        (6 keywords with pre-computed embeddings), NOT from the CSV column.
+        """
         generator = EmbeddingGenerator(mock_model, embed_cluster_parser, show_progress=False)
 
         df = pd.DataFrame(
             {
                 "question": ["Q1", "Q2", "Q1"],
                 "source": ["S1", "S2", "S3"],
+                # CSV keywords are intentionally different from the cluster JSON vocabulary
+                # to verify the cluster JSON is used as the keyword source.
                 "keywords": [["kw1"], ["kw2"], ["kw1", "kw3"]],
             }
         )
@@ -1221,26 +1227,107 @@ class TestEmbeddingGeneratorAllEmbeddings:
             384,
         ), "Should have 2 unique questions"
         assert embeddings[DEFAULT_EMB_KEYS.source].shape == (3, 384), "Should have 3 unique sources"
+        # embed_cluster_parser JSON has 6 keywords with pre-computed embeddings
         assert embeddings[DEFAULT_EMB_KEYS.keyword].shape == (
-            3,
+            6,
             384,
-        ), "Should have 3 unique keywords"
+        ), "Should have 6 keywords from the cluster JSON, not 3 from CSV"
         assert embeddings[DEFAULT_EMB_KEYS.centroid].shape == (
             3,
             384,
         ), "Should have 3 cluster centroids"
 
     def test_generate_all_embeddings_string_keywords(self, mock_model, embed_cluster_parser):
-        """Test handling keywords as comma-separated strings."""
+        """Keywords come from the cluster JSON when cluster_parser is provided.
+
+        The CSV 'keywords' column is ignored — the vocabulary is the canonical
+        set stored in the cluster JSON (python, java, sql, database, ai, ml).
+        """
         generator = EmbeddingGenerator(mock_model, embed_cluster_parser, show_progress=False)
 
         df = pd.DataFrame({"question": ["Q1"], "source": ["S1"], "keywords": ["python, java, sql"]})
 
         embeddings = generator.generate_all_embeddings(df)
 
-        assert "python" in embeddings[DEFAULT_EMB_KEYS.keyword_to_id], "Should extract 'python'"
-        assert "java" in embeddings[DEFAULT_EMB_KEYS.keyword_to_id], "Should extract 'java'"
-        assert "sql" in embeddings[DEFAULT_EMB_KEYS.keyword_to_id], "Should extract 'sql'"
+        # All 6 keywords from the cluster JSON should be present
+        for kw in ["python", "java", "sql", "database", "ai", "ml"]:
+            assert kw in embeddings[DEFAULT_EMB_KEYS.keyword_to_id], (
+                f"'{kw}' should be in keyword_to_id (sourced from cluster JSON)"
+            )
+
+    def test_generate_all_embeddings_precomputed_no_model_call(self, embed_cluster_parser):
+        """When cluster JSON has pre-computed embeddings, no model call is made for keywords."""
+        call_log = []
+
+        class TrackingModel:
+            """Model that records every encode() call."""
+
+            dim = 384
+            model_name = "tracking-model"
+            _model_name = "tracking-model"
+
+            def encode(self, texts, **kwargs):
+                call_log.append(list(texts))
+                embeddings = []
+                for text in texts:
+                    seed = hash(text) % (2**32)
+                    np.random.seed(seed)
+                    embeddings.append(np.random.randn(self.dim).astype(np.float32))
+                return np.array(embeddings)
+
+        tracking_model = TrackingModel()
+        generator = EmbeddingGenerator(tracking_model, embed_cluster_parser, show_progress=False)
+
+        df = pd.DataFrame({"question": ["Q1"], "source": ["S1"], "keywords": [["python"]]})
+        embeddings = generator.generate_all_embeddings(df)
+
+        # Only question and source embeddings should be requested from the model.
+        all_encoded = [text for batch in call_log for text in batch]
+        assert "python" not in all_encoded, "Keyword embedding should not trigger a model call"
+        assert "Q1" in all_encoded, "Questions must still be embedded by the model"
+        assert "S1" in all_encoded, "Sources must still be embedded by the model"
+
+        # The returned keyword vocab matches the cluster JSON (6 keywords)
+        assert embeddings[DEFAULT_EMB_KEYS.keyword].shape == (6, 384)
+
+    def test_generate_all_embeddings_cluster_assignments_fallback(
+        self, mock_model, sample_embed_clustering_json, tmp_path
+    ):
+        """When cluster JSON has no 'embeddings' key, keywords come from cluster_assignments."""
+        json_data = {k: v for k, v in sample_embed_clustering_json.items() if k != "embeddings"}
+        json_path = tmp_path / "no_embs.json"
+        with open(json_path, "w") as f:
+            json.dump(json_data, f)
+
+        parser = ClusterParser(json_path)
+        assert parser.keyword_embeddings is None, "Fixture should have no pre-computed embeddings"
+
+        generator = EmbeddingGenerator(mock_model, parser, show_progress=False)
+        df = pd.DataFrame({"question": ["Q1"], "source": ["S1"], "keywords": [["unrelated"]]})
+
+        embeddings = generator.generate_all_embeddings(df)
+
+        # Vocabulary from cluster_assignments: python, java, sql, database, ai, ml
+        assert embeddings[DEFAULT_EMB_KEYS.keyword].shape == (6, 384), (
+            "Should embed all 6 keywords from cluster_assignments, not from CSV"
+        )
+        for kw in ["python", "java", "sql", "database", "ai", "ml"]:
+            assert kw in embeddings[DEFAULT_EMB_KEYS.keyword_to_id]
+
+    def test_generate_all_embeddings_no_cluster_parser_uses_csv(self, mock_model):
+        """Without a cluster_parser, keywords are sourced from the CSV column."""
+        generator = EmbeddingGenerator(mock_model, show_progress=False)
+
+        df = pd.DataFrame(
+            {"question": ["Q1"], "source": ["S1"], "keywords": [["alpha", "beta", "gamma"]]}
+        )
+        embeddings = generator.generate_all_embeddings(df)
+
+        assert embeddings[DEFAULT_EMB_KEYS.keyword].shape == (3, 384), (
+            "Should have exactly 3 keywords from the CSV column"
+        )
+        for kw in ["alpha", "beta", "gamma"]:
+            assert kw in embeddings[DEFAULT_EMB_KEYS.keyword_to_id]
 
 
 class TestEmbeddingGeneratorSaveEmbeddings:

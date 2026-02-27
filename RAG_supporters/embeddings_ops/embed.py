@@ -279,6 +279,86 @@ class EmbeddingGenerator:
 
         return embeddings_tensor
 
+    def _resolve_keyword_embeddings(
+        self,
+        df: pd.DataFrame,
+        keywords_col: str,
+        validate: bool,
+    ) -> Tuple[Optional[torch.Tensor], Dict[str, int], str]:
+        """Resolve keyword embeddings from the best available source.
+
+        Priority:
+        1. Pre-computed embeddings in ``cluster_parser.keyword_embeddings``
+           (from the ``"embeddings"`` key in the cluster JSON — only present
+           when :meth:`KeywordClusterer.save_results` was called with
+           ``include_embeddings=True``).  Re-used directly; no model call.
+        2. ``cluster_parser.get_all_keywords()`` — curated vocabulary from the
+           ``"cluster_assignments"`` key.  Embeddings are generated via the
+           embedding model.
+        3. Fallback when no ``cluster_parser`` is set — scan ``df[keywords_col]``
+           as the vocabulary (original behaviour).
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            DataFrame with a keywords column (used only for the CSV fallback).
+        keywords_col : str
+            Name of the keywords column in *df*.
+        validate : bool
+            Whether to run sanity checks on freshly generated embeddings.
+
+        Returns
+        -------
+        Tuple[Optional[torch.Tensor], Dict[str, int], str]
+            ``(keyword_embs, keyword_to_id, source_description)``
+            - ``keyword_embs``: ``[n_keywords, dim]`` tensor, or ``None`` when
+              no keywords are available.
+            - ``keyword_to_id``: mapping from keyword string to row index.
+            - ``source_description``: human-readable string for logging.
+        """
+        # --- Priority 1: pre-computed embeddings from cluster JSON ----------
+        if self.cluster_parser is not None and self.cluster_parser.keyword_embeddings is not None:
+            precomputed = self.cluster_parser.keyword_embeddings
+            if not precomputed:
+                return None, {}, "cluster JSON embeddings (empty)"
+            sorted_kws = sorted(precomputed)
+            keyword_to_id = {kw: i for i, kw in enumerate(sorted_kws)}
+            stacked = np.stack(
+                [precomputed[kw] for kw in sorted_kws], axis=0
+            ).astype(np.float32)
+            keyword_embs = torch.from_numpy(stacked)
+            source = f"cluster JSON embeddings ({len(keyword_to_id)} keywords, no model call)"
+            LOGGER.info("Using %d pre-computed keyword embeddings from cluster JSON.", len(sorted_kws))
+            return keyword_embs, keyword_to_id, source
+
+        # --- Priority 2: cluster JSON vocabulary (no pre-computed embeddings) -
+        if self.cluster_parser is not None:
+            unique_keywords = self.cluster_parser.get_all_keywords()
+            source = f"cluster JSON assignments ({len(unique_keywords)} keywords)"
+            LOGGER.info(
+                "No pre-computed embeddings in cluster JSON; embedding %d keywords "
+                "from cluster_assignments.",
+                len(unique_keywords),
+            )
+        else:
+            # --- Priority 3: scan the CSV column ----------------------------
+            all_keywords: set = set()
+            for kws in df[keywords_col]:
+                if isinstance(kws, list):
+                    all_keywords.update(kws)
+                elif isinstance(kws, str):
+                    all_keywords.update([kw.strip() for kw in kws.split(",")])
+            unique_keywords = sorted(all_keywords)
+            source = f"CSV column '{keywords_col}' ({len(unique_keywords)} keywords)"
+
+        if not unique_keywords:
+            return None, {}, source
+
+        keyword_embs, keyword_to_id = self.generate_keyword_embeddings(
+            unique_keywords, validate=validate
+        )
+        return keyword_embs, keyword_to_id, source
+
     def generate_keyword_embeddings(
         self, keywords: List[str], validate: bool = True
     ) -> Tuple[torch.Tensor, Dict[str, int]]:
@@ -468,20 +548,16 @@ class EmbeddingGenerator:
         unique_questions = df[question_col].unique().tolist()
         unique_sources = df[source_col].unique().tolist()
 
-        # Extract unique keywords
-        all_keywords = set()
-        for keywords in df[keywords_col]:
-            if isinstance(keywords, list):
-                all_keywords.update(keywords)
-            elif isinstance(keywords, str):
-                all_keywords.update([kw.strip() for kw in keywords.split(",")])
-        unique_keywords = sorted(list(all_keywords))
+        # Resolve keyword embeddings (cluster JSON → cluster assignments → CSV fallback)
+        keyword_embs, keyword_to_id, keyword_source = self._resolve_keyword_embeddings(
+            df=df, keywords_col=keywords_col, validate=validate
+        )
 
         LOGGER.info(
-            f"Dataset contains: "
-            f"{len(unique_questions)} questions, "
-            f"{len(unique_sources)} sources, "
-            f"{len(unique_keywords)} keywords"
+            "Dataset contains: %d questions, %d sources, keywords from %s",
+            len(unique_questions),
+            len(unique_sources),
+            keyword_source,
         )
 
         # Generate embeddings
@@ -502,10 +578,7 @@ class EmbeddingGenerator:
         result["source_to_id"] = {s: i for i, s in enumerate(unique_sources)}
 
         # Keywords
-        if unique_keywords:
-            keyword_embs, keyword_to_id = self.generate_keyword_embeddings(
-                unique_keywords, validate=validate
-            )
+        if keyword_embs is not None:
             result["keyword_embs"] = keyword_embs
             result["keyword_to_id"] = keyword_to_id
         else:
@@ -527,8 +600,6 @@ class EmbeddingGenerator:
             )
             result["keyword_embs"] = None
             result["keyword_to_id"] = {}
-            keyword_embs = None
-            keyword_to_id: Dict[str, int] = {}
 
         # Centroids (if cluster parser provided and keywords are present)
         if self.cluster_parser is not None and keyword_embs is not None:
