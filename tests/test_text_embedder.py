@@ -37,12 +37,6 @@ class TestTextEmbedderImport:
 
         assert TextEmbedder is not None, "TextEmbedder must be exported from embeddings package"
 
-    def test_old_file_still_importable(self):
-        """keyword_embedder.py still exists and exports KeywordEmbedder (legacy file)."""
-        from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
-
-        assert KeywordEmbedder is not None, "Legacy keyword_embedder.py must remain importable"
-
 
 class TestTextEmbedderInit:
     """Test __init__ model detection and wrapping."""

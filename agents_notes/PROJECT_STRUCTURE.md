@@ -127,7 +127,7 @@ Embedding generation, storage, and retrieval.
 
 - **__init__.py** - Exports embedding classes
 - **io.py** - Embedding input/output operations and serialization
-- **keyword_embedder.py** - KeywordEmbedder: Generates embeddings for keywords and terms
+- **text_embedder.py** - TextEmbedder: Unified embedding wrapper for arbitrary text (keywords, topics, questions, sources, steering texts)
 
 ### nn/ - Neural Network Models
 Lightweight neural network models for RAG improvement. Implements JASPER (Joint Architecture for Subspace Prediction with Explainable Routing) — JEPA-style predictor with EMA, multi-objective losses, subspace routing, and XAI.
