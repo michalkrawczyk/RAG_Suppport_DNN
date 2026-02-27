@@ -229,6 +229,9 @@ class TextEmbedder:
                 convert_to_numpy=True,
                 normalize_embeddings=normalize_embeddings,
             )
+            if normalize_embeddings:
+                norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+                embeddings = embeddings / (norms + 1e-8)
             return embeddings
 
         elif self.model_type == "langchain":
