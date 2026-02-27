@@ -21,6 +21,7 @@
 4. **Both interfaces** → implement single-item (`process_item`) and batch (`process_dataframe` / `process_csv`)
 5. **Logging** → INFO for normal operations, ERROR for failures
 
+- **Never bypass LangChain** for LLM interaction — always use `BaseChatModel` abstractions.
 ## After Writing Code
 
 1. Write comprehensive tests in `tests/test_<agent_name>.py` (see [testing.md](testing.md))
@@ -72,3 +73,9 @@ See **[setup_and_install.md](setup_and_install.md)** for the dependency table, i
 
 - `DatasetSplitter` saves indices to JSON for reproducibility — always pass the same `random_state`
 - Load existing splits: `DatasetSplitter.from_file(path)`
+
+## Non-Negotiable Rules
+
+- **Never bypass LangChain** for LLM interaction — always use `BaseChatModel` abstractions.
+- **Every agent requires a test file** with mocked LLM calls in `tests/test_<agent_name>.py`.
+- **Agents must never crash** on LLM failures — graceful error handling is mandatory.
