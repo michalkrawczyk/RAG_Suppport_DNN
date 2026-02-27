@@ -489,6 +489,13 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     build.add_argument(
+        "--build-embedding-batch-size",
+        type=int,
+        default=32,
+        metavar="INT",
+        help="Batch size used when generating embeddings during the build step (default: 32).",
+    )
+    build.add_argument(
         "--build-n-neg",
         type=int,
         default=12,
@@ -552,6 +559,7 @@ def main() -> None:
             output_dir=args.dataset_dir,
             n_neg=args.build_n_neg,
             normalize_embeddings=args.build_normalize_embeddings,
+            embedding_batch_size=args.build_embedding_batch_size,
         )
         LOGGER.info("Step 0: Dataset build complete.")
 
