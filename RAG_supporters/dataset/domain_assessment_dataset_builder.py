@@ -28,9 +28,7 @@ class DomainAssessmentDatasetBuilder:
         csv_paths: Union[str, Path, List[Union[str, Path]]],
         clustering_json_path: Union[str, Path],
         output_dir: Union[str, Path],
-        embedding_model: Union[
-            str, Any, TextEmbedder
-        ],  # Model name, TextEmbedder, or raw model
+        embedding_model: Union[str, Any, TextEmbedder],  # Model name, TextEmbedder, or raw model
         steering_config: Optional[SteeringConfig] = None,
         label_normalizer: str = "softmax",
         label_temp: float = 1.0,

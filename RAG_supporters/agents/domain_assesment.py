@@ -1552,9 +1552,9 @@ try:
                             )
                         elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                             # Create JSON mapping using helper method
-                            result_df.at[idx, "question_term_relevance_scores"] = (
-                                self._create_relevance_json_mapping(result["topic_scores"])
-                            )
+                            result_df.at[
+                                idx, "question_term_relevance_scores"
+                            ] = self._create_relevance_json_mapping(result["topic_scores"])
                             result_df.at[idx, f"{prefix}_topic_scores"] = str(
                                 result["topic_scores"]
                             )
@@ -1662,9 +1662,9 @@ try:
                             )
                         elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                             # Create JSON mapping using helper method
-                            result_df.at[idx, "question_term_relevance_scores"] = (
-                                self._create_relevance_json_mapping(result["topic_scores"])
-                            )
+                            result_df.at[
+                                idx, "question_term_relevance_scores"
+                            ] = self._create_relevance_json_mapping(result["topic_scores"])
                             result_df.at[idx, f"{prefix}_topic_scores"] = str(
                                 result["topic_scores"]
                             )
@@ -2412,9 +2412,9 @@ try:
                         if result is not None:
                             # Apply successful result to all rows with this question
                             for idx in row_indices:
-                                result_df.at[idx, "question_term_relevance_scores"] = (
-                                    self._create_relevance_json_mapping(result["topic_scores"])
-                                )
+                                result_df.at[
+                                    idx, "question_term_relevance_scores"
+                                ] = self._create_relevance_json_mapping(result["topic_scores"])
                                 result_df.at[idx, f"{prefix}_topic_scores"] = str(
                                     result["topic_scores"]
                                 )

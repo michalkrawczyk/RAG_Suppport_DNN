@@ -680,10 +680,10 @@ class TestCSVMergerSuggestionParsing:
         """Both confidence and type filtering applied together."""
         merger = CSVMerger(suggestion_min_confidence=0.8, suggestion_types=["keyword"])
         value = [
-            {"term": "A", "type": "keyword", "confidence": 0.9},   # passes both
-            {"term": "B", "type": "keyword", "confidence": 0.5},   # fails confidence
-            {"term": "C", "type": "domain", "confidence": 0.9},    # fails type
-            {"term": "D", "type": "domain", "confidence": 0.5},    # fails both
+            {"term": "A", "type": "keyword", "confidence": 0.9},  # passes both
+            {"term": "B", "type": "keyword", "confidence": 0.5},  # fails confidence
+            {"term": "C", "type": "domain", "confidence": 0.9},  # fails type
+            {"term": "D", "type": "domain", "confidence": 0.5},  # fails both
         ]
         result = merger._parse_keywords(value)
         assert result == ["a"]
@@ -707,7 +707,14 @@ class TestCSVMergerSuggestionParsing:
                 "source": ["ML is a subset of AI."],
                 "extract_suggestions": [
                     json.dumps(
-                        [{"term": "Machine Learning", "type": "keyword", "confidence": 0.9, "reason": ""}]
+                        [
+                            {
+                                "term": "Machine Learning",
+                                "type": "keyword",
+                                "confidence": 0.9,
+                                "reason": "",
+                            }
+                        ]
                     )
                 ],
             }

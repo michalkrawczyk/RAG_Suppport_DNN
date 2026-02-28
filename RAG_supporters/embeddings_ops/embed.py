@@ -323,12 +323,12 @@ class EmbeddingGenerator:
                 return None, {}, "cluster JSON embeddings (empty)"
             sorted_kws = sorted(precomputed)
             keyword_to_id = {kw: i for i, kw in enumerate(sorted_kws)}
-            stacked = np.stack(
-                [precomputed[kw] for kw in sorted_kws], axis=0
-            ).astype(np.float32)
+            stacked = np.stack([precomputed[kw] for kw in sorted_kws], axis=0).astype(np.float32)
             keyword_embs = torch.from_numpy(stacked)
             source = f"cluster JSON embeddings ({len(keyword_to_id)} keywords, no model call)"
-            LOGGER.info("Using %d pre-computed keyword embeddings from cluster JSON.", len(sorted_kws))
+            LOGGER.info(
+                "Using %d pre-computed keyword embeddings from cluster JSON.", len(sorted_kws)
+            )
             return keyword_embs, keyword_to_id, source
 
         # --- Priority 2: cluster JSON vocabulary (no pre-computed embeddings) -

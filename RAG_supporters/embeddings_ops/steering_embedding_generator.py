@@ -30,9 +30,7 @@ class SteeringEmbeddingGenerator:
         self,
         config: SteeringConfig,
         clustering_data: ClusteringData,
-        embedding_model: Union[
-            str, Any, TextEmbedder
-        ],  # Model name, TextEmbedder, or raw model
+        embedding_model: Union[str, Any, TextEmbedder],  # Model name, TextEmbedder, or raw model
         suggestion_embeddings: Optional[Dict[str, np.ndarray]] = None,
         llm_steering_texts: Optional[Dict[str, str]] = None,
         augment_noise_prob: float = 0.0,

@@ -1251,9 +1251,9 @@ class TestEmbeddingGeneratorAllEmbeddings:
 
         # All 6 keywords from the cluster JSON should be present
         for kw in ["python", "java", "sql", "database", "ai", "ml"]:
-            assert kw in embeddings[DEFAULT_EMB_KEYS.keyword_to_id], (
-                f"'{kw}' should be in keyword_to_id (sourced from cluster JSON)"
-            )
+            assert (
+                kw in embeddings[DEFAULT_EMB_KEYS.keyword_to_id]
+            ), f"'{kw}' should be in keyword_to_id (sourced from cluster JSON)"
 
     def test_generate_all_embeddings_precomputed_no_model_call(self, embed_cluster_parser):
         """When cluster JSON has pre-computed embeddings, no model call is made for keywords."""
@@ -1308,9 +1308,10 @@ class TestEmbeddingGeneratorAllEmbeddings:
         embeddings = generator.generate_all_embeddings(df)
 
         # Vocabulary from cluster_assignments: python, java, sql, database, ai, ml
-        assert embeddings[DEFAULT_EMB_KEYS.keyword].shape == (6, 384), (
-            "Should embed all 6 keywords from cluster_assignments, not from CSV"
-        )
+        assert embeddings[DEFAULT_EMB_KEYS.keyword].shape == (
+            6,
+            384,
+        ), "Should embed all 6 keywords from cluster_assignments, not from CSV"
         for kw in ["python", "java", "sql", "database", "ai", "ml"]:
             assert kw in embeddings[DEFAULT_EMB_KEYS.keyword_to_id]
 
@@ -1323,9 +1324,10 @@ class TestEmbeddingGeneratorAllEmbeddings:
         )
         embeddings = generator.generate_all_embeddings(df)
 
-        assert embeddings[DEFAULT_EMB_KEYS.keyword].shape == (3, 384), (
-            "Should have exactly 3 keywords from the CSV column"
-        )
+        assert embeddings[DEFAULT_EMB_KEYS.keyword].shape == (
+            3,
+            384,
+        ), "Should have exactly 3 keywords from the CSV column"
         for kw in ["alpha", "beta", "gamma"]:
             assert kw in embeddings[DEFAULT_EMB_KEYS.keyword_to_id]
 
