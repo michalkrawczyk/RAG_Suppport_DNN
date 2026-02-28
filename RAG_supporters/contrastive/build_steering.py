@@ -27,7 +27,6 @@ from RAG_supporters.data_validation import (
     validate_tensor_2d,
     validate_tensor_1d,
     validate_embedding_dimensions,
-    validate_pair_indices_bounds,
     validate_cluster_ids_bounds,
     validate_length_consistency,
     validate_keyword_ids_list,
@@ -209,12 +208,15 @@ class SteeringBuilder:
             (pair_keyword_ids, "pair_keyword_ids", n_pairs),
         )
 
-        # Validate index bounds
-        validate_pair_indices_bounds(
-            pair_indices,
-            n_questions=question_embeddings.shape[0],
-            n_sources=question_embeddings.shape[0],  # Not used for source validation here
-        )
+        # Validate question index bounds only.
+        # Source bounds are validated in mine_negatives where source_embs are available.
+        max_q_idx = pair_indices[:, 0].max().item()
+        n_questions = question_embeddings.shape[0]
+        if max_q_idx >= n_questions:
+            raise ValueError(
+                f"pair_indices contains question index {max_q_idx} "
+                f"but only {n_questions} questions exist"
+            )
 
         validate_cluster_ids_bounds(
             pair_cluster_ids, n_clusters=centroid_embeddings.shape[0], name="pair_cluster_ids"
