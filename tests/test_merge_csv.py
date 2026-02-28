@@ -697,7 +697,7 @@ class TestCSVMergerSuggestionParsing:
         result = merger._parse_keywords(value)
         assert result == []
 
-    def test_extract_suggestions_column_alias(self):
+    def test_extract_suggestions_column_alias(self, tmp_path):
         """Full merge_csv_files call with extract_suggestions column → keywords populated."""
         import json
 
@@ -719,11 +719,11 @@ class TestCSVMergerSuggestionParsing:
                 ],
             }
         )
-        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
-            df.to_csv(f.name, index=False)
-            from RAG_supporters.data_prep import merge_csv_files as _merge
+        csv_path = tmp_path / "input.csv"
+        df.to_csv(csv_path, index=False)
+        from RAG_supporters.data_prep import merge_csv_files as _merge
 
-            result = _merge([f.name])
+        result = _merge([str(csv_path)])
 
         assert len(result) == 1
         kws = result.iloc[0]["keywords"]
@@ -802,7 +802,7 @@ class TestCSVMergerTopicRelevanceParsing:
         assert len(result) >= 1
         assert "main topic" in result
 
-    def test_topic_relevance_column_alias(self):
+    def test_topic_relevance_column_alias(self, tmp_path):
         """Full merge with topic_relevance_prob_topic_scores column → keywords populated."""
         import json
 
@@ -817,11 +817,11 @@ class TestCSVMergerTopicRelevanceParsing:
                 ],
             }
         )
-        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
-            df.to_csv(f.name, index=False)
-            from RAG_supporters.data_prep import merge_csv_files as _merge
+        csv_path = tmp_path / "input.csv"
+        df.to_csv(csv_path, index=False)
+        from RAG_supporters.data_prep import merge_csv_files as _merge
 
-            result = _merge([f.name], topic_min_probability=0.5)
+        result = _merge([str(csv_path)], topic_min_probability=0.5)
 
         assert len(result) == 1
         kws = result.iloc[0]["keywords"]
