@@ -213,7 +213,7 @@ class TestCsvOriginSplit:
 # ---------------------------------------------------------------------------
 
 
-def _noop_build_dataset_check(csv_paths, csv_splits, **kwargs):
+def _noop_build_dataset_check(csv_paths, csv_splits, tmp_path, **kwargs):
     """Partially invoke build_dataset only far enough to trigger arg validation."""
     from RAG_supporters.jasper.build import build_dataset
 
@@ -222,14 +222,14 @@ def _noop_build_dataset_check(csv_paths, csv_splits, **kwargs):
         csv_paths=csv_paths,
         cluster_json_path="fake.json",
         embedding_model=None,
-        output_dir="/tmp/noop",
+        output_dir=str(tmp_path),
         csv_splits=csv_splits,
         **kwargs,
     )
 
 
 class TestBuildDatasetArgValidation:
-    def test_raises_when_neither_csv_paths_nor_csv_splits(self):
+    def test_raises_when_neither_csv_paths_nor_csv_splits(self, tmp_path):
         from RAG_supporters.jasper.build import build_dataset
 
         with pytest.raises(ValueError, match="Either csv_paths or csv_splits"):
@@ -237,11 +237,11 @@ class TestBuildDatasetArgValidation:
                 csv_paths=[],
                 cluster_json_path="fake.json",
                 embedding_model=None,
-                output_dir="/tmp/noop",
+                output_dir=str(tmp_path),
                 csv_splits=None,
             )
 
-    def test_raises_when_csv_splits_missing_required_keys(self):
+    def test_raises_when_csv_splits_missing_required_keys(self, tmp_path):
         from RAG_supporters.jasper.build import build_dataset
 
         with pytest.raises(ValueError, match="missing"):
@@ -249,11 +249,11 @@ class TestBuildDatasetArgValidation:
                 csv_paths=[],
                 cluster_json_path="fake.json",
                 embedding_model=None,
-                output_dir="/tmp/noop",
+                output_dir=str(tmp_path),
                 csv_splits={"train": ["train.csv"]},  # missing "val"
             )
 
-    def test_warns_when_both_csv_paths_and_csv_splits_provided(self, caplog):
+    def test_warns_when_both_csv_paths_and_csv_splits_provided(self, tmp_path, caplog):
         import logging
         from RAG_supporters.jasper.build import build_dataset
 
@@ -264,7 +264,7 @@ class TestBuildDatasetArgValidation:
                     csv_paths=["something.csv"],
                     cluster_json_path="fake.json",
                     embedding_model=None,
-                    output_dir="/tmp/noop",
+                    output_dir=str(tmp_path),
                     csv_splits={"train": ["train.csv"], "val": ["val.csv"]},
                 )
             except Exception:
