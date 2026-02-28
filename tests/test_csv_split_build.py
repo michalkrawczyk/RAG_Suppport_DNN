@@ -20,7 +20,6 @@ import torch
 from RAG_supporters.jasper.builder_config import BuildConfig
 from RAG_supporters.jasper.build import _csv_origin_split
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

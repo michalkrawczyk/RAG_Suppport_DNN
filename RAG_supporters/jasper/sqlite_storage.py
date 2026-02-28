@@ -39,8 +39,7 @@ class SQLiteStorageManager:
         self.conn.row_factory = sqlite3.Row  # Enable column access by name
 
         # Create tables
-        self.conn.execute(
-            """
+        self.conn.execute("""
             CREATE TABLE IF NOT EXISTS samples (
                 sample_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sample_type TEXT NOT NULL,  -- 'source' or 'question'
@@ -55,11 +54,9 @@ class SQLiteStorageManager:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
+        """)
 
-        self.conn.execute(
-            """
+        self.conn.execute("""
             CREATE TABLE IF NOT EXISTS embeddings_meta (
                 embedding_type TEXT PRIMARY KEY,  -- 'base' or 'steering'
                 file_path TEXT NOT NULL,
@@ -67,32 +64,25 @@ class SQLiteStorageManager:
                 dtype TEXT NOT NULL,
                 checksum TEXT NOT NULL  -- SHA256 of file
             )
-        """
-        )
+        """)
 
-        self.conn.execute(
-            """
+        self.conn.execute("""
             CREATE TABLE IF NOT EXISTS dataset_info (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL  -- JSON-encoded value
             )
-        """
-        )
+        """)
 
         # Create indices for faster queries
-        self.conn.execute(
-            """
+        self.conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_sample_type 
             ON samples(sample_type)
-        """
-        )
+        """)
 
-        self.conn.execute(
-            """
+        self.conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_chroma_id 
             ON samples(chroma_id)
-        """
-        )
+        """)
 
         self.conn.commit()
         logging.info(f"Initialized SQLite database at {self.db_path}")

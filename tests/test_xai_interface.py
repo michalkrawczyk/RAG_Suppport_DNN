@@ -17,7 +17,6 @@ from RAG_supporters.nn.models.decomposed_predictor import (
 from RAG_supporters.nn.models.jasper_predictor import JASPERPredictor, JASPERPredictorConfig
 from RAG_supporters.nn.inference.xai_interface import XAIInterface
 
-
 # ---------------------------------------------------------------------------
 # Constants and helpers
 # ---------------------------------------------------------------------------
