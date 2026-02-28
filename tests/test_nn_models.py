@@ -26,7 +26,6 @@ from RAG_supporters.nn.models.subspace_router import SubspaceRouter, SubspaceRou
 from RAG_supporters.DEFAULT_CONSTS import DEFAULT_EMB_KEYS
 from RAG_supporters.nn.models.ema_encoder import EMAEncoder
 
-
 # ===========================================================================
 # JASPERPredictor
 # ===========================================================================

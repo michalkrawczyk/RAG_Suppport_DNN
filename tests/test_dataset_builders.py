@@ -10,7 +10,6 @@ import torch
 
 from RAG_supporters.jasper import BuildConfig, DatasetFinalizer, build_dataset, finalize_dataset
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers & fixtures
 # ---------------------------------------------------------------------------

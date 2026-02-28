@@ -26,7 +26,6 @@ from RAG_supporters.nn.losses.jasper_losses import JASPERMultiObjectiveLoss
 from RAG_supporters.nn.training.jasper_trainer import JASPERTrainer, JASPERTrainerConfig
 from RAG_supporters.nn.training.monitoring import TrainingMonitor, _MATPLOTLIB_AVAILABLE
 
-
 # ===========================================================================
 # JASPERTrainer
 # ===========================================================================
