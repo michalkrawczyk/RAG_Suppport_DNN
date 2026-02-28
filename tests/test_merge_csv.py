@@ -624,3 +624,213 @@ class TestCSVMergerEdgeCases:
 
         with pytest.raises(FileNotFoundError, match="CSV file not found"):
             merger.merge_csv_files(["nonexistent.csv"])
+
+
+class TestCSVMergerSuggestionParsing:
+    """Test _parse_keywords with extract_suggestions list-of-dicts format."""
+
+    def test_parse_suggestions_list_of_dicts(self):
+        """Python List[dict] with 'term' key extracts term strings."""
+        merger = CSVMerger()
+        value = [
+            {"term": "Medulloblastoma", "type": "domain", "confidence": 0.99, "reason": "x"},
+            {"term": "Copy number variation", "type": "keyword", "confidence": 0.95, "reason": "y"},
+        ]
+        result = merger._parse_keywords(value)
+        assert result == ["medulloblastoma", "copy number variation"]
+
+    def test_parse_suggestions_json_string(self):
+        """JSON-serialised '[{\"term\": ...}]' string extracts terms."""
+        import json
+
+        merger = CSVMerger()
+        value = json.dumps(
+            [
+                {"term": "Machine Learning", "type": "domain", "confidence": 0.9, "reason": ""},
+                {"term": "Neural Network", "type": "keyword", "confidence": 0.8, "reason": ""},
+            ]
+        )
+        result = merger._parse_keywords(value)
+        assert "machine learning" in result
+        assert "neural network" in result
+
+    def test_parse_suggestions_confidence_filter(self):
+        """suggestion_min_confidence=0.95 removes low-confidence terms."""
+        merger = CSVMerger(suggestion_min_confidence=0.95)
+        value = [
+            {"term": "High Confidence", "type": "keyword", "confidence": 0.99},
+            {"term": "Low Confidence", "type": "keyword", "confidence": 0.5},
+        ]
+        result = merger._parse_keywords(value)
+        assert "high confidence" in result
+        assert "low confidence" not in result
+
+    def test_parse_suggestions_type_filter(self):
+        """suggestion_types=['keyword'] keeps only matching type entries."""
+        merger = CSVMerger(suggestion_types=["keyword"])
+        value = [
+            {"term": "Domain Term", "type": "domain", "confidence": 0.9},
+            {"term": "Keyword Term", "type": "keyword", "confidence": 0.9},
+        ]
+        result = merger._parse_keywords(value)
+        assert "keyword term" in result
+        assert "domain term" not in result
+
+    def test_parse_suggestions_combined_filter(self):
+        """Both confidence and type filtering applied together."""
+        merger = CSVMerger(suggestion_min_confidence=0.8, suggestion_types=["keyword"])
+        value = [
+            {"term": "A", "type": "keyword", "confidence": 0.9},  # passes both
+            {"term": "B", "type": "keyword", "confidence": 0.5},  # fails confidence
+            {"term": "C", "type": "domain", "confidence": 0.9},  # fails type
+            {"term": "D", "type": "domain", "confidence": 0.5},  # fails both
+        ]
+        result = merger._parse_keywords(value)
+        assert result == ["a"]
+
+    def test_parse_suggestions_empty_after_filter(self):
+        """All items filtered → returns []."""
+        merger = CSVMerger(suggestion_min_confidence=0.99)
+        value = [
+            {"term": "Low", "type": "keyword", "confidence": 0.1},
+        ]
+        result = merger._parse_keywords(value)
+        assert result == []
+
+    def test_extract_suggestions_column_alias(self, tmp_path):
+        """Full merge_csv_files call with extract_suggestions column → keywords populated."""
+        import json
+
+        df = pd.DataFrame(
+            {
+                "question": ["What is ML?"],
+                "source": ["ML is a subset of AI."],
+                "extract_suggestions": [
+                    json.dumps(
+                        [
+                            {
+                                "term": "Machine Learning",
+                                "type": "keyword",
+                                "confidence": 0.9,
+                                "reason": "",
+                            }
+                        ]
+                    )
+                ],
+            }
+        )
+        csv_path = tmp_path / "test.csv"
+        df.to_csv(csv_path, index=False)
+        from RAG_supporters.data_prep import merge_csv_files as _merge
+
+        result = _merge([str(csv_path)])
+
+        assert len(result) == 1
+        kws = result.iloc[0]["keywords"]
+        assert isinstance(kws, list)
+        assert "machine learning" in kws
+
+    def test_backward_compat_plain_list(self):
+        """Existing plain ['kw1', 'kw2'] list still parses correctly."""
+        merger = CSVMerger()
+        result = merger._parse_keywords(["kw1", "kw2"])
+        assert result == ["kw1", "kw2"]
+
+    def test_backward_compat_csv_string(self):
+        """Existing 'kw1, kw2' string still parses correctly."""
+        merger = CSVMerger()
+        result = merger._parse_keywords("kw1, kw2")
+        assert result == ["kw1", "kw2"]
+
+
+class TestCSVMergerTopicRelevanceParsing:
+    """Test _parse_keywords with topic_relevance_prob_topic_scores list-of-dicts format."""
+
+    def test_parse_topic_scores_list_of_dicts(self):
+        """Python List[dict] with 'topic_descriptor' key → extracts descriptors."""
+        merger = CSVMerger(topic_min_probability=0.0)
+        value = [
+            {"topic_descriptor": "cancer targeting", "probability": 0.75, "reason": None},
+            {"topic_descriptor": "cancer progression", "probability": 0.85, "reason": None},
+        ]
+        result = merger._parse_keywords(value)
+        assert "cancer targeting" in result
+        assert "cancer progression" in result
+
+    def test_parse_topic_scores_json_string(self):
+        """JSON-serialised topic scores string → extracts descriptors."""
+        import json
+
+        merger = CSVMerger(topic_min_probability=0.0)
+        value = json.dumps(
+            [
+                {"topic_descriptor": "deep learning", "probability": 0.9, "reason": None},
+                {"topic_descriptor": "computer vision", "probability": 0.7, "reason": None},
+            ]
+        )
+        result = merger._parse_keywords(value)
+        assert "deep learning" in result
+        assert "computer vision" in result
+
+    def test_parse_topic_scores_probability_filter(self):
+        """topic_min_probability=0.7 removes low-probability topics."""
+        merger = CSVMerger(topic_min_probability=0.7)
+        value = [
+            {"topic_descriptor": "High Prob", "probability": 0.9},
+            {"topic_descriptor": "Low Prob", "probability": 0.4},
+        ]
+        result = merger._parse_keywords(value)
+        assert "high prob" in result
+        assert "low prob" not in result
+
+    def test_parse_topic_scores_empty_after_filter(self):
+        """All topics below threshold → returns []."""
+        merger = CSVMerger(topic_min_probability=0.99)
+        value = [
+            {"topic_descriptor": "anything", "probability": 0.3},
+        ]
+        result = merger._parse_keywords(value)
+        assert result == []
+
+    def test_parse_topic_scores_partial_coverage(self):
+        """Incomplete column still returns non-empty list when above threshold."""
+        merger = CSVMerger(topic_min_probability=0.5)
+        value = [
+            {"topic_descriptor": "main topic", "probability": 0.8},
+        ]
+        result = merger._parse_keywords(value)
+        assert len(result) >= 1
+        assert "main topic" in result
+
+    def test_topic_relevance_column_alias(self, tmp_path):
+        """Full merge with topic_relevance_prob_topic_scores column → keywords populated."""
+        import json
+
+        df = pd.DataFrame(
+            {
+                "question": ["What causes cancer?"],
+                "source": ["Cancer is caused by mutations."],
+                "topic_relevance_prob_topic_scores": [
+                    json.dumps(
+                        [{"topic_descriptor": "oncology", "probability": 0.85, "reason": None}]
+                    )
+                ],
+            }
+        )
+        csv_path = tmp_path / "input.csv"
+        df.to_csv(csv_path, index=False)
+        from RAG_supporters.data_prep import merge_csv_files as _merge
+
+        result = _merge([str(csv_path)], topic_min_probability=0.5)
+
+        assert len(result) == 1
+        kws = result.iloc[0]["keywords"]
+        assert isinstance(kws, list)
+        assert "oncology" in kws
+
+    def test_unknown_dict_schema(self):
+        """Dict with neither 'term' nor 'topic_descriptor' → returns []."""
+        merger = CSVMerger()
+        value = [{"foo": "bar", "baz": 1.0}]
+        result = merger._parse_keywords(value)
+        assert result == []

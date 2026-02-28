@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 from RAG_supporters.augmentations.embedding import random_noise_embedding, random_zero_embedding
 from RAG_supporters.clustering.clustering_data import ClusteringData
-from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+from RAG_supporters.embeddings.text_embedder import TextEmbedder
 from RAG_supporters.utils.text_utils import normalize_string
 
 from .steering_config import SteeringConfig, SteeringMode
@@ -30,9 +30,7 @@ class SteeringEmbeddingGenerator:
         self,
         config: SteeringConfig,
         clustering_data: ClusteringData,
-        embedding_model: Union[
-            str, Any, KeywordEmbedder
-        ],  # Model name, KeywordEmbedder, or raw model
+        embedding_model: Union[str, Any, TextEmbedder],  # Model name, TextEmbedder, or raw model
         suggestion_embeddings: Optional[Dict[str, np.ndarray]] = None,
         llm_steering_texts: Optional[Dict[str, str]] = None,
         augment_noise_prob: float = 0.0,
@@ -45,8 +43,8 @@ class SteeringEmbeddingGenerator:
         Args:
             config: Steering configuration with modes
             clustering_data: Cluster data with centroids and descriptors
-            embedding_model: Model name (str), KeywordEmbedder instance, or raw model.
-                           If string: creates KeywordEmbedder with model_name.
+            embedding_model: Model name (str), TextEmbedder instance, or raw model.
+                           If string: creates TextEmbedder with model_name.
                            Supports both sentence-transformers and LangChain models.
             suggestion_embeddings: Pre-computed suggestion embeddings {suggestion: embedding}
             llm_steering_texts: LLM-generated steering texts {key: text}
@@ -57,15 +55,15 @@ class SteeringEmbeddingGenerator:
         self.config = config
         self.clustering_data = clustering_data
 
-        # Initialize KeywordEmbedder (supports both sentence-transformers and LangChain)
-        if isinstance(embedding_model, KeywordEmbedder):
+        # Initialize TextEmbedder (supports both sentence-transformers and LangChain)
+        if isinstance(embedding_model, TextEmbedder):
             self.embedder = embedding_model
         elif isinstance(embedding_model, str):
-            # Create KeywordEmbedder from model name
-            self.embedder = KeywordEmbedder(model_name=embedding_model)
+            # Create TextEmbedder from model name
+            self.embedder = TextEmbedder(model_name=embedding_model)
         else:
-            # Wrap raw model in KeywordEmbedder
-            self.embedder = KeywordEmbedder(embedding_model=embedding_model)
+            # Wrap raw model in TextEmbedder
+            self.embedder = TextEmbedder(embedding_model=embedding_model)
 
         self.suggestion_embeddings = suggestion_embeddings or {}
         self.llm_steering_texts = llm_steering_texts or {}
@@ -153,13 +151,13 @@ class SteeringEmbeddingGenerator:
                 continue
 
             # Normalize term to match keys in suggestion_embeddings
-            # (KeywordEmbedder normalizes all keys during embedding creation)
+            # (TextEmbedder normalizes all keys during embedding creation)
             normalized_term = normalize_string(term)
 
             if normalized_term in self.suggestion_embeddings:
                 embeddings.append(self.suggestion_embeddings[normalized_term])
             else:
-                # Fallback: encode on-the-fly using KeywordEmbedder
+                # Fallback: encode on-the-fly using TextEmbedder
                 try:
                     emb = self.embedder._generate_embeddings(
                         [term], batch_size=1, show_progress=False
@@ -195,7 +193,7 @@ class SteeringEmbeddingGenerator:
             logging.warning(f"No descriptors for cluster {cluster_id}")
             return self._generate_zero_embedding()
 
-        # Encode descriptors using KeywordEmbedder
+        # Encode descriptors using TextEmbedder
         try:
             embeddings = self.embedder._generate_embeddings(
                 descriptors, batch_size=32, show_progress=True

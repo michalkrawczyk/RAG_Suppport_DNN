@@ -186,7 +186,7 @@ def test_get_embeddings_batch():
     from RAG_supporters.clustering.topic_distance_calculator import (
         TopicDistanceCalculator,
     )
-    from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+    from RAG_supporters.embeddings.text_embedder import TextEmbedder
 
     # Create mock KeywordClusterer data
     mock_clusterer_data = {
@@ -207,7 +207,7 @@ def test_get_embeddings_batch():
                 texts = [texts]
             return np.array([np.random.rand(384) for _ in texts])
 
-    embedder = KeywordEmbedder(embedding_model=MockEmbedModel())
+    embedder = TextEmbedder(embedding_model=MockEmbedModel())
     calculator = TopicDistanceCalculator(
         keyword_clusterer_json=mock_clusterer_data,
         embedder=embedder,
@@ -245,7 +245,7 @@ def test_get_embeddings_batch_no_cache():
     from RAG_supporters.clustering.topic_distance_calculator import (
         TopicDistanceCalculator,
     )
-    from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+    from RAG_supporters.embeddings.text_embedder import TextEmbedder
 
     # Create mock KeywordClusterer data
     mock_clusterer_data = {
@@ -260,7 +260,7 @@ def test_get_embeddings_batch_no_cache():
                 texts = [texts]
             return np.array([np.random.rand(384) for _ in texts])
 
-    embedder = KeywordEmbedder(embedding_model=MockEmbedModel())
+    embedder = TextEmbedder(embedding_model=MockEmbedModel())
     calculator = TopicDistanceCalculator(
         keyword_clusterer_json=mock_clusterer_data,
         embedder=embedder,
@@ -705,7 +705,7 @@ def test_database_embedding_not_found(caplog):
 
 
 def test_embedder_wrapping():
-    """Test that non-KeywordEmbedder embedders are automatically wrapped."""
+    """Test that non-TextEmbedder embedders are automatically wrapped."""
     from RAG_supporters.clustering.topic_distance_calculator import (
         TopicDistanceCalculator,
     )
@@ -722,7 +722,7 @@ def test_embedder_wrapping():
         "cluster_stats": {},
     }
 
-    # Pass non-KeywordEmbedder instance
+    # Pass non-TextEmbedder instance
     st_embedder = MockSentenceTransformer()
     calculator = TopicDistanceCalculator(
         keyword_clusterer_json=mock_clusterer_data,
@@ -730,10 +730,10 @@ def test_embedder_wrapping():
         metric="cosine",
     )
 
-    # Should be wrapped in KeywordEmbedder
-    from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+    # Should be wrapped in TextEmbedder
+    from RAG_supporters.embeddings.text_embedder import TextEmbedder
 
-    assert isinstance(calculator.embedder, KeywordEmbedder)
+    assert isinstance(calculator.embedder, TextEmbedder)
 
     # Should still work for embedding text
     embedding = calculator._get_embedding_from_text("test text")

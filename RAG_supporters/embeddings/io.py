@@ -4,8 +4,8 @@ I/O utilities for loading suggestions from CSV files.
 This module handles file operations for loading LLM suggestions:
 - Loading suggestions from CSV files with chunked processing
 
-For embedding save/load operations, use KeywordEmbedder.save_embeddings() and
-KeywordEmbedder.load_embeddings() static methods.
+For embedding save/load operations, use TextEmbedder.save_embeddings() and
+TextEmbedder.load_embeddings() static methods.
 
 Supports chunked processing for large files and includes progress tracking.
 Part of the RAG_supporters.embeddings package.

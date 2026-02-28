@@ -53,7 +53,7 @@ RAG_supporters = ["py.typed"]
 dependencies = {file = ["dependencies/requirements.txt"]}
 
 [project.optional-dependencies]
-all = ["rag-support-dnn[openai,dev]"]
+all = ["rag-support-dnn[openai,dev,nn]"]
 
 [tool.setuptools.dynamic.optional-dependencies]
 openai = {file = ["dependencies/requirements_agents_openai.txt"]}
@@ -62,6 +62,7 @@ nvidia-mamba = {file = ["dependencies/requirements_agents_nvidia_mamba.txt"]}
 hf = {file = ["dependencies/requirements_agents_hf.txt"]}
 base = {file = ["dependencies/requirements_agents_base.txt"]}
 dev = {file = ["dependencies/requirements-dev.txt"]}
+nn = {file = ["dependencies/requirements-nn.txt"]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

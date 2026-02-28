@@ -1,0 +1,3 @@
+# Optional extras for neural network training and visualization
+matplotlib>=3.8.0
+h5py>=3.11.0

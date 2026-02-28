@@ -23,10 +23,16 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
-from RAG_supporters.embeddings import KeywordEmbedder
+from RAG_supporters.embeddings import TextEmbedder
 from RAG_supporters.clustering_ops import ClusterParser
+from RAG_supporters.DEFAULT_CONSTS import DEFAULT_COL_KEYS
 
 LOGGER = logging.getLogger(__name__)
+
+# Module-level aliases so frozen-dataclass values can be used as function defaults
+_DEFAULT_QUESTION_COL: str = DEFAULT_COL_KEYS.question
+_DEFAULT_SOURCE_COL: str = DEFAULT_COL_KEYS.source
+_DEFAULT_KEYWORDS_COL: str = DEFAULT_COL_KEYS.keywords
 
 
 class EmbeddingGenerator:
@@ -51,7 +57,7 @@ class EmbeddingGenerator:
 
     Attributes
     ----------
-    embedder : KeywordEmbedder
+    embedder : TextEmbedder
         Unified embedding interface
     cluster_parser : ClusterParser, optional
         Cluster metadata parser
@@ -87,8 +93,8 @@ class EmbeddingGenerator:
         normalize_embeddings: bool = False,
     ):
         """Initialize embedding generator."""
-        # Wrap model in KeywordEmbedder for unified interface
-        self.embedder = KeywordEmbedder(embedding_model=embedding_model)
+        # Wrap model in TextEmbedder for unified interface
+        self.embedder = TextEmbedder(embedding_model=embedding_model)
         self.cluster_parser = cluster_parser
         self.batch_size = batch_size
         self.show_progress = show_progress
@@ -246,7 +252,7 @@ class EmbeddingGenerator:
 
         LOGGER.info(f"Generating embeddings for {len(texts)} {text_type}(s)")
 
-        # Generate embeddings using KeywordEmbedder
+        # Generate embeddings using TextEmbedder
         embeddings = self.embedder._generate_embeddings(
             texts=texts,
             batch_size=self.batch_size,
@@ -272,6 +278,86 @@ class EmbeddingGenerator:
         )
 
         return embeddings_tensor
+
+    def _resolve_keyword_embeddings(
+        self,
+        df: pd.DataFrame,
+        keywords_col: str,
+        validate: bool,
+    ) -> Tuple[Optional[torch.Tensor], Dict[str, int], str]:
+        """Resolve keyword embeddings from the best available source.
+
+        Priority:
+        1. Pre-computed embeddings in ``cluster_parser.keyword_embeddings``
+           (from the ``"embeddings"`` key in the cluster JSON — only present
+           when :meth:`KeywordClusterer.save_results` was called with
+           ``include_embeddings=True``).  Re-used directly; no model call.
+        2. ``cluster_parser.get_all_keywords()`` — curated vocabulary from the
+           ``"cluster_assignments"`` key.  Embeddings are generated via the
+           embedding model.
+        3. Fallback when no ``cluster_parser`` is set — scan ``df[keywords_col]``
+           as the vocabulary (original behaviour).
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            DataFrame with a keywords column (used only for the CSV fallback).
+        keywords_col : str
+            Name of the keywords column in *df*.
+        validate : bool
+            Whether to run sanity checks on freshly generated embeddings.
+
+        Returns
+        -------
+        Tuple[Optional[torch.Tensor], Dict[str, int], str]
+            ``(keyword_embs, keyword_to_id, source_description)``
+            - ``keyword_embs``: ``[n_keywords, dim]`` tensor, or ``None`` when
+              no keywords are available.
+            - ``keyword_to_id``: mapping from keyword string to row index.
+            - ``source_description``: human-readable string for logging.
+        """
+        # --- Priority 1: pre-computed embeddings from cluster JSON ----------
+        if self.cluster_parser is not None and self.cluster_parser.keyword_embeddings is not None:
+            precomputed = self.cluster_parser.keyword_embeddings
+            if not precomputed:
+                return None, {}, "cluster JSON embeddings (empty)"
+            sorted_kws = sorted(precomputed)
+            keyword_to_id = {kw: i for i, kw in enumerate(sorted_kws)}
+            stacked = np.stack([precomputed[kw] for kw in sorted_kws], axis=0).astype(np.float32)
+            keyword_embs = torch.from_numpy(stacked)
+            source = f"cluster JSON embeddings ({len(keyword_to_id)} keywords, no model call)"
+            LOGGER.info(
+                "Using %d pre-computed keyword embeddings from cluster JSON.", len(sorted_kws)
+            )
+            return keyword_embs, keyword_to_id, source
+
+        # --- Priority 2: cluster JSON vocabulary (no pre-computed embeddings) -
+        if self.cluster_parser is not None:
+            unique_keywords = self.cluster_parser.get_all_keywords()
+            source = f"cluster JSON assignments ({len(unique_keywords)} keywords)"
+            LOGGER.info(
+                "No pre-computed embeddings in cluster JSON; embedding %d keywords "
+                "from cluster_assignments.",
+                len(unique_keywords),
+            )
+        else:
+            # --- Priority 3: scan the CSV column ----------------------------
+            all_keywords: set = set()
+            for kws in df[keywords_col]:
+                if isinstance(kws, list):
+                    all_keywords.update(kws)
+                elif isinstance(kws, str):
+                    all_keywords.update([kw.strip() for kw in kws.split(",")])
+            unique_keywords = sorted(all_keywords)
+            source = f"CSV column '{keywords_col}' ({len(unique_keywords)} keywords)"
+
+        if not unique_keywords:
+            return None, {}, source
+
+        keyword_embs, keyword_to_id = self.generate_keyword_embeddings(
+            unique_keywords, validate=validate
+        )
+        return keyword_embs, keyword_to_id, source
 
     def generate_keyword_embeddings(
         self, keywords: List[str], validate: bool = True
@@ -403,11 +489,12 @@ class EmbeddingGenerator:
     def generate_all_embeddings(
         self,
         df: pd.DataFrame,
-        question_col: str = "question",
-        source_col: str = "source",
-        keywords_col: str = "keywords",
+        question_col: str = _DEFAULT_QUESTION_COL,
+        source_col: str = _DEFAULT_SOURCE_COL,
+        keywords_col: str = _DEFAULT_KEYWORDS_COL,
         validate: bool = True,
-    ) -> Dict[str, torch.Tensor]:
+        on_empty_keywords: str = "none",
+    ) -> Dict[str, Optional[torch.Tensor]]:
         """Generate embeddings for all dataset components.
 
         Generates embeddings for:
@@ -428,15 +515,21 @@ class EmbeddingGenerator:
             Column name for keywords (default: "keywords")
         validate : bool, optional
             Perform sanity checks (default: True)
+        on_empty_keywords : str, optional
+            Behaviour when the dataset contains no keywords.
+            - ``"none"`` (default): set ``keyword_embs`` to ``None`` and
+              ``keyword_to_id`` to ``{}``; log a warning.
+            - ``"error"``: raise ``ValueError``.
 
         Returns
         -------
-        Dict[str, torch.Tensor]
+        Dict[str, Optional[torch.Tensor]]
             Dictionary with keys:
             - "question_embs": [n_questions, dim]
             - "source_embs": [n_sources, dim]
-            - "keyword_embs": [n_keywords, dim]
-            - "centroid_embs": [n_clusters, dim] (if cluster_parser provided)
+            - "keyword_embs": [n_keywords, dim], or ``None`` when absent
+            - "centroid_embs": [n_clusters, dim] (if cluster_parser provided
+              and keywords present)
             - "question_to_id": Dict[str, int]
             - "source_to_id": Dict[str, int]
             - "keyword_to_id": Dict[str, int]
@@ -455,20 +548,16 @@ class EmbeddingGenerator:
         unique_questions = df[question_col].unique().tolist()
         unique_sources = df[source_col].unique().tolist()
 
-        # Extract unique keywords
-        all_keywords = set()
-        for keywords in df[keywords_col]:
-            if isinstance(keywords, list):
-                all_keywords.update(keywords)
-            elif isinstance(keywords, str):
-                all_keywords.update([kw.strip() for kw in keywords.split(",")])
-        unique_keywords = sorted(list(all_keywords))
+        # Resolve keyword embeddings (cluster JSON → cluster assignments → CSV fallback)
+        keyword_embs, keyword_to_id, keyword_source = self._resolve_keyword_embeddings(
+            df=df, keywords_col=keywords_col, validate=validate
+        )
 
         LOGGER.info(
-            f"Dataset contains: "
-            f"{len(unique_questions)} questions, "
-            f"{len(unique_sources)} sources, "
-            f"{len(unique_keywords)} keywords"
+            "Dataset contains: %d questions, %d sources, keywords from %s",
+            len(unique_questions),
+            len(unique_sources),
+            keyword_source,
         )
 
         # Generate embeddings
@@ -489,14 +578,31 @@ class EmbeddingGenerator:
         result["source_to_id"] = {s: i for i, s in enumerate(unique_sources)}
 
         # Keywords
-        keyword_embs, keyword_to_id = self.generate_keyword_embeddings(
-            unique_keywords, validate=validate
-        )
-        result["keyword_embs"] = keyword_embs
-        result["keyword_to_id"] = keyword_to_id
+        if keyword_embs is not None:
+            result["keyword_embs"] = keyword_embs
+            result["keyword_to_id"] = keyword_to_id
+        else:
+            valid_modes = {"none", "error"}
+            if on_empty_keywords not in valid_modes:
+                raise ValueError(
+                    f"on_empty_keywords must be one of {valid_modes!r}, "
+                    f"got {on_empty_keywords!r}"
+                )
+            if on_empty_keywords == "error":
+                raise ValueError(
+                    "Dataset contains no keywords. "
+                    "Set on_empty_keywords='none' to proceed without keyword embeddings."
+                )
+            LOGGER.warning(
+                "No keywords found in the dataset; keyword_embs will be None and "
+                "keyword_to_id will be {}. Downstream keyword-weighted steering will "
+                "use the fallback strategy for every row."
+            )
+            result["keyword_embs"] = None
+            result["keyword_to_id"] = {}
 
-        # Centroids (if cluster parser provided)
-        if self.cluster_parser is not None:
+        # Centroids (if cluster parser provided and keywords are present)
+        if self.cluster_parser is not None and keyword_embs is not None:
             # Create keyword embeddings dict for validation
             keyword_embs_dict = {kw: keyword_embs[idx].numpy() for kw, idx in keyword_to_id.items()}
 
@@ -538,14 +644,34 @@ class EmbeddingGenerator:
         # Define file names (skip non-tensor items like mappings)
         tensor_keys = ["question_embs", "source_embs", "keyword_embs", "centroid_embs"]
 
-        for key in tensor_keys:
-            if key in embeddings_dict:
-                tensor = embeddings_dict[key]
-                file_name = f"{prefix}{key}.pt" if prefix else f"{key}.pt"
-                file_path = output_dir / file_name
+        # Infer embedding dimension from any present tensor for None fallbacks
+        embed_dim: Optional[int] = None
+        for _k in ("question_embs", "source_embs"):
+            _t = embeddings_dict.get(_k)
+            if isinstance(_t, torch.Tensor) and _t.ndim == 2:
+                embed_dim = _t.shape[1]
+                break
 
-                torch.save(tensor, file_path)
-                LOGGER.info(f"Saved {key}: shape={tensor.shape} to {file_path}")
+        for key in tensor_keys:
+            if key not in embeddings_dict:
+                continue
+            tensor = embeddings_dict[key]
+            if tensor is None:
+                # Save a zero-row placeholder so loaders can always find the file
+                if embed_dim is not None:
+                    tensor = torch.zeros(0, embed_dim, dtype=torch.float32)
+                    LOGGER.info(
+                        f"Saving placeholder for absent {key} "
+                        f"(shape={tensor.shape}) to {output_dir}"
+                    )
+                else:
+                    LOGGER.warning(f"Cannot infer embedding dim; skipping {key}.pt")
+                    continue
+            file_name = f"{prefix}{key}.pt" if prefix else f"{key}.pt"
+            file_path = output_dir / file_name
+
+            torch.save(tensor, file_path)
+            LOGGER.info(f"Saved {key}: shape={tensor.shape} to {file_path}")
 
 
 def generate_embeddings(
@@ -559,8 +685,9 @@ def generate_embeddings(
     batch_size: int = 32,
     normalize_embeddings: bool = False,
     validate: bool = True,
-) -> Dict[str, torch.Tensor]:
-    """Convenience function to generate and optionally save embeddings.
+    on_empty_keywords: str = "none",
+) -> Dict[str, Optional[torch.Tensor]]:
+    """Generate and optionally save embeddings for a DataFrame.
 
     Parameters
     ----------
@@ -584,11 +711,16 @@ def generate_embeddings(
         L2-normalize embeddings (default: False)
     validate : bool, optional
         Perform sanity checks (default: True)
+    on_empty_keywords : str, optional
+        Behaviour when the dataset contains no keywords.
+        ``"none"`` (default) sets ``keyword_embs=None`` and warns;
+        ``"error"`` raises ``ValueError``.
 
     Returns
     -------
-    Dict[str, torch.Tensor]
-        Dictionary of embeddings and mappings
+    Dict[str, Optional[torch.Tensor]]
+        Dictionary of embeddings and mappings. ``keyword_embs`` may be
+        ``None`` when no keywords are present and ``on_empty_keywords='none'``.
 
     Examples
     --------
@@ -620,6 +752,7 @@ def generate_embeddings(
         source_col=source_col,
         keywords_col=keywords_col,
         validate=validate,
+        on_empty_keywords=on_empty_keywords,
     )
 
     # Save if output directory provided

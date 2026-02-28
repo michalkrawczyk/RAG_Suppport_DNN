@@ -1,19 +1,21 @@
 """
-KeywordEmbedder class for keyword embedding operations.
+TextEmbedder class for text embedding operations.
 
 This module provides a high-level interface for the complete embedding pipeline:
-- Creating embeddings for strings using sentence transformers or LangChain models
+- Creating embeddings for arbitrary text strings using sentence transformers or LangChain models
 - Saving and loading embeddings to/from JSON
 - Processing CSV files with LLM suggestions into embeddings
+- Memory-efficient batched/streaming embedding generation
 
-The KeywordEmbedder class encapsulates embedding model management and provides
+The TextEmbedder class encapsulates embedding model management and provides
 both instance methods and static utility methods for embedding operations.
+It supports keywords, topics, questions, sources, and any other text content.
 """
 
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, Generator, List, Literal, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
@@ -22,12 +24,13 @@ from RAG_supporters.utils.text_utils import normalize_string
 LOGGER = logging.getLogger(__name__)
 
 
-class KeywordEmbedder:
+class TextEmbedder:
     """
-    Class for keyword embedding operations.
+    Unified text embedding wrapper for sentence-transformers and LangChain models.
 
-    Supports both sentence-transformers and LangChain embedding models.
-    Provides methods for creating, saving, and loading keyword embeddings.
+    Supports arbitrary text content: keywords, topics, questions, sources,
+    steering texts, and any other string data. Provides methods for creating,
+    saving, loading, and streaming embeddings.
     """
 
     def __init__(
@@ -37,7 +40,7 @@ class KeywordEmbedder:
         model_type: Optional[Literal["sentence-transformers", "langchain"]] = None,
     ):
         """
-        Initialize the keyword embedder.
+        Initialize the text embedder.
 
         Parameters
         ----------
@@ -226,6 +229,9 @@ class KeywordEmbedder:
                 convert_to_numpy=True,
                 normalize_embeddings=normalize_embeddings,
             )
+            if normalize_embeddings:
+                norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+                embeddings = embeddings / (norms + 1e-8)
             return embeddings
 
         elif self.model_type == "langchain":
@@ -272,6 +278,10 @@ class KeywordEmbedder:
         """
         Create embeddings for a list of strings.
 
+        All embeddings are generated and returned as a single dict.
+        For large lists where memory is a concern, use
+        :meth:`create_embeddings_batched` instead.
+
         Parameters
         ----------
         str_list : List[str]
@@ -295,7 +305,7 @@ class KeywordEmbedder:
 
         Examples
         --------
-        >>> embedder = KeywordEmbedder()
+        >>> embedder = TextEmbedder()
         >>> str_list = ['machine learning', 'data science']
         >>> embeddings = embedder.create_embeddings(str_list)
         >>> len(embeddings)
@@ -304,7 +314,7 @@ class KeywordEmbedder:
         >>> # With LangChain
         >>> from langchain_openai import OpenAIEmbeddings
         >>> model = OpenAIEmbeddings(model="text-embedding-3-small")
-        >>> embedder = KeywordEmbedder(embedding_model=model)
+        >>> embedder = TextEmbedder(embedding_model=model)
         >>> embeddings = embedder.create_embeddings(str_list)
         """
         if not str_list:
@@ -345,6 +355,93 @@ class KeywordEmbedder:
 
         return string_embeddings
 
+    def create_embeddings_batched(
+        self,
+        str_list: List[str],
+        batch_size: int = 32,
+        show_progress: bool = True,
+        normalize_embeddings: bool = False,
+    ) -> Generator[Dict[str, np.ndarray], None, None]:
+        """
+        Yield embeddings for a list of strings one batch at a time.
+
+        Memory-efficient alternative to :meth:`create_embeddings`. Instead of
+        accumulating all embeddings in memory before returning, this generator
+        yields a ``Dict[str, np.ndarray]`` for each batch of ``batch_size``
+        strings. Deduplication and normalization are applied upfront across the
+        full input list before any model calls are made.
+
+        Parameters
+        ----------
+        str_list : List[str]
+            List of strings to embed.
+        batch_size : int
+            Number of strings to embed per yielded batch.
+        show_progress : bool
+            Whether to show a progress bar over batches.
+        normalize_embeddings : bool
+            Whether to L2-normalize each embedding vector.
+
+        Yields
+        ------
+        Dict[str, np.ndarray]
+            Mapping of ``batch_size`` (or fewer for the last batch) strings
+            to their embedding vectors. Strings are the normalized versions of
+            the originals.
+
+        Raises
+        ------
+        ValueError
+            If ``str_list`` is empty.
+
+        Examples
+        --------
+        >>> embedder = TextEmbedder()
+        >>> texts = ['machine learning', 'data science', 'neural networks', 'deep learning']
+        >>> all_embeddings: Dict[str, np.ndarray] = {}
+        >>> for batch in embedder.create_embeddings_batched(texts, batch_size=2):
+        ...     all_embeddings.update(batch)
+        >>> len(all_embeddings)
+        4
+
+        >>> # Stream directly to disk without accumulating all in memory
+        >>> for i, batch in enumerate(embedder.create_embeddings_batched(large_texts, batch_size=128)):
+        ...     save_partial(batch, part=i)
+        """
+        if not str_list:
+            raise ValueError("String list cannot be empty")
+
+        # Normalize and deduplicate upfront across the full list
+        normalized_strs = [normalize_string(s) for s in str_list]
+        unique_strs = list(dict.fromkeys(normalized_strs))
+
+        if len(unique_strs) < len(normalized_strs):
+            LOGGER.warning(
+                f"Removed {len(normalized_strs) - len(unique_strs)} duplicate strings after normalization"
+            )
+
+        n_batches = (len(unique_strs) + batch_size - 1) // batch_size
+        LOGGER.info(
+            f"Streaming embeddings for {len(unique_strs)} strings in {n_batches} batches "
+            f"(batch_size={batch_size}) using {self.model_type} model: {self.model_name}"
+        )
+
+        batch_iter = range(0, len(unique_strs), batch_size)
+        if show_progress:
+            batch_iter = tqdm(batch_iter, total=n_batches, desc="Embedding batches", unit="batch")
+
+        for start in batch_iter:
+            chunk = unique_strs[start : start + batch_size]
+            # Suppress per-token progress inside _generate_embeddings to avoid
+            # nested bars when show_progress is already active at batch level
+            chunk_embeddings = self._generate_embeddings(
+                chunk,
+                batch_size=len(chunk),
+                show_progress=False,
+                normalize_embeddings=normalize_embeddings,
+            )
+            yield {text: emb for text, emb in zip(chunk, chunk_embeddings)}
+
     @staticmethod
     def save_embeddings(
         keyword_embeddings: Dict[str, np.ndarray],
@@ -353,12 +450,12 @@ class KeywordEmbedder:
         metadata: Optional[Dict[str, Any]] = None,
     ):
         """
-        Save keyword embeddings to JSON file.
+        Save text embeddings to JSON file.
 
         Parameters
         ----------
         keyword_embeddings : Dict[str, np.ndarray]
-            Dictionary mapping keywords to embedding vectors
+            Dictionary mapping text strings to embedding vectors
         output_path : str
             Path to save JSON file
         model_name : str
@@ -368,8 +465,8 @@ class KeywordEmbedder:
 
         Examples
         --------
-        >>> embeddings = {'keyword1': np.array([0.1, 0.2])}
-        >>> KeywordEmbedder.save_embeddings(embeddings, 'embeddings.json', 'my-model')
+        >>> embeddings = {'text1': np.array([0.1, 0.2])}
+        >>> TextEmbedder.save_embeddings(embeddings, 'embeddings.json', 'my-model')
         """
         if not keyword_embeddings:
             LOGGER.warning("No embeddings to save")
@@ -415,7 +512,7 @@ class KeywordEmbedder:
         input_path: str,
     ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
         """
-        Load keyword embeddings from JSON file.
+        Load text embeddings from JSON file.
 
         Parameters
         ----------
@@ -425,11 +522,11 @@ class KeywordEmbedder:
         Returns
         -------
         Tuple[Dict[str, np.ndarray], Dict[str, Any]]
-            Tuple of (keyword_embeddings, metadata)
+            Tuple of (text_embeddings, metadata)
 
         Examples
         --------
-        >>> embeddings, metadata = KeywordEmbedder.load_embeddings('embeddings.json')
+        >>> embeddings, metadata = TextEmbedder.load_embeddings('embeddings.json')
         >>> print(metadata['model_name'])
         'sentence-transformers/all-MiniLM-L6-v2'
         """
@@ -490,7 +587,7 @@ class KeywordEmbedder:
 
         Examples
         --------
-        >>> embedder = KeywordEmbedder()
+        >>> embedder = TextEmbedder()
         >>> embeddings = embedder.process_csv_to_embeddings(
         ...     'suggestions.csv',
         ...     'embeddings.json',

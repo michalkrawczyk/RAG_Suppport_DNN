@@ -45,22 +45,22 @@ class TopicDistanceCalculator:
         keyword_clusterer_json : Union[str, Path, Dict]
             Path to KeywordClusterer JSON file or loaded dict with centroids and topic_descriptors
         embedder : Optional[Any]
-            KeywordEmbedder instance for encoding text.
+            TextEmbedder instance for encoding text.
             Required if text needs to be embedded (not fetching from database).
-            If not a KeywordEmbedder, will be wrapped automatically.
+            If not a TextEmbedder, will be wrapped automatically.
         metric : str
             Distance metric: "cosine" or "euclidean". Default is "cosine".
         enable_cache : bool
             Whether to cache embeddings for repeated texts. Default is True.
             Disable for memory-constrained environments or unique texts.
         """
-        # Wrap embedder in KeywordEmbedder if necessary
+        # Wrap embedder in TextEmbedder if necessary
         if embedder is not None:
-            from RAG_supporters.embeddings.keyword_embedder import KeywordEmbedder
+            from RAG_supporters.embeddings.text_embedder import TextEmbedder
 
-            if not isinstance(embedder, KeywordEmbedder):
-                LOGGER.info("Wrapping provided embedder in KeywordEmbedder")
-                embedder = KeywordEmbedder(embedding_model=embedder)
+            if not isinstance(embedder, TextEmbedder):
+                LOGGER.info("Wrapping provided embedder in TextEmbedder")
+                embedder = TextEmbedder(embedding_model=embedder)
         self.embedder = embedder
         self.metric = metric
         self._enable_cache = enable_cache
@@ -228,7 +228,7 @@ class TopicDistanceCalculator:
 
     def _get_embedding_from_text(self, text: str) -> np.ndarray:
         """
-        Get embedding for text using KeywordEmbedder.
+        Get embedding for text using TextEmbedder.
 
         Uses caching to avoid re-embedding the same text multiple times.
 
@@ -245,14 +245,14 @@ class TopicDistanceCalculator:
         if self.embedder is None:
             raise ValueError(
                 "Embedder is required to embed text. "
-                "Provide a KeywordEmbedder during initialization or use database IDs."
+                "Provide a TextEmbedder during initialization or use database IDs."
             )
 
         # Check cache first (if enabled)
         if self._enable_cache and text in self._embedding_cache:
             return self._embedding_cache[text]
 
-        # Use KeywordEmbedder interface
+        # Use TextEmbedder interface
         embeddings_dict = self.embedder.create_embeddings([text])
         normalized_text = normalize_string(text)
         embedding = embeddings_dict[normalized_text]
@@ -265,7 +265,7 @@ class TopicDistanceCalculator:
 
     def _get_embeddings_batch(self, texts: list) -> Dict[str, np.ndarray]:
         """
-        Get embeddings for multiple texts in batch using KeywordEmbedder.
+        Get embeddings for multiple texts in batch using TextEmbedder.
 
         Uses caching and batch processing for efficiency.
 
@@ -282,7 +282,7 @@ class TopicDistanceCalculator:
         if self.embedder is None:
             raise ValueError(
                 "Embedder is required to embed text. "
-                "Provide a KeywordEmbedder during initialization or use database IDs."
+                "Provide a TextEmbedder during initialization or use database IDs."
             )
 
         result = {}
@@ -648,7 +648,7 @@ def calculate_topic_distances_from_csv(
     keyword_clusterer_json : Union[str, Path, Dict]
         Path to KeywordClusterer JSON file or loaded dict
     embedder : Optional[Any]
-        KeywordEmbedder instance for encoding text. Required if not using database IDs.
+        TextEmbedder instance for encoding text. Required if not using database IDs.
     question_col : str
         Column name for question text. Default is "question_text".
     source_col : str
@@ -685,13 +685,13 @@ def calculate_topic_distances_from_csv(
 
     Examples
     --------
-    >>> from RAG_supporters.embeddings import KeywordEmbedder
+    >>> from RAG_supporters.embeddings import TextEmbedder
     >>> from RAG_supporters.clustering.topic_distance_calculator import (
     ...     calculate_topic_distances_from_csv,
     ... )
     >>>
     >>> # Using text embedding
-    >>> embedder = KeywordEmbedder()
+    >>> embedder = TextEmbedder()
     >>> result_df = calculate_topic_distances_from_csv(
     ...     csv_path="data.csv",
     ...     keyword_clusterer_json="clusters.json",

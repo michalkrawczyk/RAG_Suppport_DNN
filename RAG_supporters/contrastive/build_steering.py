@@ -27,7 +27,6 @@ from RAG_supporters.data_validation import (
     validate_tensor_2d,
     validate_tensor_1d,
     validate_embedding_dimensions,
-    validate_pair_indices_bounds,
     validate_cluster_ids_bounds,
     validate_length_consistency,
     validate_keyword_ids_list,
@@ -128,7 +127,7 @@ class SteeringBuilder:
     def __init__(
         self,
         question_embeddings: torch.Tensor,
-        keyword_embeddings: torch.Tensor,
+        keyword_embeddings: Optional[torch.Tensor],
         centroid_embeddings: torch.Tensor,
         pair_indices: torch.Tensor,
         pair_cluster_ids: torch.Tensor,
@@ -138,7 +137,7 @@ class SteeringBuilder:
         show_progress: bool = True,
     ):
         """Initialize steering builder."""
-        # Validate inputs
+        # Validate inputs (keyword_embeddings may be None when dataset has no keywords)
         self._validate_inputs(
             question_embeddings,
             keyword_embeddings,
@@ -177,7 +176,7 @@ class SteeringBuilder:
     def _validate_inputs(
         self,
         question_embeddings: torch.Tensor,
-        keyword_embeddings: torch.Tensor,
+        keyword_embeddings: Optional[torch.Tensor],
         centroid_embeddings: torch.Tensor,
         pair_indices: torch.Tensor,
         pair_cluster_ids: torch.Tensor,
@@ -185,11 +184,18 @@ class SteeringBuilder:
     ):
         """Validate input tensors and shapes."""
         # Validate embedding dimensions consistency
-        validate_embedding_dimensions(
-            (question_embeddings, "question_embeddings"),
-            (keyword_embeddings, "keyword_embeddings"),
-            (centroid_embeddings, "centroid_embeddings"),
-        )
+        # Skip keyword_embeddings dimension check when absent (no keywords in dataset)
+        if keyword_embeddings is not None:
+            validate_embedding_dimensions(
+                (question_embeddings, "question_embeddings"),
+                (keyword_embeddings, "keyword_embeddings"),
+                (centroid_embeddings, "centroid_embeddings"),
+            )
+        else:
+            validate_embedding_dimensions(
+                (question_embeddings, "question_embeddings"),
+                (centroid_embeddings, "centroid_embeddings"),
+            )
 
         # Validate pair structures
         validate_tensor_2d(pair_indices, "pair_indices", expected_cols=2)
@@ -202,22 +208,26 @@ class SteeringBuilder:
             (pair_keyword_ids, "pair_keyword_ids", n_pairs),
         )
 
-        # Validate index bounds
-        validate_pair_indices_bounds(
-            pair_indices,
-            n_questions=question_embeddings.shape[0],
-            n_sources=question_embeddings.shape[0],  # Not used for source validation here
-        )
+        # Validate question index bounds only.
+        # Source bounds are validated in mine_negatives where source_embs are available.
+        max_q_idx = pair_indices[:, 0].max().item()
+        n_questions = question_embeddings.shape[0]
+        if max_q_idx >= n_questions:
+            raise ValueError(
+                f"pair_indices contains question index {max_q_idx} "
+                f"but only {n_questions} questions exist"
+            )
 
         validate_cluster_ids_bounds(
             pair_cluster_ids, n_clusters=centroid_embeddings.shape[0], name="pair_cluster_ids"
         )
 
-        # Validate keyword IDs structure
+        # Validate keyword IDs structure (skip when no keyword embeddings exist)
+        n_keywords = keyword_embeddings.shape[0] if keyword_embeddings is not None else 0
         validate_keyword_ids_list(
             pair_keyword_ids,
             n_pairs=n_pairs,
-            n_keywords=keyword_embeddings.shape[0],
+            n_keywords=n_keywords,
             name="pair_keyword_ids",
         )
 
@@ -341,8 +351,8 @@ class SteeringBuilder:
         for pair_idx in iterator:
             keyword_ids = self.pair_keyword_ids[pair_idx]
 
-            if len(keyword_ids) == 0:
-                # No keywords, use fallback
+            if len(keyword_ids) == 0 or self.keyword_embeddings is None:
+                # No keywords for this pair (or no keyword embeddings at all), use fallback
                 n_fallback += 1
                 steering = self._get_fallback_steering(pair_idx)
             else:

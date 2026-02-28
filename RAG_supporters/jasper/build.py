@@ -6,6 +6,7 @@ This module implements Task 9 of the dataset builder pipeline:
 - Log per-task timing and overall runtime
 """
 
+import dataclasses
 import logging
 import time
 from dataclasses import asdict
@@ -17,6 +18,14 @@ import torch
 
 from RAG_supporters.contrastive import build_steering
 from .builder_config import BuildConfig
+from RAG_supporters.DEFAULT_CONSTS import (
+    ColKeys,
+    EmbKeys,
+    PairArtifactKeys,
+    DEFAULT_COL_KEYS,
+    DEFAULT_EMB_KEYS,
+    DEFAULT_PA_KEYS,
+)
 from RAG_supporters.embeddings_ops import generate_embeddings
 from .finalize import finalize_dataset
 from RAG_supporters.clustering_ops import link_sources
@@ -115,6 +124,7 @@ def _to_keyword_id_lists(
 def _compute_source_cluster_ids(
     linked_df: pd.DataFrame,
     n_sources: int,
+    col_keys: ColKeys = DEFAULT_COL_KEYS,
 ) -> torch.Tensor:
     """Compute a primary cluster assignment for each source.
 
@@ -123,7 +133,7 @@ def _compute_source_cluster_ids(
     """
     source_cluster_ids = torch.zeros(n_sources, dtype=torch.long)
 
-    grouped = linked_df.groupby("source_id")["cluster_id"]
+    grouped = linked_df.groupby(col_keys.source_id)[col_keys.cluster_id]
     for source_id, cluster_series in grouped:
         counts = cluster_series.value_counts()
         max_count = counts.max()
@@ -139,37 +149,40 @@ def _save_pair_level_artifacts(
     source_to_id: Dict[str, int],
     keyword_to_id: Dict[str, int],
     output_dir: Path,
+    col_keys: ColKeys = DEFAULT_COL_KEYS,
+    pa_keys: PairArtifactKeys = DEFAULT_PA_KEYS,
 ) -> Dict[str, Union[torch.Tensor, List[List[int]]]]:
     """Build and save pair-level tensors required by downstream tasks."""
     pair_index = torch.tensor(
         [
             [question_to_id[question], source_to_id[source]]
             for question, source in zip(
-                linked_df["question"].tolist(),
-                linked_df["source"].tolist(),
+                linked_df[col_keys.question].tolist(),
+                linked_df[col_keys.source].tolist(),
             )
         ],
         dtype=torch.long,
     )
 
     pair_cluster_id = torch.tensor(
-        linked_df["cluster_id"].astype(int).tolist(),
+        linked_df[col_keys.cluster_id].astype(int).tolist(),
         dtype=torch.long,
     )
 
     pair_relevance = torch.tensor(
-        linked_df["relevance_score"].astype(float).tolist(),
+        linked_df[col_keys.relevance_score].astype(float).tolist(),
         dtype=torch.float32,
     )
 
     pair_keyword_ids = _to_keyword_id_lists(
-        keywords_series=linked_df["keywords"],
+        keywords_series=linked_df[col_keys.keywords],
         keyword_to_id=keyword_to_id,
     )
 
     source_cluster_ids = _compute_source_cluster_ids(
         linked_df=linked_df,
         n_sources=len(source_to_id),
+        col_keys=col_keys,
     )
 
     torch.save(pair_index, output_dir / "pair_index.pt")
@@ -178,11 +191,11 @@ def _save_pair_level_artifacts(
     torch.save(pair_keyword_ids, output_dir / "pair_keyword_ids.pt")
 
     return {
-        "pair_index": pair_index,
-        "pair_cluster_id": pair_cluster_id,
-        "pair_relevance": pair_relevance,
-        "pair_keyword_ids": pair_keyword_ids,
-        "source_cluster_ids": source_cluster_ids,
+        pa_keys.index: pair_index,
+        pa_keys.cluster_id: pair_cluster_id,
+        pa_keys.relevance: pair_relevance,
+        pa_keys.keyword_ids: pair_keyword_ids,
+        pa_keys.source_cluster_ids: source_cluster_ids,
     }
 
 
@@ -202,12 +215,77 @@ def _timed_task(
     return result
 
 
+def _csv_origin_split(
+    linked_df: pd.DataFrame,
+    output_dir: Path,
+    show_progress: bool = True,
+    col_keys: ColKeys = DEFAULT_COL_KEYS,
+) -> Dict[str, torch.Tensor]:
+    """Build and save split index tensors from the ``_split_tag`` column.
+
+    Each row of *linked_df* maps 1-to-1 with a pair (insertion order from the
+    tagged CSV merge).  Rows are grouped by their ``_split_tag`` value and
+    saved as ``{tag}_idx.pt`` files inside *output_dir*.
+
+    Parameters
+    ----------
+    linked_df : pd.DataFrame
+        DataFrame produced by Task 3 that must contain a ``_split_tag`` column
+        added during the CSV-tagged merge (Task 1).
+    output_dir : Path
+        Directory where ``{tag}_idx.pt`` files are written.
+    show_progress : bool, optional
+        Unused; present for a consistent signature with :func:`split_dataset`.
+    col_keys : ColKeys, optional
+        Key schema to use for column name lookups.  Defaults to
+        :data:`DEFAULT_COL_KEYS`.
+
+    Returns
+    -------
+    Dict[str, torch.Tensor]
+        Mapping from ``"{tag}_idx"`` to a 1-D ``torch.long`` tensor of pair
+        indices belonging to that split.
+
+    Raises
+    ------
+    ValueError
+        If the ``_split_tag`` column is missing or the DataFrame is empty.
+    """
+    if col_keys.split_tag not in linked_df.columns:
+        raise ValueError(
+            "linked_df must contain a '_split_tag' column for CSV-origin splitting. "
+            "Pass csv_splits to build_dataset to enable tagged merging."
+        )
+    if linked_df.empty:
+        raise ValueError("linked_df is empty; cannot build split indices.")
+
+    split_to_indices: Dict[str, List[int]] = {}
+    for i, tag in enumerate(linked_df[col_keys.split_tag].tolist()):
+        split_to_indices.setdefault(str(tag), []).append(i)
+
+    result: Dict[str, torch.Tensor] = {}
+    for split_name in sorted(split_to_indices):
+        indices = split_to_indices[split_name]
+        tensor = torch.tensor(indices, dtype=torch.long)
+        result[f"{split_name}_idx"] = tensor
+        torch.save(tensor, output_dir / f"{split_name}_idx.pt")
+        LOGGER.info(
+            "CSV-origin split '%s': %d pairs → %s_idx.pt",
+            split_name,
+            len(tensor),
+            split_name,
+        )
+
+    return result
+
+
 def build_dataset(
     csv_paths: List[Union[str, Path]],
     cluster_json_path: Union[str, Path],
     embedding_model: Any,
     output_dir: Union[str, Path],
     config: Optional[Union[BuildConfig, Dict[str, Any]]] = None,
+    csv_splits: Optional[Dict[str, List[Union[str, Path]]]] = None,
     storage_format: str = "pt",
     include_inspection_file: bool = False,
     column_aliases: Optional[Dict[str, List[str]]] = None,
@@ -227,25 +305,51 @@ def build_dataset(
     adjacent_k: int = 3,
     random_seed: int = 42,
     show_progress: bool = True,
+    skip_rows_without_keywords: bool = False,
+    on_empty_keywords: str = "none",
+    col_key_overrides: Optional[Dict[str, str]] = None,
+    emb_key_overrides: Optional[Dict[str, str]] = None,
+    pa_key_overrides: Optional[Dict[str, str]] = None,
 ) -> BuildConfig:
     """Build JASPER steering dataset by orchestrating Tasks 1-8.
 
     Parameters
     ----------
     csv_paths : List[str or Path]
-        Input CSV files with question-source pairs.
+        Input CSV files with question-source pairs.  Ignored when
+        *csv_splits* is provided.
     cluster_json_path : str or Path
         Path to KeywordClusterer JSON output.
     embedding_model : Any
-        Embedding model accepted by ``KeywordEmbedder``.
+        Embedding model accepted by ``TextEmbedder``.
     output_dir : str or Path
         Target directory for built dataset artifacts.
     config : BuildConfig or Dict[str, Any], optional
         Optional preconfigured BuildConfig or dict payload.
+    csv_splits : Dict[str, List[str or Path]], optional
+        When provided, defines which CSV files belong to each split instead
+        of using random stratified splitting.  Keys are split names
+        (``"train"``, ``"val"``, ``"test"``); values are lists of CSV paths.
+        Example::
+
+            csv_splits={"train": ["train.csv"], "val": ["val.csv"]}
+
+        When this argument is set, ``split_ratios`` is stored as metadata
+        only; the actual train/val/test assignment is driven entirely by
+        which CSV file each row originated from.
     storage_format : str, optional
         Storage format (currently only ``pt`` is supported end-to-end).
     include_inspection_file : bool, optional
         Whether to write optional ``inspection.json``.
+    col_key_overrides : Dict[str, str], optional
+        Override specific :class:`~RAG_supporters.DEFAULT_CONSTS.ColKeys`
+        fields for this call.  E.g. ``col_key_overrides={"question": "q_text"}``.
+    emb_key_overrides : Dict[str, str], optional
+        Override specific :class:`~RAG_supporters.DEFAULT_CONSTS.EmbKeys`
+        fields for this call.
+    pa_key_overrides : Dict[str, str], optional
+        Override specific :class:`~RAG_supporters.DEFAULT_CONSTS.PairArtifactKeys`
+        fields for this call.
 
     Returns
     -------
@@ -255,6 +359,29 @@ def build_dataset(
     total_start = time.perf_counter()
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+
+    # Resolve key schemas — callers may override individual fields per-call
+    col_keys: ColKeys = dataclasses.replace(DEFAULT_COL_KEYS, **(col_key_overrides or {}))
+    emb_keys: EmbKeys = dataclasses.replace(DEFAULT_EMB_KEYS, **(emb_key_overrides or {}))
+    pa_keys: PairArtifactKeys = dataclasses.replace(DEFAULT_PA_KEYS, **(pa_key_overrides or {}))
+
+    # ------------------------------------------------------------------
+    # Guard: exactly one of csv_paths / csv_splits must be provided
+    # ------------------------------------------------------------------
+    if csv_splits is not None:
+        if csv_paths:
+            LOGGER.warning(
+                "Both csv_splits and csv_paths were provided; csv_paths will be ignored. "
+                "All CSV files should be declared via csv_splits."
+            )
+        required_keys = {"train", "val"}
+        missing = required_keys - set(csv_splits.keys())
+        if missing:
+            raise ValueError(
+                f"csv_splits must contain at least 'train' and 'val' keys; missing: {missing}"
+            )
+    elif not csv_paths:
+        raise ValueError("Either csv_paths or csv_splits must be provided.")
 
     resolved_config = _build_config_from_input(
         cluster_json_path=cluster_json_path,
@@ -268,6 +395,10 @@ def build_dataset(
         config=config,
     )
 
+    # Store normalised csv_splits paths on the config for persistence in config.json
+    if csv_splits is not None:
+        resolved_config.csv_splits = {k: [str(p) for p in v] for k, v in csv_splits.items()}
+
     if resolved_config.storage_format != "pt":
         raise NotImplementedError(
             "Task 9 build orchestrator currently supports storage_format='pt' only"
@@ -278,14 +409,34 @@ def build_dataset(
     LOGGER.info("Starting JASPER dataset build pipeline")
 
     # Task 1: CSV merge
-    merged_df = _timed_task(
-        "task_1_merge_csv",
-        merge_csv_files,
-        timings,
-        csv_paths=csv_paths,
-        output_path=None,
-        column_aliases=column_aliases,
-    )
+    if csv_splits is not None:
+
+        def _tagged_merge() -> pd.DataFrame:
+            tagged_dfs: List[pd.DataFrame] = []
+            for split_name, paths in csv_splits.items():
+                split_df = merge_csv_files(csv_paths=list(paths), column_aliases=column_aliases)
+                split_df = split_df.copy()
+                split_df[col_keys.split_tag] = split_name
+                tagged_dfs.append(split_df)
+            merged = pd.concat(tagged_dfs, ignore_index=True)
+            LOGGER.info(
+                "CSV-split merge: %d total pairs from %d split groups (%s)",
+                len(merged),
+                len(csv_splits),
+                ", ".join(f"{k}={len(v)}csv" for k, v in csv_splits.items()),
+            )
+            return merged
+
+        merged_df = _timed_task("task_1_merge_csv", _tagged_merge, timings)
+    else:
+        merged_df = _timed_task(
+            "task_1_merge_csv",
+            merge_csv_files,
+            timings,
+            csv_paths=csv_paths,
+            output_path=None,
+            column_aliases=column_aliases,
+        )
 
     # Optional inspection metadata
     if resolved_config.include_inspection_file:
@@ -318,12 +469,32 @@ def build_dataset(
         timings,
         df=merged_df,
         cluster_parser=cluster_parser,
-        keywords_col="keywords",
+        keywords_col=col_keys.keywords,
         pair_id_col="pair_id",
-        output_col="cluster_id",
+        output_col=col_keys.cluster_id,
         fallback_strategy=link_fallback_strategy,
         show_progress=show_progress,
     )
+
+    # Optional: drop rows that have no keywords before embedding
+    if skip_rows_without_keywords:
+        before = len(linked_df)
+        linked_df = linked_df[
+            linked_df[col_keys.keywords].apply(
+                lambda kws: bool(kws) if isinstance(kws, list) else bool(str(kws).strip())
+            )
+        ].reset_index(drop=True)
+        dropped = before - len(linked_df)
+        if dropped:
+            LOGGER.warning(
+                "skip_rows_without_keywords=True: dropped %d/%d rows with empty keywords "
+                "(%d remain).",
+                dropped,
+                before,
+                len(linked_df),
+            )
+        else:
+            LOGGER.info("skip_rows_without_keywords=True: no rows had empty keywords.")
 
     # Task 4: Embeddings
     embeddings = _timed_task(
@@ -334,12 +505,13 @@ def build_dataset(
         embedding_model=embedding_model,
         cluster_parser=cluster_parser,
         output_dir=output_path,
-        question_col="question",
-        source_col="source",
-        keywords_col="keywords",
+        question_col=col_keys.question,
+        source_col=col_keys.source,
+        keywords_col=col_keys.keywords,
         batch_size=embedding_batch_size,
         normalize_embeddings=normalize_embeddings,
         validate=validate_embeddings,
+        on_empty_keywords=on_empty_keywords,
     )
 
     pair_artifacts = _timed_task(
@@ -347,10 +519,12 @@ def build_dataset(
         _save_pair_level_artifacts,
         timings,
         linked_df=linked_df,
-        question_to_id=embeddings["question_to_id"],
-        source_to_id=embeddings["source_to_id"],
-        keyword_to_id=embeddings["keyword_to_id"],
+        question_to_id=embeddings[emb_keys.question_to_id],
+        source_to_id=embeddings[emb_keys.source_to_id],
+        keyword_to_id=embeddings[emb_keys.keyword_to_id],
         output_dir=output_path,
+        col_keys=col_keys,
+        pa_keys=pa_keys,
     )
 
     # Task 5: Steering vectors
@@ -358,12 +532,12 @@ def build_dataset(
         "task_5_build_steering",
         build_steering,
         timings,
-        question_embeddings=embeddings["question_embs"],
-        keyword_embeddings=embeddings["keyword_embs"],
-        centroid_embeddings=embeddings["centroid_embs"],
-        pair_indices=pair_artifacts["pair_index"],
-        pair_cluster_ids=pair_artifacts["pair_cluster_id"],
-        pair_keyword_ids=pair_artifacts["pair_keyword_ids"],
+        question_embeddings=embeddings[emb_keys.question],
+        keyword_embeddings=embeddings[emb_keys.keyword],
+        centroid_embeddings=embeddings.get(emb_keys.centroid),
+        pair_indices=pair_artifacts[pa_keys.index],
+        pair_cluster_ids=pair_artifacts[pa_keys.cluster_id],
+        pair_keyword_ids=pair_artifacts[pa_keys.keyword_ids],
         output_dir=output_path,
         normalize_residual=steering_normalize_residual,
         fallback_strategy=steering_fallback_strategy,
@@ -375,12 +549,12 @@ def build_dataset(
         "task_6_mine_negatives",
         mine_negatives,
         timings,
-        source_embeddings=embeddings["source_embs"],
-        question_embeddings=embeddings["question_embs"],
-        centroid_embeddings=embeddings["centroid_embs"],
-        pair_indices=pair_artifacts["pair_index"],
-        pair_cluster_ids=pair_artifacts["pair_cluster_id"],
-        source_cluster_ids=pair_artifacts["source_cluster_ids"],
+        source_embeddings=embeddings[emb_keys.source],
+        question_embeddings=embeddings[emb_keys.question],
+        centroid_embeddings=embeddings.get(emb_keys.centroid),
+        pair_indices=pair_artifacts[pa_keys.index],
+        pair_cluster_ids=pair_artifacts[pa_keys.cluster_id],
+        source_cluster_ids=pair_artifacts[pa_keys.source_cluster_ids],
         n_neg=resolved_config.n_neg,
         output_dir=output_path,
         tier_proportions=tier_proportions,
@@ -390,19 +564,30 @@ def build_dataset(
     )
 
     # Task 7: Split
-    _timed_task(
-        "task_7_split",
-        split_dataset,
-        timings,
-        pair_indices=pair_artifacts["pair_index"],
-        pair_cluster_ids=pair_artifacts["pair_cluster_id"],
-        output_dir=output_path,
-        train_ratio=resolved_config.split_ratios[0],
-        val_ratio=resolved_config.split_ratios[1],
-        test_ratio=resolved_config.split_ratios[2],
-        random_seed=resolved_config.random_seed,
-        show_progress=show_progress,
-    )
+    if csv_splits is not None:
+        _timed_task(
+            "task_7_split",
+            _csv_origin_split,
+            timings,
+            linked_df=linked_df,
+            output_dir=output_path,
+            show_progress=show_progress,
+            col_keys=col_keys,
+        )
+    else:
+        _timed_task(
+            "task_7_split",
+            split_dataset,
+            timings,
+            pair_indices=pair_artifacts[pa_keys.index],
+            pair_cluster_ids=pair_artifacts[pa_keys.cluster_id],
+            output_dir=output_path,
+            train_ratio=resolved_config.split_ratios[0],
+            val_ratio=resolved_config.split_ratios[1],
+            test_ratio=resolved_config.split_ratios[2],
+            random_seed=resolved_config.random_seed,
+            show_progress=show_progress,
+        )
 
     # Task 8: Finalize
     final_config = _timed_task(

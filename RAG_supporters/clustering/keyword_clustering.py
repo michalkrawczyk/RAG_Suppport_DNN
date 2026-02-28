@@ -40,11 +40,11 @@ Examples
 --------
 Basic clustering workflow:
 
->>> from RAG_supporters.embeddings import KeywordEmbedder
+>>> from RAG_supporters.embeddings import TextEmbedder
 >>> from RAG_supporters.clustering import cluster_keywords_from_embeddings
 >>>
 >>> # Create embeddings
->>> embedder = KeywordEmbedder()
+>>> embedder = TextEmbedder()
 >>> keywords = ["machine learning", "deep learning", "AI"]
 >>> embeddings = embedder.create_embeddings(keywords)
 >>>
@@ -86,7 +86,7 @@ Notes
 
 See Also
 --------
-RAG_supporters.embeddings.KeywordEmbedder : For creating embeddings
+RAG_supporters.embeddings.TextEmbedder : For creating embeddings
 docs/CLUSTERING_AND_ASSIGNMENT.md : Complete usage guide
 
 TODO: Future extensions
@@ -1100,8 +1100,8 @@ def cluster_keywords_from_embeddings(
 
     Examples
     --------
-    >>> from RAG_supporters.embeddings import KeywordEmbedder
-    >>> embedder = KeywordEmbedder()
+    >>> from RAG_supporters.embeddings import TextEmbedder
+    >>> embedder = TextEmbedder()
     >>> keywords = ["machine learning", "deep learning", "neural networks"]
     >>> embeddings = embedder.create_embeddings(keywords)
     >>> clusterer, topics = cluster_keywords_from_embeddings(

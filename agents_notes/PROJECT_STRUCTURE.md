@@ -18,7 +18,8 @@
 - **tests/** - Unit tests for agents and core functionality
 - **docs/** - Comprehensive documentation organized by topic
 - **dependencies/** - External dependencies or requirements files
-- **agents_notes/** - Project structure documentation and agent-specific notes
+- **agents_notes/** - Project structure documentation, tooling scripts, and module-map usage guide
+- **agent_ignore/** - Generated artifacts hidden from Copilot (module_map.json); contents git-ignored
 
 ---
 
@@ -70,7 +71,6 @@ Generic data preprocessing utilities for CSV merging, deduplication, and dataset
 - **__init__.py** - Exports CSVMerger and DatasetSplitter with utility functions
 - **merge_csv.py** - CSVMerger: Merges multiple CSV files with column normalization, deduplication, and ID assignment
 - **dataset_splitter.py** - Simple train/val/test splitting with persistence to JSON (for specific test compatibility)
-- **split.py** - DatasetSplitter: Question-level stratified train/val/test splitting with no leakage, saves to PyTorch tensors
 
 ### data_validation/ - Data Validation & Tensor Utilities
 Highly reusable PyTorch validation utilities for any project. Zero project-specific dependencies.
@@ -118,7 +118,7 @@ PyTorch Dataset classes for training. Specific implementations but patterns are 
 
 - **__init__.py** - Exports JASPERSteeringDataset, RAG datasets, ClusterLabeledDataset, DataLoader utilities
 - **jasper_steering_dataset.py** - JASPERSteeringDataset: PyTorch dataset for JASPER - pre-computed embedding triplets with hard negatives, curriculum learning, device placement, context manager, referential integrity validation, HDF5 storage format support, memory-mapped loading for large datasets (>10GB)
-- **rag_dataset.py** - RAGDataset: Core PyTorch dataset class for RAG question-answer-source triples
+- **rag_dataset.py** - RAGDataset: Core PyTorch dataset class for RAG question-answer-source triples (lives in `dataset/`, re-exported from `pytorch_datasets/`)
 - **cluster_labeled_dataset.py** - ClusterLabeledDataset: PyTorch dataset with cluster assignments and labels
 - **loader.py** - DataLoader factory and validation utilities for JASPER Steering Dataset (create_loader, validate_first_batch, set_epoch)
 
@@ -127,16 +127,34 @@ Embedding generation, storage, and retrieval.
 
 - **__init__.py** - Exports embedding classes
 - **io.py** - Embedding input/output operations and serialization
-- **keyword_embedder.py** - KeywordEmbedder: Generates embeddings for keywords and terms
+- **text_embedder.py** - TextEmbedder: Unified embedding wrapper for arbitrary text (keywords, topics, questions, sources, steering texts)
 
 ### nn/ - Neural Network Models
-Lightweight neural network models for RAG improvement.
+Lightweight neural network models for RAG improvement. Implements JASPER (Joint Architecture for Subspace Prediction with Explainable Routing) — JEPA-style predictor with EMA, multi-objective losses, subspace routing, and XAI.
 
-- **__init__.py** - Module initialization
+- **__init__.py** - Exports all models, losses, training, and inference components from Phase 1 and Phase 2
 
 #### nn/models/ - Model Implementations
-- **__init__.py** - Exports model classes
+- **__init__.py** - Exports JASPERPredictor, EMAEncoder, SubspaceRouter, DecomposedJASPERPredictor, and ConfigurableModel
 - **model_builder.py** - Factory functions for building and configuring neural network models
+- **jasper_predictor.py** - JASPERPredictor: JEPA-style predictor (question_emb + steering_emb → predicted_source_emb) with YAML config support
+- **ema_encoder.py** - EMAEncoder: Exponential Moving Average wrapper for target encoder with cosine tau schedule (tau_min=0.996 → tau_max=0.999)
+- **subspace_router.py** - SubspaceRouter: Concept bottleneck routing (question+steering → routing_weights [K]) with Gumbel-Softmax, XAI explain() method
+- **decomposed_predictor.py** - DecomposedJASPERPredictor: Coarse+fine prediction (prediction = centroid_anchor + residual), returns full explanation_dict with atypicality
+
+#### nn/losses/ - Loss Functions
+- **__init__.py** - Exports all loss classes
+- **jasper_losses.py** - JASPERLoss, ContrastiveLoss (InfoNCE), CentroidLoss, VICRegLoss, JASPERMultiObjectiveLoss — combined loss with per-component logging
+- **routing_losses.py** - RoutingLoss, EntropyRegularization (diversity→confidence schedule), ResidualPenalty, DisentanglementLoss — routing-specific objectives
+
+#### nn/training/ - Training Utilities
+- **__init__.py** - Exports JASPERTrainer, JASPERTrainerConfig, TrainingMonitor
+- **jasper_trainer.py** - JASPERTrainer: Training loop with EMA updates, curriculum learning, checkpoint save/load, and full metric logging
+- **monitoring.py** - TrainingMonitor: Metric collection, loss curve plotting (per-component subplots), steering distribution evolution, CSV/JSON export
+
+#### nn/inference/ - Inference & XAI
+- **__init__.py** - Exports XAIInterface
+- **xai_interface.py** - XAIInterface: Inference-time explainability — explain_prediction() returns primary_subspace, routing_distribution, steering_influence (KL/L2), atypicality, similar_known_pairs, actionable_signal
 
 ### prompts_templates/ - LLM Prompt Templates
 Centralized prompt definitions for all agents. Never hardcode prompts in agent code.
@@ -184,6 +202,15 @@ Test modules follow pattern `test_<module_name>.py`. All tests mock LLM calls fo
 - **test_topic_distance_calculator.py** - Tests for TopicDistanceCalculator
 - **test_validation_utils.py** - Tests for validation_utils shared utilities (tensor validation, bounds checking, etc.)
 - **test_tensor_utils.py** - Tests for tensor_utils I/O functions (loading, saving, batch operations)
+- **test_monitoring.py** - Tests for TrainingMonitor (metric logging, W&B payload bool filtering, plot_losses/plot_steering_distribution guards, CSV+JSON export, empty-history regression)
+- **test_jasper_predictor.py** - Tests for JASPERPredictor (initialization, forward pass shapes, gradient flow, YAML config loading)
+- **test_ema_encoder.py** - Tests for EMAEncoder (EMA update correctness, tau cosine schedule, state dict save/load, no-grad target encoding)
+- **test_jasper_losses.py** - Tests for individual and combined JASPER losses (JASPERLoss, ContrastiveLoss, CentroidLoss, VICRegLoss, JASPERMultiObjectiveLoss collapse prevention)
+- **test_jasper_trainer.py** - Tests for JASPERTrainer (single training step, EMA update, checkpoint save/load, curriculum set_epoch)
+- **test_subspace_router.py** - Tests for SubspaceRouter (routing_weights validity, Gumbel-Softmax differentiability, XAI output structure)
+- **test_decomposed_predictor.py** - Tests for DecomposedJASPERPredictor (coarse+fine decomposition, atypicality = ||fine||, centroid alignment)
+- **test_routing_losses.py** - Tests for RoutingLoss, EntropyRegularization, ResidualPenalty, DisentanglementLoss
+- **test_xai_interface.py** - Tests for XAIInterface (full XAI output structure, steering influence KL/L2, batch processing)
 
 ---
 
@@ -202,6 +229,14 @@ Detailed usage guides for each agent with examples.
 - **DOMAIN_ANALYSIS_AGENT.md** - DomainAnalysisAgent usage guide (three modes)
 - **SOURCE_EVALUATION_AGENT.md** - SourceEvaluationAgent usage guide
 - **TEXT_AUGMENTATION.md** - TextAugmentationAgent usage guide
+
+### docs/nn/ - Neural Network Documentation
+Documentation for JASPER predictor, training, subspace routing, and XAI components.
+
+- **JASPER_PREDICTOR.md** - JASPERPredictor and EMAEncoder architecture, YAML config reference, EMA schedule, usage examples
+- **TRAINING_JASPER.md** - JASPERTrainer training script guide, config format, tuning tips, checkpoint management, troubleshooting
+- **SUBSPACE_JASPER.md** - DecomposedJASPERPredictor routing architecture, coarse+fine decomposition, training with routing losses
+- **XAI_INTERFACE.md** - XAIInterface output format, field interpretation guide, use cases, steering influence analysis
 
 ### docs/clustering/ - Clustering Documentation
 - **README.md** - Clustering documentation index
@@ -226,13 +261,42 @@ Detailed usage guides for each agent with examples.
 
 ---
 
+### Root-Level Files (examples/, configs/)
+
+#### examples/ - Training Scripts
+- **train_jasper_predictor.py** - CLI training script for JASPERPredictor with EMA; supports `--config` and `--resume` flags, runs end-to-end JASPER Phase 1 training
+- **train_subspace_jasper.py** - CLI training script for DecomposedJASPERPredictor with subspace routing, routing accuracy logging, and XAI validation on val set
+
+#### configs/ - Training Configurations
+- **jasper_base.yaml** - Base YAML config for JASPERPredictor training (model, ema, loss, training, dataset sections)
+- **subspace_jasper.yaml** - YAML config for DecomposedJASPERPredictor training with routing loss weights and subspace parameters
+
+---
+
+## agents_notes/ - Project Tooling & Structure Documentation
+
+- **PROJECT_STRUCTURE.md** - Comprehensive file-by-file listing of all project files with concise purpose descriptions
+- **MODULE_MAP_USAGE.md** - Guide for coding agents: how to generate and search the module map
+- **generate_module_map.py** - CLI script that AST-parses Python files and emits `agent_ignore/module_map.json` (classes, methods, functions, docstrings)
+- **search_module_map.py** - CLI search tool for `agent_ignore/module_map.json`; supports filtering by symbol type (class/method/function/module), package, parent_module; outputs human-readable or JSON
+
+---
+
+## agent_ignore/ - Generated Artifacts (Hidden from Copilot)
+
+> This directory is excluded from VS Code file explorer and Copilot search context via `.vscode/settings.json`.
+> Its contents are also git-ignored (`agent_ignore/*` in `.gitignore`); only `.gitkeep` is tracked.
+---
+
 ## File Count Summary
 
-- **Python Source Files**: 53 files in RAG_supporters/ (added build.py for Task 9)
-- **Test Files**: 18 files in tests/ (added test_dataset_build.py)
-- **Documentation Files**: 21 markdown files in docs/ (added 5 pytorch_datasets docs)
-- **Configuration**: 2 files (pyproject.toml, .gitignore)
+- **Python Source Files**: 62 files in RAG_supporters/ (added 9 JASPER Phase 1 & 2 source files)
+- **Test Files**: 27 files in tests/ (added 8 JASPER test files)
+- **Documentation Files**: 25 markdown files in docs/ (added 4 docs/nn/ files)
+- **Configuration**: 4 files (pyproject.toml, .gitignore, jasper_base.yaml, subspace_jasper.yaml)
 - **Root Documentation**: 2 files (AGENTS.md, README.md)
+- **Tooling Scripts**: 3 files in agents_notes/ (generate_module_map.py, search_module_map.py, MODULE_MAP_USAGE.md)
+- **Training Scripts**: 2 files in examples/ (train_jasper_predictor.py, train_subspace_jasper.py)
 
 ---
 

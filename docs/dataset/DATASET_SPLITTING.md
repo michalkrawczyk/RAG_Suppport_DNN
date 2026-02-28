@@ -1,6 +1,6 @@
 # Dataset Splitting with Persistent Sample Tracking
 
-**Note**: This documents `data_prep.dataset_splitter.DatasetSplitter` (simple splitter). For stratified splitting with no-leakage guarantees, use `data_prep.split.DatasetSplitter`.
+**Note**: This documents `data_prep.dataset_splitter.DatasetSplitter` (simple splitter). For stratified splitting with no-leakage guarantees, use `data_prep.dataset_splitter.DatasetSplitter` (stratified mode with `pair_indices` and `pair_cluster_ids`).
 
 Persistent, reproducible train/val splits with JSON-based tracking.
 

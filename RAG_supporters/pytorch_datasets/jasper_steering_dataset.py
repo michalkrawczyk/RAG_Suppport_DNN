@@ -21,6 +21,7 @@ import torch
 from torch.utils.data import Dataset, Subset
 
 from RAG_supporters.data_validation import load_tensor_artifact
+from RAG_supporters.DEFAULT_CONSTS import DEFAULT_COL_KEYS
 
 LOGGER = logging.getLogger(__name__)
 
@@ -347,9 +348,21 @@ class JASPERSteeringDataset(Dataset):
             Loaded tensor
         """
         if self.storage_format == "hdf5":
-            # Extract dataset path from filename
+            # Mapping from PT filenames to HDF5 group paths
+            _HDF5_PATH_MAP = {
+                "pair_index": "pair_data/index",
+                "pair_cluster_id": "pair_data/cluster_id",
+                "pair_relevance": "pair_data/relevance",
+                "hard_negatives": "negatives/hardnegatives",
+                "negative_tiers": "negatives/tiers",
+                "steering_centroid": "steering/centroid",
+                "steering_keyword_weighted": "steering/keyword_weighted",
+                "steering_residual": "steering/residual",
+                "centroid_distances": "steering/distances",
+            }
             dataset_name = filename.replace(".pt", "")
-            return torch.from_numpy(self._hdf5_file[dataset_name][:])
+            hdf5_path = _HDF5_PATH_MAP.get(dataset_name, dataset_name)
+            return torch.from_numpy(self._hdf5_file[hdf5_path][:])
         else:
             # PT format
             if self.use_mmap:
@@ -648,7 +661,7 @@ class JASPERSteeringDataset(Dataset):
             "target_source_emb": target_source_emb,
             "steering": steering,
             "negative_embs": negative_embs,
-            "cluster_id": cluster_id,
+            DEFAULT_COL_KEYS.cluster_id: cluster_id,
             "relevance": relevance,
             "centroid_distance": centroid_distance,
             "steering_variant": torch.tensor(variant_id, dtype=torch.long),

@@ -1,0 +1,89 @@
+# Subspace-Routed JASPER Training Configuration
+# Usage: python examples/train_subspace_jasper.py --config configs/subspace_jasper.yaml
+#
+# Extends jasper_base.yaml with three new sections: router, routing_loss, xai.
+# All Phase 1 sections (model, ema, loss, training, dataset, monitoring) are unchanged.
+
+model:
+  embedding_dim: 768
+  hidden_dim: 512
+  num_layers: 3
+  dropout: 0.1
+  activation: GELU
+  use_layer_norm: true
+  normalize_output: false
+
+ema:
+  tau_min: 0.996
+  tau_max: 0.999
+  schedule: cosine
+
+loss:
+  lambda_jasper: 1.0
+  lambda_contrastive: 0.5
+  lambda_centroid: 0.1
+  lambda_vicreg: 0.1
+  jasper_beta: 1.0
+  contrastive_temperature: 0.07
+  centroid_temperature: 0.1
+  vicreg_lambda_v: 25.0
+  vicreg_lambda_i: 25.0
+  vicreg_lambda_c: 1.0
+
+training:
+  batch_size: 64
+  num_epochs: 80              # More epochs than Phase 1 — annealing schedule needs time
+  warmup_epochs: 3
+  learning_rate: 2.0e-4      # Slightly lower; good when fine-tuning on a Phase 1 checkpoint
+  weight_decay: 1.0e-4
+  num_workers: 4
+  pin_memory: true
+  max_grad_norm: 1.0
+  mixed_precision: false
+  save_every_n_epochs: 5
+  keep_last_n_checkpoints: 3
+  log_every_n_steps: 50
+  reload_negatives_every_n_epochs: 10  # Reload hard negatives every N epochs (0 = disabled)
+
+dataset:
+  split_train: train
+  split_val: val
+  n_neg: 8
+
+monitoring:
+  use_wandb: false
+  wandb_project: jasper-rag-subspace
+  wandb_name: null
+
+# --- Phase 2: Subspace router ---
+router:
+  hidden_dim: 256             # Router MLP hidden width (can differ from model.hidden_dim)
+  num_subspaces: 8            # K — must equal the number of rows in your centroid file
+  num_layers: 2
+  dropout: 0.1
+  activation: GELU
+  use_layer_norm: true
+  temperature: 1.0            # Gumbel-Softmax temperature; lower → sharper routing
+  gumbel_hard: false          # true → straight-through one-hot (inference-like during train)
+  normalize_input: true       # L2-normalise [question; steering] before the router MLP
+  fine_input_mode: concat     # "concat" | "add"  (how fine MLP receives its input)
+
+# --- Phase 2: Routing loss weights ---
+routing_loss:
+  lambda_routing: 1.0                 # Cross-entropy on routing_logits vs cluster_id
+  lambda_entropy: 0.1                 # Entropy annealing regulariser
+  lambda_residual: 0.1                # Hinge penalty on ||fine||
+  lambda_disentangle: 0.01            # Off-diagonal covariance penalty on routing_weights
+  routing_label_smoothing: 0.0        # Label smoothing for RoutingLoss
+  entropy_high: null                  # null → defaults to log(K); set to override
+  entropy_low: 0.1                    # Target entropy (nats) after annealing
+  anneal_epochs: 20                   # Epochs to linearly anneal entropy_high → entropy_low
+  residual_margin: 1.0                # Allowed ||fine|| norm; scale with embedding norm
+
+# --- Phase 2: XAI outputs ---
+xai:
+  save_val_xai: true                  # Save XAI JSON for validation set
+  xai_every_n_epochs: 5              # How often to produce val XAI outputs
+  xai_output_dir: null               # null → <output_dir>/xai/
+  cluster_names_file: null           # JSON/txt with K names; null → "subspace_0", ...
+  num_similar_pairs: 5               # Nearest training pairs to retrieve per prediction

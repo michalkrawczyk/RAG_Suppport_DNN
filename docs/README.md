@@ -124,6 +124,18 @@ Comprehensive reference for all modules organized in module-specific subdirector
 - **[RAG Dataset Generator](./pytorch_datasets/RAG_DATASET.md)** - Abstract base for RAG triplet generation with ChromaDB storage
 - **[DataLoader Utilities](./pytorch_datasets/LOADER_UTILITIES.md)** - Factory functions and validation utilities for creating DataLoaders
 
+## Neural Network (JASPER)
+
+JASPER (Joint Architecture for Subspace Prediction with Explainable Routing) — lightweight neural network predictor with EMA, multi-objective losses, subspace routing, and inference-time XAI.
+
+### Phase 1 — Core Predictor
+- **[JASPER Predictor](nn/JASPER_PREDICTOR.md)** - JASPERPredictor architecture, EMAEncoder with cosine tau schedule, YAML config reference, and usage examples
+- **[Training Guide](nn/TRAINING_JASPER.md)** - JASPERTrainer training script, config format, checkpoint management, tuning tips, and troubleshooting
+
+### Phase 2 — Subspace Routing & XAI
+- **[Subspace JASPER](nn/SUBSPACE_JASPER.md)** - DecomposedJASPERPredictor: coarse+fine decomposition, SubspaceRouter with Gumbel-Softmax, routing losses
+- **[XAI Interface](nn/XAI_INTERFACE.md)** - XAIInterface: explain_prediction() output format, steering influence analysis, atypicality, interpretation guide
+
 ## Contributing
 
 When adding new agents or features:
