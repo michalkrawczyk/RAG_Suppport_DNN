@@ -817,7 +817,7 @@ class TestCSVMergerTopicRelevanceParsing:
                 ],
             }
         )
-        csv_path = tmp_path / "test.csv"
+        csv_path = tmp_path / "input.csv"
         df.to_csv(csv_path, index=False)
         from RAG_supporters.data_prep import merge_csv_files as _merge
 
