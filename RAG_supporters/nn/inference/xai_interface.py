@@ -69,6 +69,7 @@ class XAIInterface:
         training_pairs: Optional[List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]] = None,
         device: Optional[torch.device] = None,
     ) -> None:
+        """Initialize XAIInterface."""
         K = centroid_embs.shape[0]
         if len(cluster_names) != K:
             raise ValueError(
@@ -506,6 +507,7 @@ class XAIInterface:
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
+        """Return string representation."""
         model_type = "decomposed" if self._is_decomposed else "base"
         return (
             f"XAIInterface(model={type(self.model).__name__} [{model_type}], "

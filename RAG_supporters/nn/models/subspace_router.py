@@ -55,6 +55,7 @@ class SubspaceRouterConfig:
     normalize_input: bool = True
 
     def __post_init__(self) -> None:
+        """Post-init validation and derived attribute setup."""
         if self.num_subspaces < 2:
             raise ValueError(f"num_subspaces must be >= 2, got {self.num_subspaces}")
         if self.temperature <= 0.0:
@@ -99,6 +100,7 @@ class SubspaceRouter(nn.Module):
     """
 
     def __init__(self, config: SubspaceRouterConfig | dict) -> None:
+        """Initialize SubspaceRouter."""
         super().__init__()
 
         if isinstance(config, dict):
@@ -281,6 +283,7 @@ class SubspaceRouter(nn.Module):
         )
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return (
             f"SubspaceRouter(embedding_dim={self.config.embedding_dim}, "
             f"hidden_dim={self.config.hidden_dim}, "

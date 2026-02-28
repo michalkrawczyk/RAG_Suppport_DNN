@@ -30,6 +30,7 @@ class JASPERLoss(nn.Module):
     """
 
     def __init__(self, beta: float = 1.0, reduction: str = "mean") -> None:
+        """Initialize JASPERLoss."""
         super().__init__()
         if reduction not in ("mean", "sum"):
             raise ValueError(f"reduction must be 'mean' or 'sum', got '{reduction}'")
@@ -72,6 +73,7 @@ class ContrastiveLoss(nn.Module):
     """
 
     def __init__(self, temperature: float = 0.07, reduction: str = "mean") -> None:
+        """Initialize ContrastiveLoss."""
         super().__init__()
         if temperature <= 0:
             raise ValueError(f"temperature must be > 0, got {temperature}")
@@ -127,7 +129,7 @@ class ContrastiveLoss(nn.Module):
 
 
 class CentroidLoss(nn.Module):
-    """Cross-entropy loss that asks: does the prediction land in the right cluster?
+    """Cross-entropy loss that asks: does the prediction land in the right cluster.
 
     Uses cosine similarity between the predicted embedding and each cluster
     centroid as logits, then applies cross-entropy against the ground-truth
@@ -138,6 +140,7 @@ class CentroidLoss(nn.Module):
     """
 
     def __init__(self, temperature: float = 0.1) -> None:
+        """Initialize CentroidLoss."""
         super().__init__()
         if temperature <= 0:
             raise ValueError(f"temperature must be > 0, got {temperature}")
@@ -210,6 +213,7 @@ class VICRegLoss(nn.Module):
         gamma: float = 1.0,
         eps: float = 1e-4,
     ) -> None:
+        """Initialize VICRegLoss."""
         super().__init__()
         self.lambda_v = lambda_v
         self.lambda_i = lambda_i
@@ -310,6 +314,7 @@ class JASPERMultiObjectiveLoss(nn.Module):
         vicreg_lambda_i: float = 25.0,
         vicreg_lambda_c: float = 1.0,
     ) -> None:
+        """Initialize JASPERMultiObjectiveLoss."""
         super().__init__()
 
         self.lambda_jasper = lambda_jasper
@@ -372,6 +377,7 @@ class JASPERMultiObjectiveLoss(nn.Module):
         return total, loss_dict
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return (
             f"JASPERMultiObjectiveLoss("
             f"λ_jasper={self.lambda_jasper}, "

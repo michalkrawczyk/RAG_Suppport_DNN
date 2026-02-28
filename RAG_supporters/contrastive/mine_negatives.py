@@ -643,8 +643,7 @@ def mine_negatives(
     random_seed: int = 42,
     show_progress: bool = True,
 ) -> Dict[str, torch.Tensor]:
-    """
-    Convenience function to mine negatives and save to disk.
+    """Mine negatives and save to disk.
 
     Parameters
     ----------

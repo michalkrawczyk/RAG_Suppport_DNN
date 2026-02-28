@@ -30,6 +30,7 @@ class RoutingLoss(nn.Module):
     """
 
     def __init__(self, weight: float = 1.0, label_smoothing: float = 0.0) -> None:
+        """Initialize RoutingLoss."""
         super().__init__()
         if not (0.0 <= label_smoothing < 1.0):
             raise ValueError(f"label_smoothing must be in [0, 1), got {label_smoothing}")
@@ -106,6 +107,7 @@ class EntropyRegularization(nn.Module):
         weight: float = 0.1,
         eps: float = 1e-8,
     ) -> None:
+        """Initialize EntropyRegularization."""
         super().__init__()
         if entropy_low < 0:
             raise ValueError(f"entropy_low must be >= 0, got {entropy_low}")
@@ -193,6 +195,7 @@ class ResidualPenalty(nn.Module):
     """
 
     def __init__(self, margin: float = 1.0, weight: float = 0.1) -> None:
+        """Initialize ResidualPenalty."""
         super().__init__()
         if margin <= 0:
             raise ValueError(f"margin must be > 0, got {margin}")
@@ -245,6 +248,7 @@ class DisentanglementLoss(nn.Module):
     """
 
     def __init__(self, weight: float = 0.01, eps: float = 1e-4) -> None:
+        """Initialize DisentanglementLoss."""
         super().__init__()
         self.weight = weight
         self.eps = eps

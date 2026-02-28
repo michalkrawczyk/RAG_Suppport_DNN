@@ -687,7 +687,7 @@ def generate_embeddings(
     validate: bool = True,
     on_empty_keywords: str = "none",
 ) -> Dict[str, Optional[torch.Tensor]]:
-    """Convenience function to generate and optionally save embeddings.
+    """Generate and optionally save embeddings for a DataFrame.
 
     Parameters
     ----------

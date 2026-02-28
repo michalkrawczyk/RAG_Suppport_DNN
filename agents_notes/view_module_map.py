@@ -288,8 +288,7 @@ def view(
     limit_file: str | None = None,
     output_json: bool = False,
 ) -> str:
-    """Return a string representation of *module_map* filtered and annotated
-    according to the supplied options.
+    """Return a formatted string of *module_map* filtered by the supplied options.
 
     Parameters
     ----------
@@ -420,6 +419,7 @@ Examples
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Run the view-module-map CLI."""
     parser = _build_parser()
     args = parser.parse_args(argv)
 

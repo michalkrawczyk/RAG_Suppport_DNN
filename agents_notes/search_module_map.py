@@ -464,6 +464,7 @@ Examples:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Run the search-module-map CLI."""
     parser = _build_parser()
     args = parser.parse_args(argv)
 
