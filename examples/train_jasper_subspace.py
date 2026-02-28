@@ -508,6 +508,14 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="L2-normalise embeddings during the build step.",
     )
+    build.add_argument(
+        "--build-storage-format",
+        type=str,
+        default="pt",
+        choices=["pt", "hdf5"],
+        dest="build_storage_format",
+        help='Storage format for the built dataset: "pt" (PyTorch tensors, default) or "hdf5".',
+    )
     return parser.parse_args()
 
 
@@ -560,6 +568,7 @@ def main() -> None:
             n_neg=args.build_n_neg,
             normalize_embeddings=args.build_normalize_embeddings,
             embedding_batch_size=args.build_embedding_batch_size,
+            storage_format=args.build_storage_format,
         )
         LOGGER.info("Step 0: Dataset build complete.")
 
