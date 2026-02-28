@@ -131,6 +131,7 @@ class SubspaceJASPERTrainer(JASPERTrainer):
         reload_negatives_every_n_epochs: int = 0,
         **kwargs: Any,
     ) -> None:
+        """Initialize SubspaceJASPERTrainer."""
         super().__init__(**kwargs)
 
         self.routing_loss_fn = routing_loss_fn
@@ -297,7 +298,7 @@ class SubspaceJASPERTrainer(JASPERTrainer):
         return str(out_path)
 
     def fit(self, num_epochs: int, start_epoch: int = 0) -> List[Dict[str, float]]:
-        """Override fit() to add XAI export after select epochs.
+        """Extend training loop with periodic XAI export after select epochs.
 
         Args:
             num_epochs: Number of epochs to train.
@@ -383,6 +384,7 @@ class SubspaceJASPERTrainer(JASPERTrainer):
 
 
 def load_config(config_path: str | Path) -> dict:
+    """Load a YAML config file and return its contents as a dict."""
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
@@ -438,6 +440,7 @@ def build_warmup_scheduler(
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for subspace JASPER training."""
     parser = argparse.ArgumentParser(
         description="Train Subspace-Routed JASPER Predictor",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -520,6 +523,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run subspace JASPER training end-to-end."""
     args = parse_args()
 
     if args.debug:

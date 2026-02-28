@@ -536,9 +536,8 @@ def merge_csv_files(
     suggestion_types: Optional[List[str]] = None,
     topic_min_probability: float = DEFAULT_TOPIC_MIN_PROBABILITY,
 ) -> pd.DataFrame:
-    """Convenience function to merge CSV files.
+    """Merge CSV files preserving many-to-many question-source relationships.
 
-    Preserves many-to-many relationships between questions and sources.
     Only exact duplicate pairs (same question + same source) are merged.
 
     Parameters

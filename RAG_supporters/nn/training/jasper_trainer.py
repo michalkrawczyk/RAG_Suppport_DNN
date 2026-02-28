@@ -60,6 +60,7 @@ class JASPERTrainerConfig:
 
     @classmethod
     def from_dict(cls, d: dict) -> "JASPERTrainerConfig":
+        """Create instance from a configuration dictionary."""
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
@@ -108,6 +109,7 @@ class JASPERTrainer:
         scheduler: Optional[_LRScheduler] = None,
         monitor: Optional[Any] = None,  # TrainingMonitor (avoids circular import)
     ) -> None:
+        """Initialize JASPERTrainer."""
         if isinstance(config, dict):
             config = JASPERTrainerConfig.from_dict(config)
         self.config = config

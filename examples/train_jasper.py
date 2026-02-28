@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone JASPER training script — real dataset, no YAML required.
+r"""Standalone JASPER training script — real dataset, no YAML required.
 
 All hyperparameters are defined inline as Python dicts. Override any of them
 via CLI flags. The only required argument is ``--dataset-dir``.
@@ -162,8 +162,7 @@ def build_warmup_scheduler(
 
 
 class JASPERTrainerWithReload(JASPERTrainer):
-    """JASPERTrainer that supports periodic hard-negative reload and correct
-    curriculum epoch offsets when resuming from a checkpoint.
+    """JASPERTrainer with periodic hard-negative reload and curriculum epoch offsets.
 
     Args:
         reload_negatives_every_n_epochs: Call ``dataset.reload_negatives()``
@@ -180,11 +179,13 @@ class JASPERTrainerWithReload(JASPERTrainer):
         epoch_offset: int = 0,
         **kwargs,
     ) -> None:
+        """Initialize JASPERTrainerWithReload."""
         super().__init__(**kwargs)
         self.reload_negatives_every_n_epochs = reload_negatives_every_n_epochs
         self.epoch_offset = epoch_offset
 
     def train_epoch(self, epoch: int) -> dict:
+        """Run one training epoch with hard-negative reload support."""
         abs_epoch = epoch + self.epoch_offset
         if (
             self.reload_negatives_every_n_epochs > 0
@@ -203,6 +204,7 @@ class JASPERTrainerWithReload(JASPERTrainer):
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for Phase 1 JASPER training."""
     p = argparse.ArgumentParser(
         description="Phase 1 JASPER training (JASPERPredictor, real dataset)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -303,6 +305,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run Phase 1 JASPER training end-to-end."""
     args = parse_args()
 
     if args.debug:

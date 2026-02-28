@@ -447,7 +447,7 @@ def finalize_dataset(
     clustering_source: Optional[Union[str, Path]] = None,
     save: bool = True,
 ) -> BuildConfig:
-    """Convenience function for dataset finalization.
+    """Finalize the dataset.
 
     Parameters
     ----------

@@ -63,6 +63,7 @@ class DecomposedJASPERConfig:
     fine_input_mode: str = "concat"  # "concat" | "add"
 
     def __post_init__(self) -> None:
+        """Post-init validation and derived attribute setup."""
         if self.fine_input_mode not in ("concat", "add"):
             raise ValueError(
                 f"fine_input_mode must be 'concat' or 'add', got '{self.fine_input_mode}'"
@@ -120,6 +121,7 @@ class DecomposedJASPERPredictor(nn.Module):
     """
 
     def __init__(self, config: DecomposedJASPERConfig | dict) -> None:
+        """Initialize DecomposedJASPERPredictor."""
         super().__init__()
 
         if isinstance(config, dict):
@@ -348,6 +350,7 @@ class DecomposedJASPERPredictor(nn.Module):
         )
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return (
             f"DecomposedJASPERPredictor(embedding_dim={self.config.embedding_dim}, "
             f"hidden_dim={self.config.hidden_dim}, "

@@ -76,6 +76,7 @@ class TrainingMonitor:
         wandb_name: Optional[str] = None,
         wandb_config: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """Initialize TrainingMonitor."""
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -322,6 +323,7 @@ class TrainingMonitor:
         return len(self.history)
 
     def __repr__(self) -> str:
+        """Return string representation."""
         wandb_status = "enabled" if self._wandb_run is not None else "disabled"
         return (
             f"TrainingMonitor(epochs_logged={self.num_epochs_logged}, "

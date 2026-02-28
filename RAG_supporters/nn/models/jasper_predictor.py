@@ -42,6 +42,7 @@ class JASPERPredictorConfig:
     normalize_output: bool = False
 
     def __post_init__(self) -> None:
+        """Post-init validation and derived attribute setup."""
         if self.num_layers < 1:
             raise ValueError(f"num_layers must be >= 1, got {self.num_layers}")
         if not (0.0 <= self.dropout < 1.0):
@@ -134,6 +135,7 @@ class JASPERPredictor(nn.Module):
     """
 
     def __init__(self, config: JASPERPredictorConfig | dict) -> None:
+        """Initialize JASPERPredictor."""
         super().__init__()
 
         if isinstance(config, dict):
@@ -250,6 +252,7 @@ class JASPERPredictor(nn.Module):
         )
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return (
             f"JASPERPredictor(embedding_dim={self.config.embedding_dim}, "
             f"hidden_dim={self.config.hidden_dim}, "

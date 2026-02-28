@@ -72,6 +72,7 @@ class DatasetSplitter:
         # Simple mode options
         shuffle: bool = True,
     ) -> None:
+        """Initialize DatasetSplitter."""
         # --- mode resolution ---
         if mode is None:
             mode = "stratified" if pair_indices is not None else "simple"

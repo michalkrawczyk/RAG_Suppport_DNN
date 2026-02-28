@@ -50,6 +50,7 @@ class EMAEncoder(nn.Module):
         tau_max: float = 0.999,
         schedule: str = "cosine",
     ) -> None:
+        """Initialize EMAEncoder."""
         super().__init__()
 
         if not (0.0 < tau_min <= tau_max < 1.0):
@@ -204,6 +205,7 @@ class EMAEncoder(nn.Module):
         }
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return (
             f"EMAEncoder(tau_min={self.tau_min}, tau_max={self.tau_max}, "
             f"schedule='{self.schedule}')"
