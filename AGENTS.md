@@ -50,6 +50,7 @@ See [agents_notes/module_notes/agents_overview.md](agents_notes/module_notes/age
 | [coding_guidelines/pr_and_conventions.md](agents_notes/coding_guidelines/pr_and_conventions.md) | Preparing a PR, naming a branch/commit, processing `#@agent` flags |
 | [documentation_guidelines/documentation_guidelines.md](agents_notes/documentation_guidelines/documentation_guidelines.md) | Adding/modifying agents or modules, or PRs that change file structure |
 | [module_reference.md](agents_notes/module_reference.md) | Working on `nn/`, `pytorch_datasets/`, `jasper/`, or `contrastive/` code |
+| [coding_guidelines/nn_coding_rules.md](agents_notes/coding_guidelines/nn_coding_rules.md) | Writing or reviewing `nn/`, `pytorch_datasets/`, `jasper/`, or `contrastive/` code |
 | [module_notes/agents_overview.md](agents_notes/module_notes/agents_overview.md) | Looking up agent names, purposes, or agent rules |
 
 ## Testing

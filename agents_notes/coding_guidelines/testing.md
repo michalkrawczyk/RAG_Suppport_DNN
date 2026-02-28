@@ -5,7 +5,7 @@
 - **Every agent and significant feature must have a test file** in `tests/test_<agent_name>.py`
 - All tests must pass before merging — run `pytest tests/ -x`
 - Mock **all** LLM calls; tests must run without API keys
-- Target 100% coverage for public methods
+- Target coverage: **≥90%** Dataset classes, **≥80%** model classes, **≥70%** training utilities; 100% for all public agent methods
 
 ## Test File Structure
 

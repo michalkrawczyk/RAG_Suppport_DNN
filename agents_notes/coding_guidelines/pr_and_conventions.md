@@ -17,7 +17,7 @@ Before submitting a PR, verify all items:
 - [ ] Prompts stored in `prompts_templates/`, not inline
 
 **Architecture**
-- [ ] Architecture boundaries respected (see [architecture.md](architecture.md))
+- [ ] Architecture boundaries respected (see [agent_architecture.md](agent_architecture.md), [nn_coding_rules.md](nn_coding_rules.md) for nn/dataset code)
 - [ ] Agent added to `RAG_supporters/agents/__init__.py` exports
 
 **Documentation**
