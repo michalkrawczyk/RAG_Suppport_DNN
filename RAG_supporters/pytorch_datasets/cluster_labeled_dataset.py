@@ -112,9 +112,7 @@ class ClusterLabeledDataset(Dataset):
         """Return dataset size."""
         return self._dataset_size
 
-    def __getitem__(
-        self, idx: int
-    ) -> Union[
+    def __getitem__(self, idx: int) -> Union[
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Dict[str, Any]],
     ]:

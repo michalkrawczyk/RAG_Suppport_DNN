@@ -576,12 +576,12 @@ class TopicDistanceCalculator:
 
             # Fill in only the processed rows
             for i in range(last_processed_idx + 1):
-                df_partial.at[
-                    df_partial.index[i], "question_term_distance_scores"
-                ] = question_distance_scores[i]
-                df_partial.at[
-                    df_partial.index[i], "source_term_distance_scores"
-                ] = source_distance_scores[i]
+                df_partial.at[df_partial.index[i], "question_term_distance_scores"] = (
+                    question_distance_scores[i]
+                )
+                df_partial.at[df_partial.index[i], "source_term_distance_scores"] = (
+                    source_distance_scores[i]
+                )
 
             if save_on_interrupt and output_path:
                 # Save to output path directly (overwrite)
