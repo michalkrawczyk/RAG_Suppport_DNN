@@ -34,7 +34,7 @@ tests/                   # 27+ unit test files (one per agent/module)
 docs/                    # Per-module documentation
 examples/                # Training scripts
 agents_notes/            # Project tooling, coding guidelines, module map
-agent_ignore/            # Git-ignored generated artifacts (module_map.json)
+agent_ignore/            # (Never use that) Ignored files and artifacts 
 dependencies/            # Modular requirements files
 ```
 
@@ -52,9 +52,6 @@ See [agents_notes/module_notes/agents_overview.md](agents_notes/module_notes/age
 | [module_reference.md](agents_notes/module_reference.md) | Working on `nn/`, `pytorch_datasets/`, `jasper/`, or `contrastive/` code |
 | [module_notes/agents_overview.md](agents_notes/module_notes/agents_overview.md) | Looking up agent names, purposes, or agent rules |
 
-
-- **Backward compatibility code is not added by default** — ask the user before implementing it.
-
 ## Testing
 
 See [testing.md](agents_notes/coding_guidelines/testing.md). After any changes: `python agents_notes/generate_module_map.py`
@@ -70,6 +67,6 @@ python agents_notes/search_module_map.py process_dataframe --type method
 
 See [agents_notes/MODULE_MAP_USAGE.md](agents_notes/MODULE_MAP_USAGE.md). Regenerate if missing: `python agents_notes/generate_module_map.py`
 
----
-
-**Last Updated**: February 24, 2026
+# **Backward compatibility code is not added by default** — ask the user before implementing it.
+# Try to be precise and concise in responses
+# Avoid code snippets when planning
