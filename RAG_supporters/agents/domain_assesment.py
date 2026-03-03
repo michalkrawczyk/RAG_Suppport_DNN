@@ -22,6 +22,7 @@ try:
 
     from RAG_supporters.prompts_templates.domain_extraction import (
         QUESTION_TOPIC_RELEVANCE_PROB_PROMPT,
+        QUESTION_GROUP_TOPIC_RELEVANCE_PROB_PROMPT,
         QUESTION_DOMAIN_ASSESS_PROMPT,
         QUESTION_DOMAIN_GUESS_PROMPT,
         SRC_DOMAIN_EXTRACTION_PROMPT,
@@ -36,6 +37,9 @@ try:
         ASSESS = "assess"  # Assess question against available terms
         TOPIC_RELEVANCE_PROB = (
             "topic_relevance_prob"  # Assess question-topic relevance probabilities
+        )
+        GROUP_TOPIC_RELEVANCE_PROB = (
+            "group_topic_relevance_prob"  # Assess question relevance to grouped clusters
         )
 
     # Pydantic Models
@@ -147,6 +151,52 @@ try:
                 self.total_topics = len(self.topic_scores)
             return self
 
+    class GroupTopicRelevance(BaseModel):
+        """Model for a single cluster/group with its descriptors and relevance probability.
+
+        Note: Used for GROUP_TOPIC_RELEVANCE_PROB mode with cluster-based topic grouping.
+        """
+
+        cluster_id: Union[int, str] = Field(
+            ..., description="Cluster ID or label (can be int or string)"
+        )
+        descriptors: List[str] = Field(
+            ..., description="Topic descriptors belonging to this cluster"
+        )
+        probability: float = Field(
+            ..., ge=0.0, le=1.0, description="Probability that question belongs to this cluster (0-1)"
+        )
+        reason: Optional[str] = Field(
+            None, description="Optional explanation for this probability"
+        )
+
+    class GroupTopicRelevanceResult(BaseModel):
+        """Result for grouped topic relevance assessment.
+
+        Note: Designed to work with clustered descriptors from KeywordClusterer
+        (RAG_supporters/clustering/keyword_clustering.py). Groups descriptors by
+        cluster and assigns probability to each group/cluster.
+        """
+
+        question_text: str = Field(..., description="The question being assessed")
+        group_probs: List[GroupTopicRelevance] = Field(
+            ..., description="List of clusters with their probabilities"
+        )
+        total_groups: int = Field(..., ge=0, description="Total number of groups assessed")
+        question_summary: Optional[str] = Field(
+            None, description="Brief summary of the question's main topic (optional)"
+        )
+
+        @model_validator(mode="after")
+        def validate_group_probs_length(self):
+            """Ensure total_groups matches the length of group_probs list."""
+            if self.total_groups != len(self.group_probs):
+                LOGGER.warning(
+                    f"total_groups mismatch: {self.total_groups} vs {len(self.group_probs)}, correcting"
+                )
+                self.total_groups = len(self.group_probs)
+            return self
+
     class AgentState(BaseModel):
         """State for the LangGraph domain analysis agent."""
 
@@ -155,12 +205,14 @@ try:
         question: Optional[str] = None
         available_terms: Optional[str] = None  # JSON string of available terms
         topic_descriptors: Optional[str] = None  # JSON string of topic descriptors
+        cluster_data: Optional[str] = None  # JSON string of cluster data with cluster_stats
         result: Optional[
             Union[
                 DomainExtractionResult,
                 DomainGuessResult,
                 DomainAssessmentResult,
                 QuestionTopicRelevanceResult,
+                GroupTopicRelevanceResult,
             ]
         ] = None
         error: Optional[str] = None
@@ -195,7 +247,7 @@ try:
                 Default batch size for batch processing. Default is 10.
             include_reason : bool, optional
                 If True, include reasoning explanations in topic relevance assessments.
-                (For now) Only applies to assess_topic_relevance_prob operations (TOPIC_RELEVANCE_PROB mode).
+                Applies to assess_topic_relevance_prob and assess_group_topic_relevance_prob operations.
                 Default is False.
             """
             self.llm = llm
@@ -210,6 +262,9 @@ try:
             self.topic_relevance_prob_parser = PydanticOutputParser(
                 pydantic_object=QuestionTopicRelevanceResult
             )
+            self.group_topic_relevance_prob_parser = PydanticOutputParser(
+                pydantic_object=GroupTopicRelevanceResult
+            )
 
             # Set up fixing parsers
             self.extraction_fixing_parser = OutputFixingParser.from_llm(
@@ -223,6 +278,9 @@ try:
             )
             self.topic_relevance_prob_fixing_parser = OutputFixingParser.from_llm(
                 parser=self.topic_relevance_prob_parser, llm=self.llm
+            )
+            self.group_topic_relevance_prob_fixing_parser = OutputFixingParser.from_llm(
+                parser=self.group_topic_relevance_prob_parser, llm=self.llm
             )
 
             # Create prompt templates
@@ -241,6 +299,11 @@ try:
                 QUESTION_TOPIC_RELEVANCE_PROB_PROMPT(include_reason=self.include_reason),
                 ["question", "topic_descriptors"],
                 self.topic_relevance_prob_parser,
+            )
+            self.group_topic_relevance_prob_template = self._create_prompt_template(
+                QUESTION_GROUP_TOPIC_RELEVANCE_PROB_PROMPT(include_reason=self.include_reason),
+                ["question", "cluster_data"],
+                self.group_topic_relevance_prob_parser,
             )
 
             # Build the workflow graph
@@ -285,6 +348,11 @@ try:
                     self.topic_relevance_prob_parser,
                     self.topic_relevance_prob_fixing_parser,
                 )
+            elif mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB:
+                return (
+                    self.group_topic_relevance_prob_parser,
+                    self.group_topic_relevance_prob_fixing_parser,
+                )
             else:
                 raise ValueError(f"Unknown operation mode: {mode}")
 
@@ -298,6 +366,8 @@ try:
                 return self.assessment_template
             elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                 return self.topic_relevance_prob_template
+            elif mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB:
+                return self.group_topic_relevance_prob_template
             else:
                 raise ValueError(f"Unknown operation mode: {mode}")
 
@@ -348,6 +418,11 @@ try:
                     prompt = template.format(
                         question=state.question,
                         topic_descriptors=state.topic_descriptors,
+                    )
+                elif state.mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB:
+                    prompt = template.format(
+                        question=state.question,
+                        cluster_data=state.cluster_data,
                     )
 
                 LOGGER.debug(f"Sending prompt to LLM for mode: {state.mode}")
@@ -403,6 +478,7 @@ try:
                     OperationMode.GUESS: DomainGuessResult,
                     OperationMode.ASSESS: DomainAssessmentResult,
                     OperationMode.TOPIC_RELEVANCE_PROB: QuestionTopicRelevanceResult,
+                    OperationMode.GROUP_TOPIC_RELEVANCE_PROB: GroupTopicRelevanceResult,
                 }[state.mode]
 
                 if isinstance(state.result, expected_type):
@@ -617,6 +693,116 @@ try:
             raise ValueError(
                 f"Unsupported topic_descriptors format: {type(topic_descriptors)}. "
                 f"Expected list of strings, JSON string, file path, or KeywordClusterer dict."
+            )
+
+        def _prepare_cluster_data(
+            self, cluster_data: Union[Dict, str]
+        ) -> List[Dict[str, Any]]:
+            """Prepare cluster data in the format expected by GROUP_TOPIC_RELEVANCE_PROB prompt.
+
+            Transforms KeywordClusterer cluster_stats format into a list of cluster objects
+            with cluster_id and descriptors.
+
+            Parameters
+            ----------
+            cluster_data : Union[Dict, str]
+                Cluster data in KeywordClusterer format (dict or JSON file path)
+
+            Returns
+            -------
+            List[Dict[str, Any]]
+                List of cluster objects with structure:
+                [{"cluster_id": 0, "descriptors": ["desc1", "desc2"]}, ...]
+
+            Raises
+            ------
+            ValueError
+                If cluster_data format is invalid or missing required fields
+            """
+            import os
+
+            # Case 1: String input - could be JSON file path
+            if isinstance(cluster_data, str):
+                # Check if it's a file path
+                if os.path.isfile(cluster_data):
+                    LOGGER.info(f"Loading cluster data from file: {cluster_data}")
+                    try:
+                        with open(cluster_data, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        # Recursively parse the loaded data
+                        return self._prepare_cluster_data(data)
+                    except (
+                        OSError,
+                        IOError,
+                        json.JSONDecodeError,
+                        UnicodeDecodeError,
+                    ) as e:
+                        LOGGER.error(f"Failed to load file {cluster_data}: {e}")
+                        raise ValueError(f"Failed to load cluster data from file: {e}")
+
+                # Try to parse as JSON string
+                try:
+                    parsed = json.loads(cluster_data)
+                    return self._prepare_cluster_data(parsed)
+                except json.JSONDecodeError as e:
+                    raise ValueError(
+                        f"String is neither a valid file path nor valid JSON: {e}"
+                    )
+
+            # Case 2: Dict - must be KeywordClusterer format with cluster_stats
+            if isinstance(cluster_data, dict):
+                if "cluster_stats" not in cluster_data:
+                    raise ValueError(
+                        "cluster_data must contain 'cluster_stats' key with cluster information. "
+                        "Expected KeywordClusterer format with cluster_stats."
+                    )
+
+                cluster_list = []
+                for cluster_id, stats in cluster_data["cluster_stats"].items():
+                    if not isinstance(stats, dict):
+                        LOGGER.warning(
+                            f"Cluster {cluster_id} stats is not a dict, skipping"
+                        )
+                        continue
+
+                    if "topic_descriptors" not in stats:
+                        LOGGER.warning(
+                            f"Cluster {cluster_id} has no topic_descriptors, skipping"
+                        )
+                        continue
+
+                    descriptors = stats["topic_descriptors"]
+                    if not isinstance(descriptors, list):
+                        LOGGER.warning(
+                            f"Cluster {cluster_id} topic_descriptors is not a list, skipping"
+                        )
+                        continue
+
+                    # Convert cluster_id to int if it's a numeric string
+                    try:
+                        cluster_id_typed = int(cluster_id)
+                    except (ValueError, TypeError):
+                        cluster_id_typed = cluster_id
+
+                    cluster_list.append(
+                        {"cluster_id": cluster_id_typed, "descriptors": descriptors}
+                    )
+
+                if not cluster_list:
+                    raise ValueError(
+                        "No valid clusters found in cluster_stats. "
+                        "Ensure each cluster has 'topic_descriptors' as a list."
+                    )
+
+                LOGGER.info(
+                    f"Prepared {len(cluster_list)} clusters for grouped assessment"
+                )
+                return cluster_list
+
+            # Unknown format
+            raise ValueError(
+                f"Unsupported cluster_data format: {type(cluster_data)}. "
+                f"Expected KeywordClusterer dict with 'cluster_stats' or JSON file path."
             )
 
         # Public API methods
@@ -839,6 +1025,84 @@ try:
             LOGGER.error(f"Final error: {final_state.get('error')}")
             return None
 
+        def assess_group_topic_relevance_prob(
+            self,
+            question: str,
+            cluster_data: Union[Dict, str],
+        ) -> Optional[Dict[str, Any]]:
+            """
+            Assess relevance probabilities between a question and grouped topic clusters.
+
+            This method groups descriptors by their cluster assignments and assigns a
+            probability to each cluster/group. It's designed to work with KeywordClusterer
+            cluster_stats format.
+
+            Parameters
+            ----------
+            question : str
+                The question to analyze
+            cluster_data : Union[Dict, str]
+                Cluster data in KeywordClusterer format:
+                - Dict with 'cluster_stats': {"0": {"topic_descriptors": [...], ...}, ...}
+                - JSON file path containing the above structure
+
+            Returns
+            -------
+            Optional[Dict[str, Any]]
+                Dictionary with:
+                - question_text: The analyzed question
+                - group_probs: List of cluster probabilities with structure:
+                  [{"cluster_id": 0, "descriptors": [...], "probability": 0.85}, ...]
+                - total_groups: Number of clusters assessed
+                - question_summary: Optional brief summary (if include_reason=True)
+
+            Examples
+            --------
+            >>> # Example 1: KeywordClusterer dict
+            >>> clustering_data = {
+            ...     "cluster_stats": {
+            ...         "0": {"topic_descriptors": ["machine learning", "AI"], "size": 50},
+            ...         "1": {"topic_descriptors": ["databases", "SQL"], "size": 30}
+            ...     }
+            ... }
+            >>> result = agent.assess_group_topic_relevance_prob(
+            ...     "What is gradient descent?",
+            ...     clustering_data
+            ... )
+            >>> print(result["group_probs"][0]["cluster_id"])
+            0
+
+            >>> # Example 2: File path
+            >>> result = agent.assess_group_topic_relevance_prob(
+            ...     "What is gradient descent?",
+            ...     "path/to/keyword_clusters.json"
+            ... )
+            """
+            # Parse and prepare cluster data using helper method
+            cluster_list = self._prepare_cluster_data(cluster_data)
+
+            # Convert to JSON string for the agent
+            cluster_data_str = json.dumps(cluster_list, indent=2)
+
+            initial_state = AgentState(
+                mode=OperationMode.GROUP_TOPIC_RELEVANCE_PROB,
+                question=question,
+                cluster_data=cluster_data_str,
+                max_retries=self.max_retries,
+            )
+
+            final_state = self.graph.invoke(initial_state.model_dump())
+
+            result = self._extract_result_dict(final_state.get("result"))
+            if result is not None:
+                return result
+
+            LOGGER.error(
+                f"Failed to assess group topic relevance after {self.max_retries} retries"
+            )
+            LOGGER.error(f"Final error: {final_state.get('error')}")
+            return None
+
         def extract_domains_batch(
             self,
             text_sources: List[str],
@@ -1016,6 +1280,61 @@ try:
                 show_progress=show_progress,
             )
 
+        def assess_group_topic_relevance_prob_batch(
+            self,
+            questions: List[str],
+            cluster_data: Union[Dict, str],
+            batch_size: Optional[int] = None,
+            show_progress: bool = True,
+        ) -> List[Optional[Dict[str, Any]]]:
+            """
+            Assess grouped topic relevance for multiple questions against the same clusters.
+
+            Groups descriptors by their cluster assignments and assigns probabilities to
+            each cluster/group for each question. Cluster data is shared across all questions.
+
+            Parameters
+            ----------
+            questions : List[str]
+                List of questions to analyze
+            cluster_data : Union[Dict, str]
+                Cluster data (same for all questions). Supports:
+                - KeywordClusterer dict with 'cluster_stats'
+                - File path to KeywordClusterer JSON
+            batch_size : int, optional
+                Batch size for chunking. If None, uses self.batch_size
+            show_progress : bool, optional
+                Show progress bar. Default is True.
+
+            Returns
+            -------
+            List[Optional[Dict[str, Any]]]
+                List of grouped topic relevance results. Each result contains:
+                - question_text: The analyzed question
+                - group_probs: List of cluster probabilities
+                - total_groups: Number of clusters
+                - question_summary: Optional summary
+            """
+            if not self._is_openai_llm:
+                LOGGER.info("Batch processing not available, using sequential processing")
+                return [
+                    self.assess_group_topic_relevance_prob(q, cluster_data)
+                    for q in questions
+                ]
+
+            # Parse cluster_data once using helper method
+            cluster_list = self._prepare_cluster_data(cluster_data)
+            cluster_data_str = json.dumps(cluster_list, indent=2)
+
+            batch_size = batch_size or self.batch_size
+            return self._batch_process(
+                OperationMode.GROUP_TOPIC_RELEVANCE_PROB,
+                questions=questions,
+                cluster_data=cluster_data_str,
+                batch_size=batch_size,
+                show_progress=show_progress,
+            )
+
         def _batch_process(
             self,
             mode: OperationMode,
@@ -1023,6 +1342,7 @@ try:
             questions: Optional[List[str]] = None,
             available_terms: Optional[List[str]] = None,
             topic_descriptors: Optional[str] = None,
+            cluster_data: Optional[str] = None,
             batch_size: Optional[int] = None,
             show_progress: bool = True,
         ) -> List[Optional[Dict[str, Any]]]:
@@ -1036,15 +1356,17 @@ try:
             Parameters
             ----------
             mode : OperationMode
-                Operation mode (extract, guess, assess, or topic_relevance_prob)
+                Operation mode (extract, guess, assess, topic_relevance_prob, or group_topic_relevance_prob)
             text_sources : Optional[List[str]]
                 List of text sources for extraction mode
             questions : Optional[List[str]]
-                List of questions for guess/assess/topic_relevance_prob modes
+                List of questions for guess/assess/topic_relevance_prob/group_topic_relevance_prob modes
             available_terms : Optional[List[str]]
                 Available terms for assess mode (one per question)
             topic_descriptors : Optional[str]
                 Topic descriptors JSON string for topic_relevance_prob mode (shared across all questions)
+            cluster_data : Optional[str]
+                Cluster data JSON string for group_topic_relevance_prob mode (shared across all questions)
             batch_size : Optional[int]
                 Number of items to process in each batch
             show_progress : bool
@@ -1067,6 +1389,8 @@ try:
             elif mode == OperationMode.ASSESS:
                 total_items = len(questions)
             elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
+                total_items = len(questions)
+            elif mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB:
                 total_items = len(questions)
             else:
                 raise ValueError(f"Unknown mode: {mode}")
@@ -1128,6 +1452,16 @@ try:
                                 template.format(
                                     question=question,
                                     topic_descriptors=topic_descriptors,
+                                )
+                            )
+                    elif mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB:
+                        batch_questions = questions[batch_start:batch_end]
+                        # cluster_data is a single string shared across all questions
+                        for question in batch_questions:
+                            prompts.append(
+                                template.format(
+                                    question=question,
+                                    cluster_data=cluster_data,
                                 )
                             )
 
@@ -1205,6 +1539,11 @@ try:
                     return [
                         self.assess_topic_relevance_prob(q, topic_descriptors) for q in questions
                     ]
+                elif mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB:
+                    return [
+                        self.assess_group_topic_relevance_prob(q, cluster_data)
+                        for q in questions
+                    ]
 
             LOGGER.info(
                 f"Batch processing complete: {successful_parses} successful, "
@@ -1220,6 +1559,7 @@ try:
             question_col: Optional[str] = None,
             available_terms: Optional[Union[List[str], List[Dict], str]] = None,
             topic_descriptors: Optional[Union[List[str], List[Dict], str, Dict]] = None,
+            cluster_data: Optional[Union[Dict, str]] = None,
             progress_bar: bool = True,
             save_path: Optional[str] = None,
             skip_existing: bool = True,
@@ -1241,11 +1581,11 @@ try:
             df : pd.DataFrame
                 DataFrame to process
             mode : OperationMode
-                Operation mode (EXTRACT, GUESS, ASSESS, or TOPIC_RELEVANCE_PROB)
+                Operation mode (EXTRACT, GUESS, ASSESS, TOPIC_RELEVANCE_PROB, or GROUP_TOPIC_RELEVANCE_PROB)
             text_source_col : str, optional
                 Column name for text sources (required for EXTRACT mode)
             question_col : str, optional
-                Column name for questions (required for GUESS, ASSESS, and TOPIC_RELEVANCE_PROB modes)
+                Column name for questions (required for GUESS, ASSESS, TOPIC_RELEVANCE_PROB, and GROUP_TOPIC_RELEVANCE_PROB modes)
             available_terms : Union[List[str], List[Dict], str], optional
                 Available terms for ASSESS mode
             topic_descriptors : Union[List[str], List[Dict], str, Dict], optional
@@ -1254,6 +1594,10 @@ try:
                 - JSON string
                 - File path to KeywordClusterer JSON
                 - KeywordClusterer dict with 'clusters' or 'cluster_stats'
+            cluster_data : Union[Dict, str], optional
+                Cluster data for GROUP_TOPIC_RELEVANCE_PROB mode. Supports:
+                - KeywordClusterer dict with 'cluster_stats'
+                - File path to KeywordClusterer JSON
             progress_bar : bool, optional
                 Show progress bar. Default is True.
             save_path : str, optional
@@ -1285,16 +1629,19 @@ try:
                     OperationMode.GUESS,
                     OperationMode.ASSESS,
                     OperationMode.TOPIC_RELEVANCE_PROB,
+                    OperationMode.GROUP_TOPIC_RELEVANCE_PROB,
                 ]
                 and not question_col
             ):
                 raise ValueError(
-                    "question_col required for GUESS, ASSESS, and TOPIC_RELEVANCE_PROB modes"
+                    "question_col required for GUESS, ASSESS, TOPIC_RELEVANCE_PROB, and GROUP_TOPIC_RELEVANCE_PROB modes"
                 )
             if mode == OperationMode.ASSESS and available_terms is None:
                 raise ValueError("available_terms required for ASSESS mode")
             if mode == OperationMode.TOPIC_RELEVANCE_PROB and topic_descriptors is None:
                 raise ValueError("topic_descriptors required for TOPIC_RELEVANCE_PROB mode")
+            if mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB and cluster_data is None:
+                raise ValueError("cluster_data required for GROUP_TOPIC_RELEVANCE_PROB mode")
 
             # Get column prefix to avoid overwrites
             prefix = self._get_column_prefix(mode)
@@ -1326,6 +1673,16 @@ try:
                     "question_term_relevance_scores",  # Required name from specification
                     f"{prefix}_topic_scores",
                     f"{prefix}_total_topics",
+                    f"{prefix}_question_summary",
+                    f"{prefix}_error",
+                ]
+            elif mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB:
+                # Special column for cluster probabilities
+                result_columns = [
+                    "question_cluster_probs",  # Simplified cluster_id -> probability mapping
+                    f"{prefix}_question_text",
+                    f"{prefix}_group_probs",  # Full group details with descriptors
+                    f"{prefix}_total_groups",
                     f"{prefix}_question_summary",
                     f"{prefix}_error",
                 ]
@@ -1422,6 +1779,7 @@ try:
                     question_col,
                     available_terms,
                     topic_descriptors,
+                    cluster_data,
                     batch_size,
                     progress_bar,
                     save_path,
@@ -1438,6 +1796,7 @@ try:
                     question_col,
                     available_terms,
                     topic_descriptors,
+                    cluster_data,
                     progress_bar,
                     save_path,
                     checkpoint_batch_size,
@@ -1460,6 +1819,7 @@ try:
             question_col,
             available_terms,
             topic_descriptors,
+            cluster_data,
             batch_size,
             progress_bar,
             save_path,
@@ -1483,6 +1843,8 @@ try:
                 all_inputs = [row[question_col] for row in rows]
             elif mode == OperationMode.TOPIC_RELEVANCE_PROB:
                 all_inputs = [row[question_col] for row in rows]
+            elif mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB:
+                all_inputs = [row[question_col] for row in rows]
 
             try:
                 # Call the appropriate batch method (which handles chunking and progress)
@@ -1505,6 +1867,13 @@ try:
                     batch_results = self.assess_topic_relevance_prob_batch(
                         all_inputs,
                         topic_descriptors,
+                        batch_size=batch_size,
+                        show_progress=progress_bar,
+                    )
+                elif mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB:
+                    batch_results = self.assess_group_topic_relevance_prob_batch(
+                        all_inputs,
+                        cluster_data,
                         batch_size=batch_size,
                         show_progress=progress_bar,
                     )
@@ -1599,6 +1968,7 @@ try:
             question_col,
             available_terms,
             topic_descriptors,
+            cluster_data,
             progress_bar,
             save_path,
             checkpoint_size,
@@ -1609,6 +1979,9 @@ try:
             if mode == OperationMode.TOPIC_RELEVANCE_PROB and topic_descriptors is not None:
                 LOGGER.info("Pre-parsing topic descriptors to avoid repeated file loading")
                 parsed_data["topic_descriptors"] = self._parse_topic_descriptors(topic_descriptors)
+            if mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB and cluster_data is not None:
+                LOGGER.info("Pre-parsing cluster data to avoid repeated file loading")
+                parsed_data["cluster_data"] = self._prepare_cluster_data(cluster_data)
 
             iterator = (
                 tqdm(zip(indices, rows), total=len(rows), desc="Processing rows")
@@ -1632,6 +2005,11 @@ try:
                         # Use pre-parsed descriptors to avoid repeated file loading
                         result = self.assess_topic_relevance_prob(
                             row[question_col], parsed_data["topic_descriptors"]
+                        )
+                    elif mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB:
+                        # Use pre-parsed cluster data to avoid repeated file loading
+                        result = self.assess_group_topic_relevance_prob(
+                            row[question_col], parsed_data["cluster_data"]
                         )
 
                     if result is not None:
@@ -1669,6 +2047,26 @@ try:
                                 result["topic_scores"]
                             )
                             result_df.at[idx, f"{prefix}_total_topics"] = result["total_topics"]
+                            # question_summary is optional
+                            if result.get("question_summary"):
+                                result_df.at[idx, f"{prefix}_question_summary"] = result[
+                                    "question_summary"
+                                ]
+                        elif mode == OperationMode.GROUP_TOPIC_RELEVANCE_PROB:
+                            # Store complete result
+                            result_df.at[idx, f"{prefix}_question_text"] = result["question_text"]
+                            result_df.at[idx, f"{prefix}_group_probs"] = str(
+                                result["group_probs"]
+                            )
+                            result_df.at[idx, f"{prefix}_total_groups"] = result["total_groups"]
+                            # Create simplified cluster probability mapping
+                            cluster_probs = {
+                                str(grp["cluster_id"]): grp["probability"]
+                                for grp in result["group_probs"]
+                            }
+                            result_df.at[idx, "question_cluster_probs"] = json.dumps(
+                                cluster_probs
+                            )
                             # question_summary is optional
                             if result.get("question_summary"):
                                 result_df.at[idx, f"{prefix}_question_summary"] = result[
